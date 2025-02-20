@@ -1,8 +1,8 @@
-# Ignorar node_modules del directorio back
+Ignorar node_modules del directorio back
 back/node_modules
 
-# Ignorar node_modules del directorio from
+Ignorar node_modules del directorio from
 from/node_modules
 
-# Ignorar geth
+Ignorar geth
 nodo/datos/geth
