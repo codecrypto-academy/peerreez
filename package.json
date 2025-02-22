@@ -1,0 +1,12 @@
+{
+  "name": "web2.5-sql",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:codecrypto-academy/peerreez.git",
+  "author": "peerreez <dperezsx@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "mysql8": "^2.17.3",
+    "pg": "^8.13.3"
+  }
+}
