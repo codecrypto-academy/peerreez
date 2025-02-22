@@ -8,6 +8,7 @@
   "dependencies": {
     "mssql": "^11.0.1",
     "mysql8": "^2.17.3",
+    "oracledb": "^6.7.2",
     "pg": "^8.13.3"
   }
 }
