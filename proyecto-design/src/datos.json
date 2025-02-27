@@ -1,0 +1,97 @@
+{
+    "header": {
+        "nombre": "My Company",
+        "links": [
+            {
+                "texto": "blog",
+                "url": "http://blog.com"
+            },
+            {
+                "texto": "Youtube",
+                "url": "http://youtube.com"
+            }
+        ]
+    },
+    "precios": [
+        {
+            "titulo": "Basic Plan",
+            "precio": "$0",
+            "por": "month",
+            "textBoton": "Start for Free",
+            "features": [
+                "Up to 10 users",
+                "2GB of storage",
+                "Email support",
+                "Access to the Crypto Help Center"
+            ]
+        },
+        {
+            "titulo": "Pro Plan",
+            "precio": "$29",
+            "por": "month",
+            "textBoton": "Try Pro for Free",
+            "features": [
+                "Up to 50 users",
+                "10GB of storage",
+                "Priority email support",
+                "Crypto Help Center & Live Chat"
+            ]
+        },
+        {
+            "titulo": "Enterprise Plan",
+            "precio": "$99",
+            "por": "month",
+            "textBoton": "Contact Us for Pricing",
+            "features": [
+                "Unlimited users",
+                "100GB of storage",
+                "Dedicated account manager",
+                "24/7 support"
+            ]
+        }
+    ],
+    "footer": [
+        {
+            "titulo": "Social",
+            "links": [
+                {
+                    "titulo": "Facebook",
+                    "url": "http://facebook.com"
+                },
+                {
+                    "titulo": "Twitter",
+                    "url": "http://twitter.com"
+                },
+                {
+                    "titulo": "Youtube",
+                    "url": "http://youtube.com"
+                },
+                {
+                    "titulo": "Instagram",
+                    "url": "http://yinstagram.com"
+                }
+            ]
+        },
+        {
+            "titulo": "Help",
+            "links": [
+                {
+                    "titulo": "Contact",
+                    "url": "http://contact.com"
+                },
+                {
+                    "titulo": "Email",
+                    "url": "http://email.com"
+                },
+                {
+                    "titulo": "Privacy",
+                    "url": "http://privacy.com"
+                },
+                {
+                    "titulo": "Team and Conditions",
+                    "url": "http://teamconditions.com"
+                }
+            ]
+        }
+    ]
+}
