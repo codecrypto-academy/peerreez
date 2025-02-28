@@ -1,0 +1,14 @@
+{
+  "name": "web2.5-cripto",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:codecrypto-academy/peerreez.git",
+  "author": "peerreez <dperezsx@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "cripto": "^1.1.4",
+    "crypto": "^1.0.1",
+    "fs": "^0.0.1-security",
+    "yargs": "^17.7.2"
+  }
+}
