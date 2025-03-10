@@ -1,0 +1,6 @@
+nodo1/geth
+nodo2/geth
+nodo3/geth
+nodo4/geth
+node_modules
+.env
