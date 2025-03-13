@@ -48,6 +48,9 @@ cat > networks/besu-network/genesis.json << EOF
   "alloc": {
     "$(cat networks/besu-network/bootnode/address)": {
       "balance": "0x20000000000000000000000000000000000000000000000000000000000000"
+    },
+    "0xCB7291CAAa10683f2E8761F1e8d50F66713267D2": {
+      "balance": "0x20000000000000000000000000000000000000000000000000000000000000"
     }
   }
 }

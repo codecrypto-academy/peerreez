@@ -1,9 +1,10 @@
-'use client'
+import TransferForm from '@/components/TransferForm'
 
-export default function Transfer() {
+export default function TransferPage() {
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Transfer Page</h1>
+    <div className="max-w-md mx-auto mt-10 p-6">
+      <h1 className="text-2xl font-bold mb-6">Transferir ETH</h1>
+      <TransferForm />
     </div>
-  );
+  )
 } 
