@@ -1,0 +1,138 @@
+certificateAuthorities:
+  ord-ca.default:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICXTCCAgOgAwIBAgIRAMTNRdjgOHoWK6BN8qBrUyQwCgYIKoZIzj0EAwIwUjET
+        MBEGA1UEBhMKQ2FsaWZvcm5pYTEJMAcGA1UEBxMAMQkwBwYDVQQJEwAxFDASBgNV
+        BAoTC0h5cGVybGVkZ2VyMQ8wDQYDVQQLEwZGYWJyaWMwHhcNMjUwNjA2MDgyNTUz
+        WhcNMzUwNjA3MDgyNTUzWjBSMRMwEQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQH
+        EwAxCTAHBgNVBAkTADEUMBIGA1UEChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZh
+        YnJpYzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABF+fckICyWU7bcQsYVZMUYCS
+        WILRUKJ2AyTLtrsuYe0/SO5kG4P3TNIcgLfOYaqTh9eZUU25bD5dQkcvFP0Lnvuj
+        gbkwgbYwDgYDVR0PAQH/BAQDAgGmMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEF
+        BQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdDgQiBCBSsWNwrwyHOLCLgFBiqdo1
+        LxJyMPOV6Ex0fb/DwZezczBJBgNVHREEQjBAgglsb2NhbGhvc3SCBm9yZC1jYYIO
+        b3JkLWNhLmRlZmF1bHSCFW5mdC1vcmQtY2EubG9jYWxoby5zdIcEfwAAATAKBggq
+        hkjOPQQDAgNIADBFAiBsPlzoJKvSMhIfH7Q0ybaPHTwCgGZ6xdTXYuw3rGrqJgIh
+        ANEWhUXdQJsKheKW9OXSSIa/x/LS5wrtzxxmvYtby8vq
+        -----END CERTIFICATE-----
+    url: https://nft-ord-ca.localho.st:443
+  org1-ca.default:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICXzCCAgWgAwIBAgIQf5tKg2Xb8rboX5LaqwRqnjAKBggqhkjOPQQDAjBSMRMw
+        EQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQHEwAxCTAHBgNVBAkTADEUMBIGA1UE
+        ChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZhYnJpYzAeFw0yNTA2MDYwODIyNTRa
+        Fw0zNTA2MDcwODIyNTRaMFIxEzARBgNVBAYTCkNhbGlmb3JuaWExCTAHBgNVBAcT
+        ADEJMAcGA1UECRMAMRQwEgYDVQQKEwtIeXBlcmxlZGdlcjEPMA0GA1UECxMGRmFi
+        cmljMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEtBdvI2WvPbKtVjVTwAaYfBF9
+        YORvlnWTcm473aW5+DaYKMamIuRCxZ2W3xZjQG2ewAc3EAex+Gl+zMNq+fWhE6OB
+        vDCBuTAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+        BwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEIKFmsfF7Pd0kewQ3Mu8FCtVn
+        JfAaeKoTmO4kNk1c4czeMEwGA1UdEQRFMEOCCWxvY2FsaG9zdIIHb3JnMS1jYYIP
+        b3JnMS1jYS5kZWZhdWx0ghZuZnQtb3JnMS1jYS5sb2NhbGhvLnN0hwR/AAABMAoG
+        CCqGSM49BAMCA0gAMEUCIQD7DKaAgD36kJEYh/zjtv3LEXj5Bj+VGh25SZl3PBa9
+        oQIgdxCHo+89dOFceYkug1iM+0ybxsmFRje2CV5xPahJENI=
+        -----END CERTIFICATE-----
+    url: https://nft-org1-ca.localho.st:443
+  org2-ca.default:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICYTCCAgagAwIBAgIRAPvvcDEmeEoqQ3PAYfLvGRUwCgYIKoZIzj0EAwIwUjET
+        MBEGA1UEBhMKQ2FsaWZvcm5pYTEJMAcGA1UEBxMAMQkwBwYDVQQJEwAxFDASBgNV
+        BAoTC0h5cGVybGVkZ2VyMQ8wDQYDVQQLEwZGYWJyaWMwHhcNMjUwNjA2MDgyNDUy
+        WhcNMzUwNjA3MDgyNDUyWjBSMRMwEQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQH
+        EwAxCTAHBgNVBAkTADEUMBIGA1UEChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZh
+        YnJpYzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABCojwvkem1BSMv/Yjri4jrnM
+        QqfamV6rqglh9TDR7iN1FA4Cq2LrUEzSk98zMSVyhnAd1baOmQ1YZtVvJnArHWij
+        gbwwgbkwDgYDVR0PAQH/BAQDAgGmMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEF
+        BQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdDgQiBCBvFyT4vIOSnnHIAdlN/33Q
+        knQM/D1aBlOCbNINjGxxmDBMBgNVHREERTBDgglsb2NhbGhvc3SCB29yZzItY2GC
+        D29yZzItY2EuZGVmYXVsdIIWbmZ0LW9yZzItY2EubG9jYWxoby5zdIcEfwAAATAK
+        BggqhkjOPQQDAgNJADBGAiEAoWIhXtKl04HTPNQCrf4XVqVRKQ2SrP4Hnw63TBEZ
+        nNgCIQDg099qam2/1Z+j60kw7NVLrjckM24u+CLMEchhHgD8YA==
+        -----END CERTIFICATE-----
+    url: https://nft-org2-ca.localho.st:443
+channels:
+  _default:
+    orderers:
+    - ord-node1.default
+    peers: {}
+client:
+  organization: <no value>
+name: hlf-network
+orderers:
+  ord-node1.default:
+    grpcOptions:
+      allow-insecure: false
+    tlsCACerts:
+      pem: |
+        -----BEGIN CERTIFICATE-----
+        MIICRjCCAeygAwIBAgIRAOzHrx23w9m9fa5fTKKze8cwCgYIKoZIzj0EAwIwbTEL
+        MAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGljYW50
+        ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEOMAwG
+        A1UEAxMFdGxzY2EwHhcNMjUwNjA2MDgyNTUzWhcNMzUwNjA3MDgyNTUzWjBtMQsw
+        CQYDVQQGEwJFUzERMA8GA1UEBxMIQWxpY2FudGUxETAPBgNVBAkTCEFsaWNhbnRl
+        MRkwFwYDVQQKExBLdW5nIEZ1IFNvZnR3YXJlMQ0wCwYDVQQLEwRUZWNoMQ4wDAYD
+        VQQDEwV0bHNjYTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFnSa09iT7e1UVCq
+        Dg8KH7xuLcxSxjISWgE4BOx366IqmaG2InGl9EAUlxW9+ps/8btVLxTcthx02MFN
+        JY2TB++jbTBrMA4GA1UdDwEB/wQEAwIBpjAdBgNVHSUEFjAUBggrBgEFBQcDAgYI
+        KwYBBQUHAwEwDwYDVR0TAQH/BAUwAwEB/zApBgNVHQ4EIgQg8m0VUJBafQNFoJc9
+        bjzH+EISfwoOmpbiAeYb8mnIeQMwCgYIKoZIzj0EAwIDSAAwRQIhAPn6gbg3WeA5
+        C6UJW+WMP6WF1rX05EeWcIAsllrl2J+AAiBhM/HWCzTx41KQ2xe0ykZXRARBRkDN
+        BjSDG8QyIFcxrQ==
+        -----END CERTIFICATE-----
+    url: grpcs://nft-orderer0-ord.localho.st:443
+organizations:
+  OrdererMSP:
+    cryptoPath: /tmp/cryptopath
+    mspid: OrdererMSP
+    orderers:
+    - ord-node1.default
+    peers: []
+    users:
+      admin:
+        cert:
+          pem: |
+            -----BEGIN CERTIFICATE-----
+            MIICUjCCAfmgAwIBAgIUNSwvHi18NgTfp8Lhx/2Bla+pkOcwCgYIKoZIzj0EAwIw
+            ajELMAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGlj
+            YW50ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEL
+            MAkGA1UEAxMCY2EwHhcNMjUwNjA2MDgyNTUzWhcNMjYwNjA3MDgyNzAwWjAgMQ4w
+            DAYDVQQLEwVhZG1pbjEOMAwGA1UEAxMFYWRtaW4wWTATBgcqhkjOPQIBBggqhkjO
+            PQMBBwNCAAQVmT18cjArxsOBgZmIkBwn1vDTqP5IeMLf2pdQQgOqTy1FZijeN5o+
+            etgg+N3SyZ3njwEouhnMp6A27txKTblso4HGMIHDMA4GA1UdDwEB/wQEAwIHgDAM
+            BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSZ6aIeqkORIjohVOnBuCbSl4/xlTArBgNV
+            HSMEJDAigCB14XRt6bb6scU+5fTw4mmQ1GQiahF8lPCLXdYUBvRHJTBXBggqAwQF
+            BgcIAQRLeyJhdHRycyI6eyJoZi5BZmZpbGlhdGlvbiI6IiIsImhmLkVucm9sbG1l
+            bnRJRCI6ImFkbWluIiwiaGYuVHlwZSI6ImFkbWluIn19MAoGCCqGSM49BAMCA0cA
+            MEQCIGxD6egC3C7A+8QzBktr/3ASR6J8jJqmJMZepKxyDu1KAiAUAG2CD50MAgYm
+            Jk6B5nOdzBuydVhzkWs+kXxQelZWxw==
+            -----END CERTIFICATE-----
+        key:
+          pem: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgVTFZ4kj1K02Owtd8
+            XEfxnB4HM3WvKiuqHKRqN2EBDA2hRANCAAQVmT18cjArxsOBgZmIkBwn1vDTqP5I
+            eMLf2pdQQgOqTy1FZijeN5o+etgg+N3SyZ3njwEouhnMp6A27txKTbls
+            -----END PRIVATE KEY-----
+peers: {}
+version: 1.0.0
