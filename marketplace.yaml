@@ -1,0 +1,283 @@
+certificateAuthorities:
+  marketplace-ca.marketplace:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICdDCCAhqgAwIBAgIQbmHTVqYZ8vVVvesib0kaDDAKBggqhkjOPQQDAjBSMRMw
+        EQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQHEwAxCTAHBgNVBAkTADEUMBIGA1UE
+        ChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZhYnJpYzAeFw0yNTA2MTgxNTA2NTJa
+        Fw0zNTA2MTkxNTA2NTJaMFIxEzARBgNVBAYTCkNhbGlmb3JuaWExCTAHBgNVBAcT
+        ADEJMAcGA1UECRMAMRQwEgYDVQQKEwtIeXBlcmxlZGdlcjEPMA0GA1UECxMGRmFi
+        cmljMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQPL/T4fUy3OOn/iPRk5mzsdx
+        NrnrplCtysFIrenvkw/0w8SF3m6ngGdzBG3jph3oBVxvCIYGXTovha0Ykf08DKOB
+        0TCBzjAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+        BwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEIG2O6MilSxyXZouQzWvSPWSf
+        9qvlCVH1DA4Ek+r+2QcTMGEGA1UdEQRaMFiCCWxvY2FsaG9zdIIObWFya2V0cGxh
+        Y2UtY2GCGm1hcmtldHBsYWNlLWNhLm1hcmtldHBsYWNlghltYXJrZXRwbGFjZS1j
+        YS5sb2NhbGhvLnN0hwR/AAABMAoGCCqGSM49BAMCA0gAMEUCIFK3PymdzSaEJD25
+        5KFBWZ8skcXTDu4hJsKbhOjtKCKhAiEAihD2CB5mjId5/kOQpTzEulm2oQe5k2IP
+        Hr0FMRwGg84=
+        -----END CERTIFICATE-----
+    url: https://marketplace-ca.localho.st:443
+  ord-ca.marketplace:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICaDCCAg6gAwIBAgIQGMdVTP+4kTiW/67hDXfrSDAKBggqhkjOPQQDAjBSMRMw
+        EQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQHEwAxCTAHBgNVBAkTADEUMBIGA1UE
+        ChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZhYnJpYzAeFw0yNTA2MTgxNTA5MzFa
+        Fw0zNTA2MTkxNTA5MzFaMFIxEzARBgNVBAYTCkNhbGlmb3JuaWExCTAHBgNVBAcT
+        ADEJMAcGA1UECRMAMRQwEgYDVQQKEwtIeXBlcmxlZGdlcjEPMA0GA1UECxMGRmFi
+        cmljMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEI5Z2hhE/Ex2gjFIZb28NPpxV
+        nr2OXH7S0jZV5NfCI/FypYEDm6PQTxyuSVtQ6cYKdfrTHAfk8YRF0ibvHANM4qOB
+        xTCBwjAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUF
+        BwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEIBMqVwyt1ETUnjMFhaoPnBWI
+        N6aG/70b1qhzyf7t3jgwMFUGA1UdEQROMEyCCWxvY2FsaG9zdIIGb3JkLWNhghJv
+        cmQtY2EubWFya2V0cGxhY2WCHW1hcmtldHBsYWNlLW9yZC1jYS5sb2NhbGhvLnN0
+        hwR/AAABMAoGCCqGSM49BAMCA0gAMEUCIQDfQAnpjoG/8Ra+hJaCPs4Az0SVQYVI
+        QXIY8W5LdkwZGwIgdIYVzqLBZe98xQcW4LTsuvWiIQo7Yrpq91m4kbHqyHU=
+        -----END CERTIFICATE-----
+    url: https://marketplace-ord-ca.localho.st:443
+  sony-ca.marketplace:
+    caName: ca
+    registrar:
+      enrollId: enroll
+      enrollSecret: enrollpw
+    tlsCACerts:
+      pem:
+      - |
+        -----BEGIN CERTIFICATE-----
+        MIICYDCCAgagAwIBAgIRALg4UeHIOPqqwtSH/mJIuQowCgYIKoZIzj0EAwIwUjET
+        MBEGA1UEBhMKQ2FsaWZvcm5pYTEJMAcGA1UEBxMAMQkwBwYDVQQJEwAxFDASBgNV
+        BAoTC0h5cGVybGVkZ2VyMQ8wDQYDVQQLEwZGYWJyaWMwHhcNMjUwNjE4MTUwODU3
+        WhcNMzUwNjE5MTUwODU3WjBSMRMwEQYDVQQGEwpDYWxpZm9ybmlhMQkwBwYDVQQH
+        EwAxCTAHBgNVBAkTADEUMBIGA1UEChMLSHlwZXJsZWRnZXIxDzANBgNVBAsTBkZh
+        YnJpYzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABBjLbvx0t0Kc2SVpkoGS2U/1
+        j8yTUps+OjvwW9rokSZ2Rd4JXwbdjTkae9ZX3j8q6cNy50+i+1JcRH+Ghb2fWWWj
+        gbwwgbkwDgYDVR0PAQH/BAQDAgGmMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEF
+        BQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdDgQiBCDfX5qmU+OXfQW2d2SvL4/Y
+        e/9MTBVbfBvJDn1jVnZaMDBMBgNVHREERTBDgglsb2NhbGhvc3SCB3NvbnktY2GC
+        E3NvbnktY2EubWFya2V0cGxhY2WCEnNvbnktY2EubG9jYWxoby5zdIcEfwAAATAK
+        BggqhkjOPQQDAgNIADBFAiEA8yBGoBO+QD2dZvXggM1c6wOdccpAlaQjI0JPwp/X
+        MIkCIGvEE6TroLh8syrZYdHr3DhYIJIvacoymWWxZyogLrhr
+        -----END CERTIFICATE-----
+    url: https://sony-ca.localho.st:443
+channels:
+  _default:
+    orderers:
+    - ord-node2.marketplace
+    peers:
+      marketplace-peer0.marketplace:
+        chaincodeQuery: true
+        discover: true
+        endorsingPeer: true
+        eventSource: true
+        ledgerQuery: true
+      sony-peer0.marketplace:
+        chaincodeQuery: true
+        discover: true
+        endorsingPeer: true
+        eventSource: true
+        ledgerQuery: true
+client:
+  organization: <no value>
+name: hlf-network
+orderers:
+  ord-node2.marketplace:
+    grpcOptions:
+      allow-insecure: false
+    tlsCACerts:
+      pem: |
+        -----BEGIN CERTIFICATE-----
+        MIICRTCCAeygAwIBAgIRAOZb9G1qul/rF6P6pVinzZswCgYIKoZIzj0EAwIwbTEL
+        MAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGljYW50
+        ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEOMAwG
+        A1UEAxMFdGxzY2EwHhcNMjUwNjE4MTUwOTMxWhcNMzUwNjE5MTUwOTMxWjBtMQsw
+        CQYDVQQGEwJFUzERMA8GA1UEBxMIQWxpY2FudGUxETAPBgNVBAkTCEFsaWNhbnRl
+        MRkwFwYDVQQKExBLdW5nIEZ1IFNvZnR3YXJlMQ0wCwYDVQQLEwRUZWNoMQ4wDAYD
+        VQQDEwV0bHNjYTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABIK8Po3PT7loBjqp
+        2hy/7I+gYry33XauWE48+eVZSizzy8fC2J/rSHdSYvBFikZwFQFPMb08bom2HtUH
+        VWn6/MajbTBrMA4GA1UdDwEB/wQEAwIBpjAdBgNVHSUEFjAUBggrBgEFBQcDAgYI
+        KwYBBQUHAwEwDwYDVR0TAQH/BAUwAwEB/zApBgNVHQ4EIgQgoi3SBk7w9gVTE4sk
+        nLzGVsnzKJWs9fXhjFJ+HqP4rlwwCgYIKoZIzj0EAwIDRwAwRAIgPv289XSYvMm7
+        LnbGpwZ4aq+NYk+KyGs3B4M+q1IRUL8CIBXl3/DlWy4/30NQrGS4re3Efy24uo/D
+        VfNhDug3Zyjx
+        -----END CERTIFICATE-----
+    url: grpcs://marketplace-orderer2-ord.localho.st:443
+organizations:
+  MarketplaceMSP:
+    cryptoPath: /tmp/cryptopath
+    mspid: MarketplaceMSP
+    orderers: []
+    peers:
+    - marketplace-peer0.marketplace
+    users:
+      admin:
+        cert:
+          pem: |
+            -----BEGIN CERTIFICATE-----
+            MIICUzCCAfmgAwIBAgIUXz46SPyjz/lrUTtXezcw1+mFXoUwCgYIKoZIzj0EAwIw
+            ajELMAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGlj
+            YW50ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEL
+            MAkGA1UEAxMCY2EwHhcNMjUwNjE4MTUwNjUyWhcNMjYwNjE5MTUxMTAwWjAgMQ4w
+            DAYDVQQLEwVhZG1pbjEOMAwGA1UEAxMFYWRtaW4wWTATBgcqhkjOPQIBBggqhkjO
+            PQMBBwNCAARCasqPTshBXAJwrrH0IyDV4HhSLDZGIwrBfntjv04gvCyWVJZ9VpMZ
+            2nIkTXWiRj/DmfnwEkW9+CsW6+GLoSQpo4HGMIHDMA4GA1UdDwEB/wQEAwIHgDAM
+            BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSO90m3cgdRcTgz6wg7csVk6euaUTArBgNV
+            HSMEJDAigCB1l+ZmQYZ5lwnmgVtnFkWimBCmH+SxBEjaflmXpyXHhjBXBggqAwQF
+            BgcIAQRLeyJhdHRycyI6eyJoZi5BZmZpbGlhdGlvbiI6IiIsImhmLkVucm9sbG1l
+            bnRJRCI6ImFkbWluIiwiaGYuVHlwZSI6ImFkbWluIn19MAoGCCqGSM49BAMCA0gA
+            MEUCIQD78Wln1oW5EQ/1JgN3bASqVgrSh/j3KRSQlxvWc2Q5JQIgFMf9u+XO/N7N
+            9ibK93yy+p4IyoMznfmDGCgrqjHhehE=
+            -----END CERTIFICATE-----
+        key:
+          pem: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNrvMn62xa2zRFXis
+            UbsbE3GaF+CJozkN3EP8JCMfSRuhRANCAARCasqPTshBXAJwrrH0IyDV4HhSLDZG
+            IwrBfntjv04gvCyWVJZ9VpMZ2nIkTXWiRj/DmfnwEkW9+CsW6+GLoSQp
+            -----END PRIVATE KEY-----
+      user-marketplace:
+        cert:
+          pem: |
+            -----BEGIN CERTIFICATE-----
+            MIICbjCCAhWgAwIBAgIUbHOZudiaTY1ZtsMJD8x6pH2lAtcwCgYIKoZIzj0EAwIw
+            ajELMAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGlj
+            YW50ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEL
+            MAkGA1UEAxMCY2EwHhcNMjUwNjE4MTUwNjUyWhcNMjYwNjE5MTUxMTAwWjAuMQ8w
+            DQYDVQQLEwZjbGllbnQxGzAZBgNVBAMTEmNsaWVudC1tYXJrZXRwbGFjZTBZMBMG
+            ByqGSM49AgEGCCqGSM49AwEHA0IABPuWIbjAGHN+c9zxW8Vfule4z+zcwsoYMWjV
+            GddyYQ9f7GK+loyGF5lq9wHBGSmf68i3SIJrakTOftSQj1UQ8QKjgdQwgdEwDgYD
+            VR0PAQH/BAQDAgeAMAwGA1UdEwEB/wQCMAAwHQYDVR0OBBYEFHFFYQS9dGPkn/D8
+            meZWDHhCHLleMCsGA1UdIwQkMCKAIHWX5mZBhnmXCeaBW2cWRaKYEKYf5LEESNp+
+            WZenJceGMGUGCCoDBAUGBwgBBFl7ImF0dHJzIjp7ImhmLkFmZmlsaWF0aW9uIjoi
+            IiwiaGYuRW5yb2xsbWVudElEIjoiY2xpZW50LW1hcmtldHBsYWNlIiwiaGYuVHlw
+            ZSI6ImNsaWVudCJ9fTAKBggqhkjOPQQDAgNHADBEAiAqa77TSddloqWCaL7i4oXi
+            yhE0dndpIYxdWrPKoJ9BHwIgENd9A78uhOlYG/kHIs/iLnBDaT4k5qhfc9J8Yk8U
+            /Fw=
+            -----END CERTIFICATE-----
+        key:
+          pem: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgLOmV7R3fhS5K6OSL
+            71tNB87jVtc4hXjXVYuIhA8SsyShRANCAAT7liG4wBhzfnPc8VvFX7pXuM/s3MLK
+            GDFo1RnXcmEPX+xivpaMhheZavcBwRkpn+vIt0iCa2pEzn7UkI9VEPEC
+            -----END PRIVATE KEY-----
+  OrdererMSP:
+    cryptoPath: /tmp/cryptopath
+    mspid: OrdererMSP
+    orderers:
+    - ord-node2.marketplace
+    peers: []
+    users: {}
+  SonyMSP:
+    cryptoPath: /tmp/cryptopath
+    mspid: SonyMSP
+    orderers: []
+    peers:
+    - sony-peer0.marketplace
+    users:
+      admin:
+        cert:
+          pem: |
+            -----BEGIN CERTIFICATE-----
+            MIICUzCCAfmgAwIBAgIUeNo7jsLznZUaxsPq6ioQ3OAYb5swCgYIKoZIzj0EAwIw
+            ajELMAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGlj
+            YW50ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEL
+            MAkGA1UEAxMCY2EwHhcNMjUwNjE4MTUwODU3WhcNMjYwNjE5MTUxMTAwWjAgMQ4w
+            DAYDVQQLEwVhZG1pbjEOMAwGA1UEAxMFYWRtaW4wWTATBgcqhkjOPQIBBggqhkjO
+            PQMBBwNCAATQKo0sAdiQi5VH1AZZC0m6bh5h/yXzYAXEZjyW16A54QKh8y0DxWPj
+            L2GBEmqZ8IOsSkM3vEK23/Qbjhn4n0Nbo4HGMIHDMA4GA1UdDwEB/wQEAwIHgDAM
+            BgNVHRMBAf8EAjAAMB0GA1UdDgQWBBQTfKx6UwypQtVuOjlc4rquJeh0OzArBgNV
+            HSMEJDAigCCjJX4kFQyl1OCAYpf+Z98j7uqE4fNe2cqHk4qXcEkB4DBXBggqAwQF
+            BgcIAQRLeyJhdHRycyI6eyJoZi5BZmZpbGlhdGlvbiI6IiIsImhmLkVucm9sbG1l
+            bnRJRCI6ImFkbWluIiwiaGYuVHlwZSI6ImFkbWluIn19MAoGCCqGSM49BAMCA0gA
+            MEUCIQCJlIMk0swwij8C3Bqh+kUm7dJv47azJTLKd3CsZM4IwQIgMKFLaCgUL+Nh
+            8TUDrjCHlOVOJMt33qIK+UA/zaAjhyk=
+            -----END CERTIFICATE-----
+        key:
+          pem: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgZKhZ54qXpHnny+TG
+            5CNaszXFurBLSmhsznOEyqrUFWGhRANCAATQKo0sAdiQi5VH1AZZC0m6bh5h/yXz
+            YAXEZjyW16A54QKh8y0DxWPjL2GBEmqZ8IOsSkM3vEK23/Qbjhn4n0Nb
+            -----END PRIVATE KEY-----
+      user-sony:
+        cert:
+          pem: |
+            -----BEGIN CERTIFICATE-----
+            MIICYDCCAgegAwIBAgIUWnuEyR8yKEp2GzlmrDZ0pCu532swCgYIKoZIzj0EAwIw
+            ajELMAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGlj
+            YW50ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEL
+            MAkGA1UEAxMCY2EwHhcNMjUwNjE4MTUwODU3WhcNMjYwNjE5MTUxMTAwWjAnMQ8w
+            DQYDVQQLEwZjbGllbnQxFDASBgNVBAMTC2NsaWVudC1zb255MFkwEwYHKoZIzj0C
+            AQYIKoZIzj0DAQcDQgAEU23pLg7V4FqSAuITYaaY6tPt8M68pciHM74yV9/s2C7+
+            tzByVMTqECP+dTYD5ItM5JfcJt4Bw99smq53Hab9DaOBzTCByjAOBgNVHQ8BAf8E
+            BAMCB4AwDAYDVR0TAQH/BAIwADAdBgNVHQ4EFgQUFbLkuMoB4V/K0QIK8uM9rXbv
+            R3owKwYDVR0jBCQwIoAgoyV+JBUMpdTggGKX/mffI+7qhOHzXtnKh5OKl3BJAeAw
+            XgYIKgMEBQYHCAEEUnsiYXR0cnMiOnsiaGYuQWZmaWxpYXRpb24iOiIiLCJoZi5F
+            bnJvbGxtZW50SUQiOiJjbGllbnQtc29ueSIsImhmLlR5cGUiOiJjbGllbnQifX0w
+            CgYIKoZIzj0EAwIDRwAwRAIgNqccl51CAYxWdCA3jiqxx6HTQtZX8ITjQv91kABE
+            TAACIEAh/8VOmCU8od17wHCuPM0CmFX33y0ut9+LRuXGNDeJ
+            -----END CERTIFICATE-----
+        key:
+          pem: |
+            -----BEGIN PRIVATE KEY-----
+            MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgbX3zH3btTG2Exbje
+            Ysc3ECbbv3tr8G5aHePs4m9iSk+hRANCAARTbekuDtXgWpIC4hNhppjq0+3wzryl
+            yIczvjJX3+zYLv63MHJUxOoQI/51NgPki0zkl9wm3gHD32yarncdpv0N
+            -----END PRIVATE KEY-----
+peers:
+  marketplace-peer0.marketplace:
+    grpcOptions:
+      allow-insecure: false
+    tlsCACerts:
+      pem: |
+        -----BEGIN CERTIFICATE-----
+        MIICRTCCAeygAwIBAgIRALT7LRqO3ZCxoVpzpFvA5OswCgYIKoZIzj0EAwIwbTEL
+        MAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGljYW50
+        ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEOMAwG
+        A1UEAxMFdGxzY2EwHhcNMjUwNjE4MTUwNjUyWhcNMzUwNjE5MTUwNjUyWjBtMQsw
+        CQYDVQQGEwJFUzERMA8GA1UEBxMIQWxpY2FudGUxETAPBgNVBAkTCEFsaWNhbnRl
+        MRkwFwYDVQQKExBLdW5nIEZ1IFNvZnR3YXJlMQ0wCwYDVQQLEwRUZWNoMQ4wDAYD
+        VQQDEwV0bHNjYTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD63VQYR+fTqJhil
+        pTU/phP3v1P1kyCO5qbW5DeOWuGA9KJXp0BlYZqDkEh35ignUWPe+gL+aujUBQas
+        fU1p5Q2jbTBrMA4GA1UdDwEB/wQEAwIBpjAdBgNVHSUEFjAUBggrBgEFBQcDAgYI
+        KwYBBQUHAwEwDwYDVR0TAQH/BAUwAwEB/zApBgNVHQ4EIgQgbssa6kjYpyGRjot1
+        u3M53ijSfdypOKoKfHcIqHDu7O4wCgYIKoZIzj0EAwIDRwAwRAIgLG3EcfyCeZ8e
+        R8ky7ca7icmxsAO5xWOIMjhLWNnDRYACIAbgE0YLPHrUS2tTG1W9fB9Lr5j1/3gu
+        Y7eDzOzUShsa
+        -----END CERTIFICATE-----
+    url: grpcs://peer0-marketplace.localho.st:443
+  sony-peer0.marketplace:
+    grpcOptions:
+      allow-insecure: false
+    tlsCACerts:
+      pem: |
+        -----BEGIN CERTIFICATE-----
+        MIICRzCCAeygAwIBAgIRAIhNwRyvrgwZg1NdHmt5EiwwCgYIKoZIzj0EAwIwbTEL
+        MAkGA1UEBhMCRVMxETAPBgNVBAcTCEFsaWNhbnRlMREwDwYDVQQJEwhBbGljYW50
+        ZTEZMBcGA1UEChMQS3VuZyBGdSBTb2Z0d2FyZTENMAsGA1UECxMEVGVjaDEOMAwG
+        A1UEAxMFdGxzY2EwHhcNMjUwNjE4MTUwODU3WhcNMzUwNjE5MTUwODU3WjBtMQsw
+        CQYDVQQGEwJFUzERMA8GA1UEBxMIQWxpY2FudGUxETAPBgNVBAkTCEFsaWNhbnRl
+        MRkwFwYDVQQKExBLdW5nIEZ1IFNvZnR3YXJlMQ0wCwYDVQQLEwRUZWNoMQ4wDAYD
+        VQQDEwV0bHNjYTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABPu1BCV3+I+kMbuH
+        8QV1xNEmOxEIDFWDLnI3x6+aoLu3lPV3sr0JJWePOhFyYZp8rxWrYlXnO6eREKso
+        r2V/f7WjbTBrMA4GA1UdDwEB/wQEAwIBpjAdBgNVHSUEFjAUBggrBgEFBQcDAgYI
+        KwYBBQUHAwEwDwYDVR0TAQH/BAUwAwEB/zApBgNVHQ4EIgQgFS7/KP2QuMX1K5Fn
+        gTYriv/MEwPK/Od6NO3Cfu3KgzcwCgYIKoZIzj0EAwIDSQAwRgIhAM/Jy1RMRQci
+        fsK1NbKsrJTmgWsXKu5Rl2n6+sp4h2hEAiEA1MYpC6kX49qR/1OBeKcO56ycNJew
+        0UPgNKm0UAisJXk=
+        -----END CERTIFICATE-----
+    url: grpcs://peer0-sony.localho.st:443
+version: 1.0.0
