@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/src/scripts/networks
+/src/scripts/address
+/src/scripts/enode
+/src/scripts/key.priv
+/src/scripts/key.pub
