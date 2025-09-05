@@ -1,4 +1,4 @@
-curl -X POST http://localhost:3000/api/networks \
+curl -X POST http://localhost:3000/api/networks/create \
   -H "Content-Type: application/json" \
   -d '{
     "nameNetwork": "network0",
@@ -11,7 +11,7 @@ curl -X POST http://localhost:3000/api/networks \
     ]
   }'
 
-curl -X POST http://localhost:3000/api/nodes \
+curl -X POST http://localhost:3000/api/nodes/create \
   -H "Content-Type: application/json" \
   -d '{
     "nodeName": "nodo0",
@@ -19,7 +19,7 @@ curl -X POST http://localhost:3000/api/nodes \
     "networkName": "network0"
   }'
 
-curl -X POST http://localhost:3000/api/nodes \
+curl -X POST http://localhost:3000/api/nodes/create \
   -H "Content-Type: application/json" \
   -d '{
     "nodeName": "nodo00",
@@ -27,10 +27,18 @@ curl -X POST http://localhost:3000/api/nodes \
     "networkName": "network0"
   }'
 
-curl -X POST http://localhost:3000/api/nodes \
+curl -X POST http://localhost:3000/api/nodes/create \
   -H "Content-Type: application/json" \
   -d '{
     "nodeName": "nodo000",
     "nodeType": "signer",
     "networkName": "network0"
   }'
+
+curl -X DELETE http://localhost:3000/api/networks/delete \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "network0"}'
+
+curl -X DELETE http://localhost:3000/api/nodes/delete \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "network0", "nodeName": "nodo00"}'

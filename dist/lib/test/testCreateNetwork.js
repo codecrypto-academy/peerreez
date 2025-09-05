@@ -1,7 +1,5 @@
 // src/lib/testCreateNetwork.ts
-import { createNetwork } from "./createNetwork.js"; // <<=== OJO: añadir .js
-
-
+import { createNetwork } from "../createNetwork.js"; // <<=== OJO: añadir .js
 createNetwork({
     nameNetwork: "network0",
     chainId: 55255,

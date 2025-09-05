@@ -9,10 +9,12 @@
     "start": "next start",
     "lint": "eslint",
     "tsc-build": "tsc -p tsconfig.node.json",
-    "create-network": "node --loader ts-node/esm src/lib/testCreateNetwork.ts",
-    "create-node": "node --loader ts-node/esm src/lib/testCreateNode.ts",
-    "run-network": "node dist/lib/testCreateNetwork.js",
-    "run-node": "node dist/lib/testCreateNode.js"
+    "create-network": "node --loader ts-node/esm src/lib/test/testCreateNetwork.ts",
+    "create-node": "node --loader ts-node/esm src/lib/test/testCreateNode.ts",
+    "delete-networks": "node --loader ts-node/esm src/lib/test/testDeleteNetwork.ts",
+    "delete-nodes": "node --loader ts-node/esm src/lib/test/testDeleteNodes.ts",
+    "run-network": "node dist/lib/test/testCreateNetwork.js",
+    "run-node": "node dist/lib/test/testCreateNode.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

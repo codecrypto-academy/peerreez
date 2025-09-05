@@ -1,5 +1,5 @@
 // src/lib/testCreateNode.ts
-import { createNode } from "./createNode.js";
+import { createNode } from "../createNode.js";
 
 (async () => {
     try {
