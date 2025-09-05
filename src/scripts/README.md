@@ -7,3 +7,5 @@
 ./nodo_create.sh nodo11 validator network1
 ./nodo_create.sh nodo111 signer network1
 
+docker stop nodo111 nodo11 nodo1 nodo000 nodo00 nodo0 network1-bootnode network0-bootnode
+docker rm nodo111 nodo11 nodo1 nodo000 nodo00 nodo0 network1-bootnode network0-bootnode

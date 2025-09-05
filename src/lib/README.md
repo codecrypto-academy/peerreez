@@ -1,3 +1,3 @@
 npx tsc -p tsconfig.node.json
-node create-network
-node create-node
+npm run create-network
+npm run create-node
