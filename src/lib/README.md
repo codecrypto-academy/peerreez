@@ -1,3 +1,3 @@
 npx tsc -p tsconfig.node.json
-node dist/lib/testCreateNetwork.js
-node dist/lib/testNode.js
+node create-network
+node create-node

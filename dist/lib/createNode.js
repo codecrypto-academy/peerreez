@@ -38,7 +38,7 @@ export const createNode = async (params) => {
     console.log(`✅ IP assigned for ${nodeName}: ${nodeIp}`);
     // Encontrar puerto HTTP libre
     let availablePort = 8888;
-    const dockerPs = execSync("docker ps --format '{{.Ports}}'").toString();
+    let dockerPs = execSync("docker ps --format '{{.Ports}}'").toString();
     while (dockerPs.includes(`${availablePort}->`)) {
         availablePort++;
     }
@@ -49,6 +49,44 @@ export const createNode = async (params) => {
     // Crear claves del nodo
     const indexScript = path.join(process.cwd(), "src", "scripts", "index.mjs");
     execSync(`node ${indexScript} create-keys ${nodeIp} ${nodeDir}`, { stdio: "inherit" });
+    // Obtener dirección automática del validator desde NODE_DIR/address
+    let validatorAddress = "";
+    if (nodeType === "validator") {
+        const addressFile = path.join(nodeDir, "address");
+        if (fs.existsSync(addressFile)) {
+            validatorAddress = "0x" + fs.readFileSync(addressFile, "utf8").trim();
+            console.log(`✅ Validator address: ${validatorAddress}`);
+        }
+        else {
+            throw new Error(`❌ Cannot read validator address from ${addressFile}`);
+        }
+    }
+    // Configurar opciones de Besu según tipo
+    let besuOpts = "";
+    switch (nodeType) {
+        case "rpc":
+            besuOpts = `--rpc-http-enabled=true \
+                        --rpc-http-host=0.0.0.0 \
+                        --rpc-http-port=8545 \
+                        --rpc-http-api=ETH,NET,CLIQUE,ADMIN,TRACE,DEBUG,TXPOOL,PERM \
+                        --host-allowlist="*"`;
+            break;
+        case "validator":
+            besuOpts = `--miner-enabled \
+                        --miner-coinbase=${validatorAddress} \
+                        --rpc-http-enabled=true \
+                        --rpc-http-host=0.0.0.0 \
+                        --rpc-http-port=8545 \
+                        --rpc-http-api=ETH,NET,CLIQUE,ADMIN`;
+            break;
+        case "signer":
+            besuOpts = `--node-private-key-file=/data/${nodeName}/key.priv \
+                        --rpc-http-enabled=true \
+                        --rpc-http-host=0.0.0.0 \
+                        --rpc-http-port=8545 \
+                        --rpc-http-api=ETH,NET,CLIQUE`;
+            break;
+    }
     // Lanzar el nodo
     execSync(`docker run -d \
         --name ${nodeName} \
@@ -61,15 +99,9 @@ export const createNode = async (params) => {
         hyperledger/besu:latest \
         --config-file=/data/config.toml \
         --data-path=/data/${nodeName}/data \
-        --node-private-key-file=/data/${nodeName}/key.priv \
         --genesis-file=/data/genesis.json \
         --bootnodes="${bootnodeEnode}" \
-        --rpc-http-host=0.0.0.0 \
-        --rpc-http-port=8545 \
-        --rpc-http-enabled=true \
-        --rpc-http-cors-origins="*" \
-        --rpc-http-api=ETH,NET,CLIQUE,ADMIN,TRACE,DEBUG,TXPOOL,PERM \
-        --host-allowlist="*"`, { stdio: "inherit" });
+        ${besuOpts}`, { stdio: "inherit" });
     console.log(`🎉 Node ${nodeName} (${nodeType}) deployed at IP ${nodeIp}, HTTP port ${availablePort}`);
     // Esperar a que el nodo responda
     console.log(`⏳ Waiting for node to respond at http://127.0.0.1:${availablePort}...`);

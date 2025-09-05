@@ -47,7 +47,7 @@ fi
 
 echo "✅ IP asignada para ${NODE_NAME}: $NODE_IP"
 
-# Encontrar puerto HTTP libre
+# Encontrar puerto HTTP libre (solo para nodos que usan RPC)
 START_PORT=8888
 AVAILABLE_PORT=$START_PORT
 while docker ps --format '{{.Ports}}' | grep -q "${AVAILABLE_PORT}->"; do
@@ -62,6 +62,49 @@ mkdir -p "$NODE_DIR"
 # Crear claves específicas del nodo
 node ./index.mjs create-keys "$NODE_IP" "$NODE_DIR"
 
+# Para validator: obtener automáticamente la dirección de la clave generada desde data/address
+if [ "$NODE_TYPE" == "validator" ]; then
+  ADDRESS_FILE="$NODE_DIR/address"
+  if [ -f "$ADDRESS_FILE" ]; then
+    VALIDATOR_ADDRESS="0x$(cat "$ADDRESS_FILE" | tr -d '\r\n')"
+    echo "✅ Dirección automática del validator: $VALIDATOR_ADDRESS"
+  else
+    echo "❌ No se pudo leer la dirección del validator desde $ADDRESS_FILE"
+    exit 1
+  fi
+fi
+
+
+# Configurar opciones según tipo de nodo
+case $NODE_TYPE in
+  rpc)
+    BESU_OPTS="--rpc-http-enabled=true \
+               --rpc-http-host=0.0.0.0 \
+               --rpc-http-port=8545 \
+               --rpc-http-api=ETH,NET,CLIQUE,ADMIN,TRACE,DEBUG,TXPOOL,PERM \
+               --host-allowlist='*'"
+    ;;
+  validator)
+    BESU_OPTS="--miner-enabled \
+               --miner-coinbase=$VALIDATOR_ADDRESS \
+               --rpc-http-enabled=true \
+               --rpc-http-host=0.0.0.0 \
+               --rpc-http-port=8545 \
+               --rpc-http-api=ETH,NET,CLIQUE,ADMIN"
+    ;;
+  signer)
+    BESU_OPTS="--node-private-key-file=/data/${NODE_NAME}/key.priv \
+               --rpc-http-enabled=true \
+               --rpc-http-host=0.0.0.0 \
+               --rpc-http-port=8545 \
+               --rpc-http-api=ETH,NET,CLIQUE"
+    ;;
+  *)
+    echo "❌ Tipo de nodo inválido: $NODE_TYPE. Debe ser rpc, validator o signer."
+    exit 1
+    ;;
+esac
+
 # Lanzar el nodo
 docker run -d \
   --name "$NODE_NAME" \
@@ -74,15 +117,9 @@ docker run -d \
   hyperledger/besu:latest \
   --config-file=/data/config.toml \
   --data-path=/data/${NODE_NAME}/data \
-  --node-private-key-file=/data/${NODE_NAME}/key.priv \
   --genesis-file=/data/genesis.json \
   --bootnodes="${BOOTNODE_ENODE}" \
-  --rpc-http-host=0.0.0.0 \
-  --rpc-http-port=8545 \
-  --rpc-http-enabled=true \
-  --rpc-http-cors-origins="*" \
-  --rpc-http-api=ETH,NET,CLIQUE,ADMIN,TRACE,DEBUG,TXPOOL,PERM \
-  --host-allowlist="*"
+  $BESU_OPTS
 
 echo "🎉 Nodo ${NODE_NAME} (${NODE_TYPE}) desplegado en IP ${NODE_IP}, puerto HTTP ${AVAILABLE_PORT}"
 
@@ -113,10 +150,8 @@ case $NODE_TYPE in
     fi
     ;;
   signer)
-    # Verificar que responde como nodo RPC primero
     RESPONSE=$(curl -s -X POST --data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' http://127.0.0.1:${AVAILABLE_PORT})
     if [[ $RESPONSE == *"result"* ]]; then
-      # Obtener clave pública para confirmar que es un signer
       PUBKEY=$(docker exec "$NODE_NAME" besu public-key export 2>/dev/null)
       if [[ $PUBKEY != "" ]]; then
         echo "✅ Nodo Signer activo, clave pública: $PUBKEY"
@@ -127,5 +162,4 @@ case $NODE_TYPE in
       echo "❌ Nodo Signer no responde correctamente"
     fi
     ;;
-
 esac
