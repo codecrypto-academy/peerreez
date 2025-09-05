@@ -2,34 +2,44 @@
   "name": "web25-control-panel-besu-2025",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "tsc-build": "tsc -p tsconfig.node.json",
+    "create-network": "node --loader ts-node/esm src/lib/testCreateNetwork.ts",
+    "create-node": "node --loader ts-node/esm src/lib/testCreateNode.ts",
+    "run-network": "node dist/lib/testCreateNetwork.js",
+    "run-node": "node dist/lib/testCreateNode.js"
   },
   "dependencies": {
+    "axios": "^1.6.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "elliptic": "^6.6.1",
+    "ethers": "^6.13.7",
+    "keccak256": "^1.0.6",
     "lucide-react": "^0.542.0",
     "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "tailwind-merge": "^3.3.1",
-    "elliptic": "^6.6.1",
-    "ethers": "^6.13.7",
-    "keccak256": "^1.0.6"
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/axios": "^0.9.36",
+    "@types/node": "^20.19.13",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "tw-animate-css": "^1.3.8",
-    "typescript": "^5"
+    "typescript": "^5.9.2"
   }
 }
