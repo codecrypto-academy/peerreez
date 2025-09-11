@@ -1,0 +1,354 @@
+#!/bin/bash
+#
+# 🚀 Gestor de Red Privada Besu
+# Autor: David Perez Sanchez
+# Email: jrcanelalopez@gmail.com
+# Fecha: June 28, 2025
+#
+# Script personalizado para crear y administrar una red Besu privada en Docker.
+# Javier Edition ✨
+#
+
+set -euo pipefail
+trap 'echo -e "\n❌ Oops! Algo salió mal. Revisa los logs para más detalles."' ERR
+
+# ==============================================================================
+# 🎨 ESTILOS DE LOGS PERSONALIZADOS
+# ==============================================================================
+
+COLOR_ERROR="\033[1;31m"
+COLOR_OK="\033[1;32m"
+COLOR_ALERT="\033[1;33m"
+COLOR_STEP="\033[1;34m"
+COLOR_RESET="\033[0m"
+
+msg_paso()       { echo -e "\n${COLOR_STEP}➡️ $1${COLOR_RESET}"; }
+msg_exito()      { echo -e "${COLOR_OK}✔ $1${COLOR_RESET}"; }
+msg_info()       { echo -e "${COLOR_ALERT}ℹ $1${COLOR_RESET}"; }
+msg_advertencia() { echo -e "${COLOR_ERROR}⚠ $1${COLOR_RESET}"; }
+
+# ==============================================================================
+# ⚙️ CONFIGURACIÓN DE RED BESU
+# ==============================================================================
+
+readonly RED_SUBNET="172.24.0.0/16"
+readonly BOOT_IP="172.24.0.20"
+readonly BOOT_KEY_IP="172.24.0.21"
+readonly MINER_IP="172.24.0.22"
+readonly MINER_KEY_IP="172.24.0.22"
+
+readonly RPC_BASE=8545
+readonly RPC_PUB=8888
+readonly MINER_RPC=8546
+readonly MINER_RPC_PUB=8889
+
+readonly EXTRA_RPC=(7458)
+readonly EXTRA_RPC_IPS=("172.24.0.23" "172.24.0.24")
+
+# ==============================================================================
+# ⚓ DOCKER
+# ==============================================================================
+
+readonly RED_DOCKER="besu-network"
+readonly LABEL_RED="network=besu-network"
+readonly LABEL_TIPO="type=besu"
+readonly IMAGEN_BESU="hyperledger/besu:latest"
+
+# ==============================================================================
+# 📂 RUTAS
+# ==============================================================================
+
+readonly DIR_BOOT="networks/besu-network/bootnode"
+readonly DIR_MINER="networks/besu-network/miner"
+
+readonly GENESIS="networks/besu-network/genesis.json"
+readonly CONF_BOOT="networks/besu-network/config.toml"
+readonly CONF_MINER="networks/besu-network/miner_config.toml"
+
+readonly DATA_BOOT="/data/bootnode/data"
+readonly DATA_MINER="/data/miner/data"
+readonly KEY_BOOT="/data/bootnode/key.priv"
+readonly KEY_MINER="/data/miner/key.priv"
+readonly GENESIS_DOCKER="/data/genesis.json"
+readonly CONF_BOOT_DOCKER="/data/config.toml"
+readonly CONF_MINER_DOCKER="/data/miner_config.toml"
+
+# ==============================================================================
+# 🔧 FUNCIONES AUXILIARES
+# ==============================================================================
+
+verificar_requisitos() {
+    msg_paso "Verificando herramientas necesarias..."
+
+    local dependencias=("docker" "node")
+    for d in "${dependencias[@]}"; do
+        if ! command -v "$d" &>/dev/null; then
+            msg_advertencia "⚠ $d no está instalado. Instálalo primero."
+            exit 1
+        fi
+    done
+
+    if [ ! -f "index.mjs" ]; then
+        msg_advertencia "index.mjs no encontrado. Ejecuta desde el directorio correcto."
+        exit 1
+    fi
+
+    msg_exito "Todas las herramientas están disponibles"
+}
+
+limpiar_recursos() {
+    msg_paso "Eliminando contenedores, red y datos previos..."
+
+    local contenedores
+    contenedores=$(docker ps -aq --filter "label=${LABEL_RED}")
+    if [ -n "$contenedores" ]; then
+        msg_info "Deteniendo y borrando contenedores previos..."
+        docker rm -f $contenedores || true
+    fi
+
+    if docker network ls -q --filter name="${RED_DOCKER}" | grep -q .; then
+        msg_info "Borrando red Docker anterior..."
+        docker network rm "${RED_DOCKER}" || true
+    fi
+
+    if [ -d "networks" ]; then
+        msg_info "Eliminando directorios de datos previos..."
+        rm -rf networks
+    fi
+
+    msg_exito "Limpieza completada"
+}
+
+crear_directorios() {
+    msg_paso "Creando estructura de directorios para la red..."
+    mkdir -p "${DIR_BOOT}" "${DIR_MINER}"
+    for i in "${EXTRA_RPC[@]}"; do
+        mkdir -p "networks/${RED_DOCKER}/rpc${i}"
+    done
+    msg_exito "Directorios listos"
+}
+
+crear_red_docker() {
+    msg_paso "Creando red Docker personalizada..."
+    docker network create "${RED_DOCKER}" \
+        --subnet "${RED_SUBNET}" \
+        --label "${LABEL_RED}" \
+        --label "${LABEL_TIPO}"
+    msg_exito "Red Docker '${RED_DOCKER}' creada"
+}
+
+generar_claves_nodo() {
+    local DIR=$1
+    local IP=$2
+    local NODO=$3
+
+    msg_paso "Generando claves para nodo ${NODO}..."
+    cd "${DIR}"
+    node ../../../index.mjs create-keys "${IP}"
+    cd ../../..
+    msg_exito "Claves de ${NODO} listas"
+}
+
+crear_archivos_configuracion() {
+    local MINER_ADDR=$1
+    local BOOT_ADDR=$2
+    local BOOT_ENODE=$3
+
+    msg_info "Creando genesis.json..."
+    cat > "${GENESIS}" << EOF
+{
+  "config": {
+    "chainId": 13371337,
+    "londonBlock": 0,
+    "clique": {
+      "blockperiodseconds": 4,
+      "epochlength": 30000,
+      "createemptyblocks": true
+    }
+  },
+  "extraData": "0x0000000000000000000000000000000000000000000000000000000000000000${MINER_ADDR}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  "gasLimit": "0x1fffffffffffff",
+  "difficulty": "0x1",
+  "alloc": {
+    "${BOOT_ADDR}": {"balance":"0x200000000000000000000000000000000000000000000000000000000000000"},
+    "${MINER_ADDR}": {"balance":"0x200000000000000000000000000000000000000000000000000000000000000"}
+  }
+}
+EOF
+
+    msg_info "Configurando bootnode..."
+    cat > "${CONF_BOOT}" << EOF
+genesis-file="${GENESIS_DOCKER}"
+p2p-host="0.0.0.0"
+p2p-port=30303
+p2p-enabled=true
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-port=${RPC_BASE}
+rpc-http-cors-origins=["*"]
+rpc-http-api=["ETH","NET","CLIQUE","ADMIN", "TRACE", "DEBUG", "TXPOOL", "PERM"]
+host-allowlist=["*"]
+sync-mode="FULL"
+EOF
+
+    msg_info "Configurando miner..."
+    cat > "${CONF_MINER}" << EOF
+genesis-file="${GENESIS_DOCKER}"
+p2p-host="0.0.0.0"
+p2p-port=30303
+p2p-enabled=true
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-port=${MINER_RPC}
+rpc-http-cors-origins=["*"]
+rpc-http-api=["ETH","NET","CLIQUE","ADMIN", "TRACE", "DEBUG", "TXPOOL", "PERM"]
+host-allowlist=["*"]
+miner-enabled=true
+miner-coinbase="0x${MINER_ADDR}"
+bootnodes=["${BOOT_ENODE}"]
+sync-mode="FULL"
+EOF
+}
+
+lanzar_contenedor() {
+    local NAME=$1
+    local IP=$2
+    local PORT_LOCAL=$3
+    local PORT_PUB=$4
+    local CONF_FILE=$5
+    local DATA_PATH=$6
+    local KEY_FILE=$7
+    local LABEL=$8
+
+    msg_paso "Lanzando contenedor ${NAME}..."
+    docker run -d \
+        --name "${NAME}" \
+        --label nodo="${LABEL}" \
+        --label "${LABEL_RED}" \
+        --ip "${IP}" \
+        --network "${RED_DOCKER}" \
+        -p ${PORT_PUB}:${PORT_LOCAL} \
+        -v "$(pwd)/networks/${RED_DOCKER}:/data" \
+        "${IMAGEN_BESU}" \
+        --config-file="${CONF_FILE}" \
+        --data-path="${DATA_PATH}" \
+        --node-private-key-file="${KEY_FILE}" \
+        --genesis-file="${GENESIS_DOCKER}"
+    msg_exito "Contenedor ${NAME} lanzado"
+}
+
+lanzar_nodos_rpc_adicionales() {
+    for i in "${!EXTRA_RPC[@]}"; do
+        local PORT=${EXTRA_RPC[$i]}
+        local IP=${EXTRA_RPC_IPS[$i]}
+        local DIR="networks/${RED_DOCKER}/rpc${PORT}"
+        local NAME="${RED_DOCKER}-rpc${PORT}"
+        local DATA="/data/rpc${PORT}/data"
+        local KEY="/data/rpc${PORT}/key.priv"
+        local CONF="/data/rpc${PORT}_config.toml"
+
+        msg_info "Preparando nodo RPC ${PORT}..."
+
+        cd "${DIR}"
+        node ../../../index.mjs create-keys "${IP}"
+        cd ../../..
+
+        cat > "${DIR}_config.toml" << EOF
+genesis-file="${GENESIS_DOCKER}"
+p2p-host="0.0.0.0"
+p2p-port=30303
+p2p-enabled=true
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-port=${PORT}
+rpc-http-cors-origins=["*"]
+rpc-http-api=["ETH","NET","CLIQUE","ADMIN", "TRACE", "DEBUG", "TXPOOL", "PERM"]
+host-allowlist=["*"]
+bootnodes=["${BOOT_ENODE}"]
+sync-mode="FULL"
+EOF
+
+        lanzar_contenedor "${NAME}" "${IP}" "${PORT}" "${PORT}" "${CONF}" "${DATA}" "${KEY}" "rpc"
+    done
+}
+
+esperar_sincronizacion() {
+    msg_paso "Esperando a que los nodos se sincronicen..."
+    local WAIT=60
+    for i in $(seq 1 $WAIT); do
+        echo -ne "\r⏳ ${i}/${WAIT} segundos"
+        sleep 1
+    done
+    echo -e "\n"
+}
+
+verificar_bootnode() {
+    msg_paso "Verificando que el bootnode responde..."
+    local MAX=5
+    local COUNT=0
+    while [ $COUNT -lt $MAX ]; do
+        if curl -s -X POST -H "Content-Type: application/json" \
+            --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+            http://localhost:${RPC_PUB} > /dev/null 2>&1; then
+            msg_exito "Bootnode responde correctamente"
+            break
+        else
+            COUNT=$((COUNT+1))
+            msg_advertencia "Intento ${COUNT}/${MAX}: Bootnode aún no responde"
+            sleep 5
+        fi
+    done
+}
+
+transferir_fondos_mnemonic() {
+    local MNEM="test test test test test test test test test test test junk"
+    local AMOUNT="1"
+    local PRIV=$(cat networks/besu-network/bootnode/key.priv)
+
+    msg_info "Transfiriendo ${AMOUNT} ETH a las primeras 10 cuentas del mnemonic..."
+    node index.mjs fund-mnemonic "$PRIV" "$MNEM" "$AMOUNT" "http://localhost:${RPC_PUB}"
+    msg_exito "Fondos transferidos"
+}
+
+# ==============================================================================
+# 🔥 EJECUCIÓN PRINCIPAL
+# ==============================================================================
+
+echo -e "${COLOR_STEP}========================================${COLOR_RESET}"
+echo -e "${COLOR_OK}     🚀 Iniciando Red Besu Privada       ${COLOR_RESET}"
+echo -e "${COLOR_STEP}========================================${COLOR_RESET}"
+echo "Autor: David Perez Sanchez"
+echo "Fecha: $(date)"
+echo ""
+
+verificar_requisitos
+limpiar_recursos
+crear_directorios
+crear_red_docker
+generar_claves_nodo "${DIR_BOOT}" "${BOOT_KEY_IP}" "Bootnode"
+generar_claves_nodo "${DIR_MINER}" "${MINER_KEY_IP}" "Miner"
+
+BOOT_ADDR=$(cat networks/besu-network/bootnode/address)
+MINER_ADDR=$(cat networks/besu-network/miner/address)
+BOOT_ENODE=$(cat networks/besu-network/bootnode/enode | sed "s/${BOOT_KEY_IP}/${BOOT_IP}/")
+
+crear_archivos_configuracion "${MINER_ADDR}" "${BOOT_ADDR}" "${BOOT_ENODE}"
+
+lanzar_contenedor "besu-network-bootnode" "${BOOT_IP}" "${RPC_BASE}" "${RPC_PUB}" "${CONF_BOOT_DOCKER}" "${DATA_BOOT}" "${KEY_BOOT}" "bootnode"
+lanzar_contenedor "besu-network-miner" "${MINER_IP}" "${MINER_RPC}" "${MINER_RPC_PUB}" "${CONF_MINER_DOCKER}" "${DATA_MINER}" "${KEY_MINER}" "miner"
+
+lanzar_nodos_rpc_adicionales
+esperar_sincronizacion
+verificar_bootnode
+transferir_fondos_mnemonic
+
+# ==============================================================================
+# 🎉 RESUMEN FINAL
+# ==============================================================================
+
+echo -e "\n${COLOR_OK}🎉 Red Besu desplegada exitosamente!${COLOR_RESET}"
+echo "=========================================="
+echo "   David Perez Sanchez Edition ✨"
+echo "   Email: dperezsx@gmail.com"
+echo "=========================================="
+echo "✅ ¡Todo listo para usar!"
