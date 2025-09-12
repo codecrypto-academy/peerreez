@@ -3,10 +3,8 @@
 # 🚀 Gestor de Red Privada Besu
 # Autor: David Perez Sanchez
 # Email: dperezsx@gmail.com
-# Fecha: June 28, 2025
+# Fecha: September 12, 2025
 #
-# Script personalizado para crear y administrar una red Besu privada en Docker.
-# Javier Edition ✨
 #
 
 set -euo pipefail
@@ -48,8 +46,8 @@ readonly EXTRA_RPC_IPS=("172.30.0.23" "172.30.0.24")
 # ⚓ DOCKER
 # ==============================================================================
 
-readonly RED_DOCKER="besu-network"
-readonly LABEL_RED="network=besu-network"
+readonly RED_DOCKER="mynet-network"
+readonly LABEL_RED="network=mynet-network"
 readonly LABEL_TIPO="type=besu"
 readonly IMAGEN_BESU="hyperledger/besu:latest"
 
@@ -57,12 +55,12 @@ readonly IMAGEN_BESU="hyperledger/besu:latest"
 # 📂 RUTAS
 # ==============================================================================
 
-readonly DIR_BOOT="networks/besu-network/bootnode"
-readonly DIR_MINER="networks/besu-network/miner"
+readonly DIR_BOOT="networks/mynet-network/bootnode"
+readonly DIR_MINER="networks/mynet-network/miner"
 
-readonly GENESIS="networks/besu-network/genesis.json"
-readonly CONF_BOOT="networks/besu-network/config.toml"
-readonly CONF_MINER="networks/besu-network/miner_config.toml"
+readonly GENESIS="networks/mynet-network/genesis.json"
+readonly CONF_BOOT="networks/mynet-network/config.toml"
+readonly CONF_MINER="networks/mynet-network/miner_config.toml"
 
 readonly DATA_BOOT="/data/bootnode/data"
 readonly DATA_MINER="/data/miner/data"
@@ -87,8 +85,8 @@ verificar_requisitos() {
         fi
     done
 
-    if [ ! -f "index.mjs" ]; then
-        msg_advertencia "index.mjs no encontrado. Ejecuta desde el directorio correcto."
+    if [ ! -f "operations.mjs" ]; then
+        msg_advertencia "operations.mjs no encontrado. Ejecuta desde el directorio correcto."
         exit 1
     fi
 
@@ -124,6 +122,8 @@ crear_directorios() {
     for i in "${EXTRA_RPC[@]}"; do
         mkdir -p "networks/${RED_DOCKER}/rpc${i}"
     done
+    # Crear directorio para la cuenta adicional
+    mkdir -p "networks/${RED_DOCKER}/account"
     msg_exito "Directorios listos"
 }
 
@@ -142,8 +142,17 @@ generar_claves_nodo() {
     local NODO=$3
 
     msg_paso "Generando claves para nodo ${NODO}..."
-    (cd "${DIR}" && node ../../../index.mjs create-keys "${IP}")
+    (cd "${DIR}" && node ../../../operations.mjs create-keys "${IP}")
     msg_exito "Claves de ${NODO} listas"
+}
+
+# Generar claves para la cuenta adicional (sin fondos)
+generar_clave_account() {
+    local DIR="networks/${RED_DOCKER}/account"
+    local IP="172.30.0.30" # IP dummy para la cuenta adicional
+    msg_paso "Generando claves para la cuenta adicional (account)..."
+    (cd "${DIR}" && node ../../../operations.mjs create-keys "${IP}")
+    msg_exito "Claves de account listas"
 }
 
 crear_archivos_configuracion() {
@@ -246,7 +255,7 @@ lanzar_nodos_rpc_adicionales() {
 
         msg_info "Preparando nodo RPC ${PORT}..."
 
-    (cd "${DIR}" && node ../../../index.mjs create-keys "${IP}")
+    (cd "${DIR}" && node ../../../operations.mjs create-keys "${IP}")
 
         cat > "${DIR}_config.toml" << EOF
 genesis-file="${GENESIS_DOCKER}"
@@ -269,7 +278,7 @@ EOF
 
 esperar_sincronizacion() {
     msg_paso "Esperando a que los nodos se sincronicen..."
-    local WAIT=60
+    local WAIT=50
     for ((i=1; i<=WAIT; i++)); do
         echo -ne "\r⏳ ${i}/${WAIT} segundos"
         sleep 1
@@ -298,10 +307,10 @@ transferir_fondos_mnemonic() {
     local MNEM="test test test test test test test test test test test junk"
     local AMOUNT="1"
     local PRIV
-    PRIV=$(cat networks/besu-network/bootnode/key.priv)
+    PRIV=$(cat networks/mynet-network/bootnode/key.priv)
 
     msg_info "Transfiriendo ${AMOUNT} ETH a las primeras 10 cuentas del mnemonic..."
-    node index.mjs fund-mnemonic "$PRIV" "$MNEM" "$AMOUNT" "http://localhost:${RPC_PUB}" && msg_exito "Fondos transferidos"
+    node operations.mjs fund-mnemonic "$PRIV" "$MNEM" "$AMOUNT" "http://localhost:${RPC_PUB}" && msg_exito "Fondos transferidos"
 }
 
 # ==============================================================================
@@ -319,17 +328,20 @@ verificar_requisitos
 limpiar_recursos
 crear_directorios
 crear_red_docker
+
 generar_claves_nodo "${DIR_BOOT}" "${BOOT_KEY_IP}" "Bootnode"
 generar_claves_nodo "${DIR_MINER}" "${MINER_KEY_IP}" "Miner"
+# Generar claves para la cuenta adicional (sin fondos)
+generar_clave_account
 
-BOOT_ADDR=$(cat networks/besu-network/bootnode/address)
-MINER_ADDR=$(cat networks/besu-network/miner/address)
-BOOT_ENODE=$(cat networks/besu-network/bootnode/enode | sed "s/${BOOT_KEY_IP}/${BOOT_IP}/")
+BOOT_ADDR=$(cat networks/mynet-network/bootnode/address)
+MINER_ADDR=$(cat networks/mynet-network/miner/address)
+BOOT_ENODE=$(cat networks/mynet-network/bootnode/enode | sed "s/${BOOT_KEY_IP}/${BOOT_IP}/")
 
 crear_archivos_configuracion "${MINER_ADDR}" "${BOOT_ADDR}" "${BOOT_ENODE}"
 
-lanzar_contenedor "besu-network-bootnode" "${BOOT_IP}" "${RPC_BASE}" "${RPC_PUB}" "${CONF_BOOT_DOCKER}" "${DATA_BOOT}" "${KEY_BOOT}" "bootnode"
-lanzar_contenedor "besu-network-miner" "${MINER_IP}" "${MINER_RPC}" "${MINER_RPC_PUB}" "${CONF_MINER_DOCKER}" "${DATA_MINER}" "${KEY_MINER}" "miner"
+lanzar_contenedor "mynet-network-bootnode" "${BOOT_IP}" "${RPC_BASE}" "${RPC_PUB}" "${CONF_BOOT_DOCKER}" "${DATA_BOOT}" "${KEY_BOOT}" "bootnode"
+lanzar_contenedor "mynet-network-miner" "${MINER_IP}" "${MINER_RPC}" "${MINER_RPC_PUB}" "${CONF_MINER_DOCKER}" "${DATA_MINER}" "${KEY_MINER}" "miner"
 
 lanzar_nodos_rpc_adicionales
 esperar_sincronizacion
