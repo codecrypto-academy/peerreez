@@ -164,7 +164,7 @@ crear_archivos_configuracion() {
     cat > "${GENESIS}" << EOF
 {
   "config": {
-    "chainId": 13371337,
+    "chainId": 554554,
     "londonBlock": 0,
     "clique": {
       "blockperiodseconds": 4,

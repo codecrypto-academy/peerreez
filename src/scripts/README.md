@@ -11,7 +11,7 @@ Este repositorio contiene un script llamado `deploy.sh` para desplegar una red p
 
 ## 📋 Características de la Red
 - **Consenso:** Clique (Proof of Authority)
-- **Chain ID:** 13371337
+- **Chain ID:** 554554
 - **Subnet Docker:** 172.24.0.0/16
 - **Tiempo de bloque:** 4 segundos
 - **Nodos incluidos:**
@@ -134,7 +134,7 @@ El script transfiere 1 ETH a estas cuentas (derivadas del mnemonic):
 
 - Nombre: Besu Local Network
 - RPC URL: http://localhost:8888
-- Chain ID: 13371337
+- Chain ID: 554554
 - Símbolo: ETH
 
 **Importar Cuenta con Mnemonic:**
