@@ -2,7 +2,7 @@
 #
 # 🚀 Gestor de Red Privada Besu
 # Autor: David Perez Sanchez
-# Email: jrcanelalopez@gmail.com
+# Email: dperezsx@gmail.com
 # Fecha: June 28, 2025
 #
 # Script personalizado para crear y administrar una red Besu privada en Docker.
@@ -16,17 +16,16 @@ trap 'echo -e "\n❌ Oops! Algo salió mal. Revisa los logs para más detalles."
 # 🎨 ESTILOS DE LOGS PERSONALIZADOS
 # ==============================================================================
 
-COLOR_ERROR="\033[1;31m"
-COLOR_OK="\033[1;32m"
-COLOR_ALERT="\033[1;33m"
-COLOR_STEP="\033[1;34m"
-COLOR_RESET="\033[0m"
+readonly COLOR_ERROR="\033[1;31m"
+readonly COLOR_OK="\033[1;32m"
+readonly COLOR_ALERT="\033[1;33m"
+readonly COLOR_STEP="\033[1;34m"
+readonly COLOR_RESET="\033[0m"
 
-msg_paso()       { echo -e "\n${COLOR_STEP}➡️ $1${COLOR_RESET}"; }
-msg_exito()      { echo -e "${COLOR_OK}✔ $1${COLOR_RESET}"; }
-msg_info()       { echo -e "${COLOR_ALERT}ℹ $1${COLOR_RESET}"; }
+msg_paso()        { echo -e "\n${COLOR_STEP}➡️ $1${COLOR_RESET}"; }
+msg_exito()       { echo -e "${COLOR_OK}✔ $1${COLOR_RESET}"; }
+msg_info()        { echo -e "${COLOR_ALERT}ℹ $1${COLOR_RESET}"; }
 msg_advertencia() { echo -e "${COLOR_ERROR}⚠ $1${COLOR_RESET}"; }
-
 # ==============================================================================
 # ⚙️ CONFIGURACIÓN DE RED BESU
 # ==============================================================================
