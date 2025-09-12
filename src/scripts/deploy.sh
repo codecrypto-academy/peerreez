@@ -31,11 +31,11 @@ msg_advertencia() { echo -e "${COLOR_ERROR}⚠ $1${COLOR_RESET}"; }
 # ⚙️ CONFIGURACIÓN DE RED BESU
 # ==============================================================================
 
-readonly RED_SUBNET="172.24.0.0/16"
-readonly BOOT_IP="172.24.0.20"
-readonly BOOT_KEY_IP="172.24.0.21"
-readonly MINER_IP="172.24.0.22"
-readonly MINER_KEY_IP="172.24.0.22"
+readonly RED_SUBNET="172.30.0.0/16"
+readonly BOOT_IP="172.30.0.20"
+readonly BOOT_KEY_IP="172.30.0.21"
+readonly MINER_IP="172.30.0.22"
+readonly MINER_KEY_IP="172.30.0.22"
 
 readonly RPC_BASE=8545
 readonly RPC_PUB=8888
@@ -43,7 +43,7 @@ readonly MINER_RPC=8546
 readonly MINER_RPC_PUB=8889
 
 readonly EXTRA_RPC=(7458)
-readonly EXTRA_RPC_IPS=("172.24.0.23" "172.24.0.24")
+readonly EXTRA_RPC_IPS=("172.30.0.23" "172.30.0.24")
 
 # ==============================================================================
 # ⚓ DOCKER
@@ -106,14 +106,14 @@ limpiar_recursos() {
         docker rm -f $contenedores || true
     fi
 
-    if docker network ls -q --filter name="${RED_DOCKER}" | grep -q .; then
+    if docker network inspect "${RED_DOCKER}" &>/dev/null; then
         msg_info "Borrando red Docker anterior..."
         docker network rm "${RED_DOCKER}" || true
     fi
 
     if [ -d "networks" ]; then
         msg_info "Eliminando directorios de datos previos..."
-        rm -rf networks
+        find networks -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
     fi
 
     msg_exito "Limpieza completada"
@@ -143,9 +143,7 @@ generar_claves_nodo() {
     local NODO=$3
 
     msg_paso "Generando claves para nodo ${NODO}..."
-    cd "${DIR}"
-    node ../../../index.mjs create-keys "${IP}"
-    cd ../../..
+    (cd "${DIR}" && node ../../../index.mjs create-keys "${IP}")
     msg_exito "Claves de ${NODO} listas"
 }
 
@@ -233,7 +231,7 @@ lanzar_contenedor() {
         --config-file="${CONF_FILE}" \
         --data-path="${DATA_PATH}" \
         --node-private-key-file="${KEY_FILE}" \
-        --genesis-file="${GENESIS_DOCKER}"
+        --genesis-file="${GENESIS_DOCKER}" &>/dev/null
     msg_exito "Contenedor ${NAME} lanzado"
 }
 
@@ -249,9 +247,7 @@ lanzar_nodos_rpc_adicionales() {
 
         msg_info "Preparando nodo RPC ${PORT}..."
 
-        cd "${DIR}"
-        node ../../../index.mjs create-keys "${IP}"
-        cd ../../..
+    (cd "${DIR}" && node ../../../index.mjs create-keys "${IP}")
 
         cat > "${DIR}_config.toml" << EOF
 genesis-file="${GENESIS_DOCKER}"
@@ -275,7 +271,7 @@ EOF
 esperar_sincronizacion() {
     msg_paso "Esperando a que los nodos se sincronicen..."
     local WAIT=60
-    for i in $(seq 1 $WAIT); do
+    for ((i=1; i<=WAIT; i++)); do
         echo -ne "\r⏳ ${i}/${WAIT} segundos"
         sleep 1
     done
@@ -285,29 +281,28 @@ esperar_sincronizacion() {
 verificar_bootnode() {
     msg_paso "Verificando que el bootnode responde..."
     local MAX=5
-    local COUNT=0
-    while [ $COUNT -lt $MAX ]; do
+    for ((COUNT=1; COUNT<=MAX; COUNT++)); do
         if curl -s -X POST -H "Content-Type: application/json" \
             --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
             http://localhost:${RPC_PUB} > /dev/null 2>&1; then
             msg_exito "Bootnode responde correctamente"
-            break
+            return 0
         else
-            COUNT=$((COUNT+1))
             msg_advertencia "Intento ${COUNT}/${MAX}: Bootnode aún no responde"
             sleep 5
         fi
     done
+    msg_advertencia "Bootnode no respondió tras ${MAX} intentos."
 }
 
 transferir_fondos_mnemonic() {
     local MNEM="test test test test test test test test test test test junk"
     local AMOUNT="1"
-    local PRIV=$(cat networks/besu-network/bootnode/key.priv)
+    local PRIV
+    PRIV=$(cat networks/besu-network/bootnode/key.priv)
 
     msg_info "Transfiriendo ${AMOUNT} ETH a las primeras 10 cuentas del mnemonic..."
-    node index.mjs fund-mnemonic "$PRIV" "$MNEM" "$AMOUNT" "http://localhost:${RPC_PUB}"
-    msg_exito "Fondos transferidos"
+    node index.mjs fund-mnemonic "$PRIV" "$MNEM" "$AMOUNT" "http://localhost:${RPC_PUB}" && msg_exito "Fondos transferidos"
 }
 
 # ==============================================================================
