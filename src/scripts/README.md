@@ -12,12 +12,12 @@ Este repositorio contiene un script llamado `deploy.sh` para desplegar una red p
 ## 📋 Características de la Red
 - **Consenso:** Clique (Proof of Authority)
 - **Chain ID:** 554554
-- **Subnet Docker:** 172.24.0.0/16
+- **Subnet Docker:** 172.30.0.0/16
 - **Tiempo de bloque:** 4 segundos
 - **Nodos incluidos:**
-  - 1 Bootnode (puerto 8888)
-  - 1 Miner (puerto 8889)
-  - 2 Nodos RPC adicionales (puertos 8547, 8548)
+   - 1 Bootnode (puerto 8888)
+   - 1 Miner (puerto 8889)
+   - 1 Nodo RPC adicional (puerto 7458)
 
 ---
 
@@ -59,9 +59,9 @@ El script realiza los siguientes pasos automáticamente:
    - Elimina contenedores y redes Docker previos
 2. 📁 **Crear Estructura de Directorios**
    - Crea directorios para almacenar los archivos de cada nodo
-   - Estructura: `networks/besu-network/{bootnode,miner,rpc7458}/`
+   - Estructura: `networks/mynet-network/{bootnode,miner,rpc7458}/`
 3. 🌐 **Crear Red Docker**
-   - Crea una red Docker privada con subnet 172.24.0.0/16
+   - Crea una red Docker privada con subnet 172.30.0.0/16
    - Etiquetas para identificación y gestión
 4. 🔐 **Generar Claves Criptográficas**
    - Bootnode: Genera clave privada, pública, address y enode
@@ -74,7 +74,7 @@ El script realiza los siguientes pasos automáticamente:
 6. 🐳 **Lanzar Contenedores Docker**
    - Bootnode: Puerto externo 8888 → interno 8545
    - Miner: Puerto externo 8889 → interno 8546
-   - RPC Nodes: Puertos externos 8547, 8548
+   - RPC Node: Puerto externo 7458
 7. ⏳ **Sincronización**
    - Espera 60 segundos para que los nodos se sincronicen
    - Verifica conectividad del bootnode
@@ -92,8 +92,7 @@ Una vez desplegada la red, puedes conectarte a través de:
 |-----------|-------------------------|--------------------------------|
 | Bootnode  | http://localhost:8888   | Nodo de descubrimiento y RPC   |
 | Miner     | http://localhost:8889   | Nodo minero (genera bloques)   |
-| RPC Node 1| http://localhost:8547   | Nodo RPC adicional             |
-| RPC Node 2| http://localhost:8548   | Nodo RPC adicional             |
+| RPC Node  | http://localhost:7458   | Nodo RPC adicional             |
 
 ---
 
@@ -152,28 +151,28 @@ Verificar Saldos: Las primeras 10 cuentas deberían tener 1 ETH cada una.
 ### Ver Logs de los Nodos
 ```bash
 # Logs del bootnode
-docker logs besu-network-bootnode
+docker logs mynet-network-bootnode
 
 # Logs del miner
-docker logs besu-network-miner
+docker logs mynet-network-miner
 
-# Logs de nodos RPC
-docker logs besu-network-rpc7458
+# Logs de nodo RPC
+docker logs mynet-network-rpc7458
 ```
 
 ### Detener la Red
 ```bash
 # Detener todos los contenedores
-docker rm -f $(docker ps -aq --filter "label=network=besu-network")
+docker rm -f $(docker ps -aq --filter "label=network=mynet-network")
 
 # Eliminar la red Docker
-docker network rm besu-network
+docker network rm mynet-network
 ```
 
 ### Limpiar Completamente
 ```bash
-docker rm -f $(docker ps -aq --filter "label=network=besu-network")
-docker network rm besu-network
+docker rm -f $(docker ps -aq --filter "label=network=mynet-network")
+docker network rm mynet-network
 rm -rf networks/
 ```
 
@@ -183,7 +182,7 @@ rm -rf networks/
 
 **El script falla al crear la red Docker**
 - Causa: Conflicto de subnet
-- Solución: Cambiar la variable NETWORK en el script
+- Solución: Cambiar la variable RED_SUBNET en el script
 
 **Los nodos no se sincronizan**
 - Causa: Puertos ocupados o firewall
