@@ -352,9 +352,67 @@ transferir_fondos_mnemonic
 # 🎉 RESUMEN FINAL
 # ==============================================================================
 
+
 echo -e "\n${COLOR_OK}🎉 Red Besu desplegada exitosamente!${COLOR_RESET}"
 echo "=========================================="
 echo "   David Perez Sanchez Edition ✨"
 echo "   Email: dperezsx@gmail.com"
 echo "=========================================="
 echo "✅ ¡Todo listo para usar!"
+
+# ==============================================================================
+# 📊 RESUMEN DE LA RED
+# ==============================================================================
+
+echo -e "\n${COLOR_STEP}=== INFORMACIÓN DE LA RED ===${COLOR_RESET}"
+echo "Nombre de la red: ${RED_DOCKER}"
+echo "Subnet: ${RED_SUBNET}"
+echo "Chain ID: 554554"
+
+echo -e "\n${COLOR_STEP}=== NODOS DESPLEGADOS ===${COLOR_RESET}"
+echo -e "• Bootnode:"
+echo "  - IP interna: ${BOOT_IP}"
+echo "  - Puerto RPC externo: ${RPC_PUB}"
+echo "  - Address: 0x${BOOT_ADDR}"
+echo -e "\n• Miner:"
+echo "  - IP interna: ${MINER_IP}"
+echo "  - Puerto RPC externo: ${MINER_RPC_PUB}"
+echo "  - Address: 0x${MINER_ADDR}"
+
+
+for i in "${!EXTRA_RPC[@]}"; do
+    PORT=${EXTRA_RPC[$i]}
+    IP=${EXTRA_RPC_IPS[$i]}
+    RPC_ADDR_FILE="networks/${RED_DOCKER}/rpc${PORT}/address"
+    if [ -f "$RPC_ADDR_FILE" ]; then
+        RPC_ADDR=$(cat "$RPC_ADDR_FILE")
+        echo -e "\n• Nodo RPC ${PORT}:"
+        echo "  - IP interna: ${IP}"
+        echo "  - Puerto RPC externo: ${PORT}"
+        echo "  - Address: 0x${RPC_ADDR}"
+    else
+        echo -e "\n• Nodo RPC ${PORT}:"
+        echo "  - IP interna: ${IP}"
+        echo "  - Puerto RPC externo: ${PORT}"
+        echo "  - Address: (no encontrado)"
+    fi
+done
+
+echo -e "\n${COLOR_STEP}=== ENDPOINTS RPC ===${COLOR_RESET}"
+echo "• Bootnode: http://localhost:${RPC_PUB}"
+echo "• Miner: http://localhost:${MINER_RPC_PUB}"
+for i in "${!EXTRA_RPC[@]}"; do
+    PORT=${EXTRA_RPC[$i]}
+    echo "• RPC ${PORT}: http://localhost:${PORT}"
+done
+
+echo -e "\n${COLOR_STEP}=== MNEMONIC PARA TESTING ===${COLOR_RESET}"
+echo "Mnemonic: test test test test test test test test test test test junk"
+echo "Derivation path: m/44'/60'/0'/0/X (donde X = 0-9)"
+echo "✅ Las primeras 10 cuentas ya tienen 1 ETH cada una"
+
+echo -e "\n${COLOR_STEP}=== COMANDOS ÚTILES ===${COLOR_RESET}"
+echo "• Ver logs del bootnode: docker logs ${RED_DOCKER}-bootnode"
+echo "• Ver logs del miner: docker logs ${RED_DOCKER}-miner"
+echo "• Detener la red: docker rm -f \$(docker ps -aq --filter \"label=network=${RED_DOCKER}\")"
+echo "• Eliminar la red: docker network rm ${RED_DOCKER}"

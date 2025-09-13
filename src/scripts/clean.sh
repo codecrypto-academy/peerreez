@@ -32,3 +32,13 @@ if [ -d "$NETWORKS_DIR" ]; then
 fi
 
 echo "✔️ Limpieza completada."
+
+# Mostrar resumen de limpieza
+echo -e "\n==============================="
+echo "🧹 RESUMEN DE LIMPIEZA DE RED"
+echo "==============================="
+echo "Nombre de la red eliminada: $RED_DOCKER"
+echo "Subnet: (ver config de despliegue)"
+echo "Contenedores eliminados: $CONTAINERS"
+echo "Directorio de redes eliminado: $NETWORKS_DIR"
+echo "✔️ Todos los recursos de la red han sido limpiados."
