@@ -146,16 +146,17 @@ async function main() {
         }
         case "balance": {
             const address = args[1];
-            if (!address) return console.error("Uso: balance <address>");
-            const balance = await getEthBalance("http://localhost:8888", address);
+            const url = args[2] || "http://localhost:8888";
+            if (!address) return console.error("Uso: balance <address> [url]");
+            const balance = await getEthBalance(url, address);
             console.log(`💰 Balance: ${ethers.formatEther(balance)} ETH`);
             break;
         }
         case "transfer": {
-            const [fromPriv, to, amount] = args.slice(1);
+            const [fromPriv, to, amount, url = "http://localhost:8888"] = args.slice(1);
             if (!fromPriv || !to || !amount)
-                return console.error("Uso: transfer <fromPriv> <to> <amount>");
-            const tx = await sendTransaction("http://localhost:8888", fromPriv, to, amount);
+                return console.error("Uso: transfer <fromPriv> <to> <amount> [url]");
+            const tx = await sendTransaction(url, fromPriv, to, amount);
             console.log("✅ Tx enviada:", tx);
             break;
         }

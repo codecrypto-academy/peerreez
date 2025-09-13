@@ -5,8 +5,14 @@
 
 set -euo pipefail
 
-RED_DOCKER="mynet-network"
-LABEL_RED="network=mynet-network"
+
+# Obtener el nombre de la red como argumento
+RED_DOCKER="${1:-}"
+if [[ -z "$RED_DOCKER" ]]; then
+  echo "Uso: $0 <network-name>"
+  exit 1
+fi
+LABEL_RED="network=${RED_DOCKER}"
 
 # Eliminar contenedores de la red
 CONTAINERS=$(docker ps -aq --filter "label=${LABEL_RED}")
@@ -22,13 +28,13 @@ if docker network inspect "$RED_DOCKER" &>/dev/null; then
 fi
 
 
-# Eliminar datos locales
-# Calcular la ruta absoluta del directorio de redes basado en la ubicación del script
+
+# Eliminar solo el directorio de la red específica
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-NETWORKS_DIR="$SCRIPT_DIR/networks"
-if [ -d "$NETWORKS_DIR" ]; then
-  echo "🧹 Eliminando estructura de directorios de redes..."
-  rm -rf "$NETWORKS_DIR"
+NETWORK_DIR="$SCRIPT_DIR/networks/$RED_DOCKER"
+if [ -d "$NETWORK_DIR" ]; then
+  echo "🧹 Eliminando directorio de la red: $NETWORK_DIR ..."
+  rm -rf "$NETWORK_DIR"
 fi
 
 echo "✔️ Limpieza completada."
@@ -40,5 +46,5 @@ echo "==============================="
 echo "Nombre de la red eliminada: $RED_DOCKER"
 echo "Subnet: (ver config de despliegue)"
 echo "Contenedores eliminados: $CONTAINERS"
-echo "Directorio de redes eliminado: $NETWORKS_DIR"
+echo "Directorio de red eliminado: $NETWORK_DIR"
 echo "✔️ Todos los recursos de la red han sido limpiados."

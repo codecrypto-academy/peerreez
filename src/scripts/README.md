@@ -1,36 +1,34 @@
+
 # 🚀 Besu Network Setup Script
 Autor: David Perez Sanchez
 Email: dperezsx@gmail.com
-Fecha: 28 de Junio, 2025
+Fecha: 13 de Septiembre, 2025
 
-Este script fue desarrollado con la asistencia de GitHub Copilot para proporcionar utilidades shell para la gestión de redes Hyperledger Besu.
-
-Este repositorio contiene un script llamado `deploy.sh` para desplegar una red privada de Ethereum usando Hyperledger Besu con consenso Clique (Proof of Authority).
+Este script permite desplegar múltiples redes privadas de Ethereum Hyperledger Besu (consenso Clique) de forma parametrizada, con puertos y subredes automáticos y sin rutas hardcodeadas.
 
 ---
 
-## 📋 Características de la Red
+## 📋 Características Principales
+- **Multi-red:** Puedes desplegar varias redes independientes pasando el nombre y chain id como argumentos.
 - **Consenso:** Clique (Proof of Authority)
-- **Chain ID:** 554554
-- **Subnet Docker:** 172.30.0.0/16
-- **Tiempo de bloque:** 4 segundos
-- **Nodos incluidos:**
-   - 1 Bootnode (puerto 8888)
-   - 1 Miner (puerto 8889)
-   - 1 Nodo RPC adicional (puerto 7458)
+- **Subred Docker:** Asignación automática, sin conflictos.
+- **Nodos:**
+   - 1 Bootnode (no expone RPC)
+   - 1 Miner (no expone RPC)
+   - 2 Nodos RPC (puertos dinámicos, únicos por red)
+- **Solo los nodos RPC exponen puertos para interacción externa.**
 
 ---
 
 ## ⚠️ Requisitos del Sistema
-**Recomendación:**
-Ejecuta este script en un sistema Linux o macOS para asegurar la máxima compatibilidad.
+**Recomendación:** Linux o macOS para máxima compatibilidad.
 
-### Dependencias Requeridas
-- Docker - Para contenedores de los nodos Besu
-- Node.js - Para scripts de generación de claves y transferencias
-- npm - Para gestión de paquetes
+### Dependencias
+- Docker
+- Node.js
+- npm
 
-#### Instalación de Dependencias Node.js
+#### Instalación de dependencias Node.js
 ```bash
 npm install elliptic ethers buffer keccak256
 ```
@@ -38,61 +36,40 @@ npm install elliptic ethers buffer keccak256
 ---
 
 ## 🚀 Uso Rápido
-Clonar el repositorio y navegar al directorio:
-
 ```bash
 cd src/scripts/
 chmod +x deploy.sh
-./deploy.sh
+./deploy.sh <network-name> <chain-id>
 ```
-
-Esperar a que se complete el despliegue (aproximadamente 2-3 minutos)
+Ejemplo:
+```bash
+./deploy.sh mi-red-1 12345
+```
+Consulta los endpoints y puertos generados al final del despliegue.
 
 ---
 
-## 📝 Pasos Detallados del Script
-El script realiza los siguientes pasos automáticamente:
-
-1. 🧹 **Verificación y Limpieza**
-   - Verifica que Docker y Node.js están instalados
-   - Limpia cualquier red Besu existente
-   - Elimina contenedores y redes Docker previos
-2. 📁 **Crear Estructura de Directorios**
-   - Crea directorios para almacenar los archivos de cada nodo
-   - Estructura: `networks/mynet-network/{bootnode,miner,rpc7458}/`
-3. 🌐 **Crear Red Docker**
-   - Crea una red Docker privada con subnet 172.30.0.0/16
-   - Etiquetas para identificación y gestión
-4. 🔐 **Generar Claves Criptográficas**
-   - Bootnode: Genera clave privada, pública, address y enode
-   - Miner: Genera clave privada, pública, address y enode
-   - Nodos RPC: Generan sus propias claves independientes
-5. ⚙️ **Crear Archivos de Configuración**
-   - `genesis.json`: Configuración inicial de la blockchain
-   - `config.toml`: Configuración de cada nodo (bootnode, miner, RPC)
-   - Pre-financia las cuentas del bootnode y miner
-6. 🐳 **Lanzar Contenedores Docker**
-   - Bootnode: Puerto externo 8888 → interno 8545
-   - Miner: Puerto externo 8889 → interno 8546
-   - RPC Node: Puerto externo 7458
-7. ⏳ **Sincronización**
-   - Espera 60 segundos para que los nodos se sincronicen
-   - Verifica conectividad del bootnode
-8. 💰 **Transferir Fondos Iniciales**
-   - Usa el mnemonic de testing: `test test test test test test test test test test test junk`
-   - Transfiere 1 ETH a las primeras 10 cuentas derivadas
-   - Derivation path: `m/44'/60'/0'/0/X` (donde X = 0-9)
+## 📝 ¿Qué hace el script?
+1. **Verifica dependencias** (docker, node)
+2. **Limpia solo la red seleccionada** (no borra otras redes)
+3. **Crea directorios por red y nodo**
+4. **Asigna subred y puertos libres automáticamente**
+5. **Genera claves y archivos de configuración**
+6. **Lanza contenedores Docker**
+7. **Solo los nodos RPC exponen puertos a localhost**
+8. **Transfiere fondos a cuentas derivadas del mnemonic de testing**
 
 ---
 
 ## 🔗 Endpoints de Conexión
-Una vez desplegada la red, puedes conectarte a través de:
+Al finalizar el despliegue, el script muestra los endpoints de los nodos RPC. Ejemplo:
 
-| Nodo      | Endpoint                | Función                        |
-|-----------|-------------------------|--------------------------------|
-| Bootnode  | http://localhost:8888   | Nodo de descubrimiento y RPC   |
-| Miner     | http://localhost:8889   | Nodo minero (genera bloques)   |
-| RPC Node  | http://localhost:7458   | Nodo RPC adicional             |
+| Nodo      | Endpoint                        | Función                |
+|-----------|----------------------------------|------------------------|
+| RPC 1     | http://localhost:9000           | Interacción principal  |
+| RPC 2     | http://localhost:9001           | Nodo RPC secundario    |
+
+**Nota:** Los puertos son dinámicos y dependen del nombre de la red. Consulta el resumen final tras cada despliegue.
 
 ---
 
@@ -101,27 +78,30 @@ Una vez desplegada la red, puedes conectarte a través de:
 ### Verificar Número de Bloque
 ```bash
 curl -X POST \
-  --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
-  -H "Content-Type: application/json" \
-  http://localhost:8888
+   --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+   -H "Content-Type: application/json" \
+   http://localhost:<puerto_rpc>
 ```
 
 ### Verificar Saldo de Cuenta
 ```bash
 curl -X POST \
-  --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "latest"],"id":1}' \
-  -H "Content-Type: application/json" \
-  http://localhost:8888
+   --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["<address>", "latest"],"id":1}' \
+   -H "Content-Type: application/json" \
+   http://localhost:<puerto_rpc>
+```
+
+### Usar el CLI para consultar balances
+```bash
+node operations.mjs balance <address> http://localhost:<puerto_rpc>
 ```
 
 ### Cuentas Pre-financiadas
-El script transfiere 1 ETH a estas cuentas (derivadas del mnemonic):
+El script transfiere 1 ETH a las primeras 10 cuentas derivadas del mnemonic:
 
 | Índice | Dirección                                    | Derivation Path              |
 |--------|----------------------------------------------|------------------------------|
 | 0      | 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266   | m/44'/60'/0'/0/0             |
-| 1      | 0x70997970C51812dc3A010C7d01b50e0d17dc79C8   | m/44'/60'/0'/0/1             |
-| 2      | 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC   | m/44'/60'/0'/0/2             |
 | ...    | ...                                          | ...                          |
 | 9      | ...                                          | m/44'/60'/0'/0/9             |
 
@@ -130,19 +110,15 @@ El script transfiere 1 ETH a estas cuentas (derivadas del mnemonic):
 ## 🔧 Configuración de Metamask
 
 **Añadir Red Personalizada:**
-
 - Nombre: Besu Local Network
-- RPC URL: http://localhost:8888
-- Chain ID: 554554
+- RPC URL: http://localhost:<puerto_rpc>
+- Chain ID: <el que usaste en el despliegue>
 - Símbolo: ETH
 
 **Importar Cuenta con Mnemonic:**
-
 ```
 test test test test test test test test test test test junk
 ```
-
-Verificar Saldos: Las primeras 10 cuentas deberían tener 1 ETH cada una.
 
 ---
 
@@ -151,46 +127,39 @@ Verificar Saldos: Las primeras 10 cuentas deberían tener 1 ETH cada una.
 ### Ver Logs de los Nodos
 ```bash
 # Logs del bootnode
-docker logs mynet-network-bootnode
+docker logs <network-name>-bootnode
 
 # Logs del miner
-docker logs mynet-network-miner
+docker logs <network-name>-miner
 
 # Logs de nodo RPC
-docker logs mynet-network-rpc7458
+docker logs <network-name>-rpc<puerto>
 ```
 
 ### Detener la Red
 ```bash
-# Detener todos los contenedores
-docker rm -f $(docker ps -aq --filter "label=network=mynet-network")
+# Detener todos los contenedores de una red
+docker rm -f $(docker ps -aq --filter "label=network=<network-name>")
 
 # Eliminar la red Docker
-docker network rm mynet-network
+docker network rm <network-name>
 ```
 
-### Limpiar Completamente
+### Limpiar solo una red
 ```bash
-docker rm -f $(docker ps -aq --filter "label=network=mynet-network")
-docker network rm mynet-network
-rm -rf networks/
+./clean.sh <network-name>
 ```
 
 ---
 
 ## 🐛 Solución de Problemas
 
-**El script falla al crear la red Docker**
-- Causa: Conflicto de subnet
-- Solución: Cambiar la variable RED_SUBNET en el script
-
-**Los nodos no se sincronizan**
-- Causa: Puertos ocupados o firewall
-- Solución: Verificar que los puertos 8888, 8889, 8547, 8548 estén libres
-
-**Las transferencias fallan**
-- Causa: Nodos no sincronizados
-- Solución: Esperar más tiempo o reiniciar la red
+- **No puedes conectar a un nodo:**
+   - Asegúrate de usar el puerto correcto mostrado en el resumen del despliegue.
+- **El script falla al crear la red Docker:**
+   - Puede haber conflicto de subred. El script busca automáticamente otra subred.
+- **Las transferencias fallan:**
+   - Espera a que los nodos estén sincronizados y usa el endpoint RPC correcto.
 
 ---
 
