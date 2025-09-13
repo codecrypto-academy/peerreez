@@ -15,10 +15,10 @@
   },
   "dependencies": {
     "dockerode": "^4.0.8",
+    "elliptic": "^6.6.1",
     "ethers": "^6.13.7",
     "fs-extra": "^11.3.1",
     "keccak256": "^1.0.6",
-    "elliptic": "^6.6.1",
     "next": "15.5.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"
@@ -31,6 +31,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
 }
