@@ -6,7 +6,7 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { exec as _exec } from 'child_process';
+import { exec as _exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { mkdir, writeFile } from 'fs/promises';
 import crypto from 'crypto';
@@ -319,9 +319,34 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
         console.log('Transfiriendo fondos a las primeras 10 cuentas del mnemonic...');
         console.log(`Usando clave: ${privPath}`);
         console.log(`RPC: http://localhost:${rpcPort}`);
-        await exec(`cd "${baseDir}" && node ../../../scripts/operations.mjs fund-mnemonic "${priv}" "${mnemonic}" "${amount}" "http://localhost:${rpcPort}"`);
-        console.log('Fondos transferidos');
-        console.log('==============================');
+        await new Promise((resolve, reject) => {
+            const child = spawn('node', [
+                '../../../scripts/operations.mjs',
+                'fund-mnemonic',
+                priv,
+                mnemonic,
+                amount,
+                `http://localhost:${rpcPort}`
+            ], {
+                cwd: baseDir,
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            child.stdout.on('data', (data) => {
+                process.stdout.write(data);
+            });
+            child.stderr.on('data', (data) => {
+                process.stderr.write(data);
+            });
+            child.on('close', (code) => {
+                if (code === 0) {
+                    console.log('Fondos transferidos');
+                    console.log('==============================');
+                    resolve(undefined);
+                } else {
+                    reject(new Error(`fund-mnemonic process exited with code ${code}`));
+                }
+            });
+        });
     }
 
     function mostrarResumen({ networkName, redSubnet, chainId, bootIp, rpcPub, bootAddr, minerIp, minerRpcPub, minerAddr, extraRpc, extraRpcIps, baseDir }: any) {
