@@ -17,39 +17,155 @@ cd web25-control-panel-besu-2025
 npm install
 ```
 
-## Uso básico
 
-### Desplegar una red
+## Ejemplo paso a paso: Despliegue, gestión y limpieza de una red Besu
 
-Puedes desplegar una red usando el script de test o directamente:
+Supongamos que quieres crear una red llamada `test` con chainId `2025`, detener y arrancar nodos específicos, y finalmente limpiar la red. Sigue estos pasos:
 
-```bash
-node --loader ts-node/esm src/lib/deployNetwork.ts <networkName> <chainId>
-```
-Ejemplo:
-```bash
-node --loader ts-node/esm src/lib/deployNetwork.ts r1 2025
-```
 
-### Limpiar una red
 
-Elimina contenedores, red Docker y archivos asociados:
+### 1. Desplegar la red
 
 ```bash
-node --loader ts-node/esm src/lib/cleanNetwork.ts <networkName>
-```
-Ejemplo:
-```bash
-node --loader ts-node/esm src/lib/cleanNetwork.ts r1
+node --loader ts-node/esm src/lib/runNetwork.ts test 2025
 ```
 
-### Probar despliegue y limpieza (test)
+Esto creará la red Docker, los contenedores bootnode, miner y un rpc, y dejará todo listo para operar.
 
-Ejecuta el script de test para desplegar varias redes:
+### 1b. Añadir nodos rpc adicionales
+
+Puedes añadir más nodos rpc a la red en cualquier momento:
 
 ```bash
-node --loader ts-node/esm src/lib/testBesuLib.ts
+node --loader ts-node/esm src/lib/deployNodeRpc.ts test 3
 ```
+
+El ejemplo anterior añade 3 nodos rpc extra a la red `test`.
+
+### 2. Parar un nodo específico (por ejemplo, un nodo rpc)
+
+```bash
+node --loader ts-node/esm src/lib/stopNodes.ts test test-rpc9010
+```
+
+Si el nodo pertenece a la red, será detenido aunque esté parado previamente. Si no pertenece, mostrará un error.
+
+### 3. Arrancar un nodo específico
+
+```bash
+node --loader ts-node/esm src/lib/startNode.ts test test-rpc9010
+```
+
+Esto arrancará el contenedor si pertenece a la red y no es un bootnode.
+
+### 4. Parar todos los nodos rpc de la red
+
+```bash
+node --loader ts-node/esm src/lib/stopNodes.ts test rpc
+```
+
+### 5. Eliminar un nodo rpc específico
+
+```bash
+node --loader ts-node/esm src/lib/deleteNodeRpc.ts test test-rpc9008
+```
+
+Esto eliminará el contenedor, el directorio y la configuración del nodo rpc indicado.
+
+### 6. Eliminar todos los nodos rpc de la red
+
+```bash
+node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts test
+```
+
+Esto eliminará todos los contenedores rpc y sus directorios/config asociados de la red indicada.
+
+### 7. Limpiar la red (eliminar todos los recursos)
+
+```bash
+node --loader ts-node/esm src/lib/cleanNetwork.ts test
+```
+
+Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
+
+---
+
+## Tests automáticos
+
+Puedes probar cada funcionalidad de la librería con los siguientes tests:
+
+```bash
+node --loader ts-node/esm src/lib/test/testDeployNetwork.ts         # Despliega la red
+node --loader ts-node/esm src/lib/test/testAddRpcNodes.ts           # Añade nodos rpc
+node --loader ts-node/esm src/lib/test/testStopNode.ts              # Para un nodo rpc
+node --loader ts-node/esm src/lib/test/testStartNode.ts             # Arranca un nodo rpc
+node --loader ts-node/esm src/lib/test/testDeleteNodeRpc.ts         # Elimina un nodo rpc individual
+node --loader ts-node/esm src/lib/test/testDeleteAllRpcNodes.ts     # Elimina todos los nodos rpc
+node --loader ts-node/esm src/lib/test/testCleanNetwork.ts          # Limpia la red
+```
+
+Puedes ejecutar cada test por separado según la funcionalidad que quieras validar.
+
+### 1b. Añadir nodos rpc adicionales
+
+Puedes añadir más nodos rpc a la red en cualquier momento:
+
+```bash
+node --loader ts-node/esm src/lib/deployNodeRpc.ts test 2
+```
+
+El ejemplo anterior añade 2 nodos rpc extra a la red `test`. Puedes cambiar el número según lo que necesites.
+
+### 2. Parar un nodo específico (por ejemplo, un nodo rpc)
+
+```bash
+node --loader ts-node/esm src/lib/stopNodes.ts test test-rpc9010
+```
+
+Si el nodo pertenece a la red, será detenido aunque esté parado previamente. Si no pertenece, mostrará un error.
+
+### 3. Arrancar un nodo específico
+
+```bash
+node --loader ts-node/esm src/lib/startNode.ts test test-rpc9010
+```
+
+Esto arrancará el contenedor si pertenece a la red y no es un bootnode.
+
+
+### 4. Parar todos los nodos rpc de la red
+
+```bash
+node --loader ts-node/esm src/lib/stopNodes.ts test rpc
+```
+
+### 5. Eliminar un nodo rpc específico
+
+```bash
+node --loader ts-node/esm src/lib/deleteNodeRpc.ts test test-rpc9008
+```
+
+Esto eliminará el contenedor, el directorio y la configuración del nodo rpc indicado.
+
+### 6. Eliminar todos los nodos rpc de la red
+
+```bash
+node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts test
+```
+
+Esto eliminará todos los contenedores rpc y sus directorios/config asociados de la red indicada.
+
+### 7. Limpiar la red (eliminar todos los recursos)
+
+```bash
+node --loader ts-node/esm src/lib/cleanNetwork.ts test
+```
+
+Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
+
+---
+
+Puedes adaptar los nombres de red y contenedores según tu despliegue. Consulta la sección de Uso como librería para integración directa en TypeScript.
 
 ## Uso como librería en TypeScript
 
@@ -64,7 +180,18 @@ await cleanNetwork('r1');
 ## Estructura relevante
 - `src/lib/deployNetwork.ts`: Despliega una red Besu
 - `src/lib/cleanNetwork.ts`: Limpia una red Besu
-- `src/lib/testBesuLib.ts`: Ejemplo de uso y test
+- `src/lib/deployNodeRpc.ts`: Añade nodos rpc a una red existente
+- `src/lib/deleteNodeRpc.ts`: Elimina un nodo rpc individual
+- `src/lib/deleteAllRpcNodes.ts`: Elimina todos los nodos rpc de una red
+- `src/lib/startNode.ts`: Arranca un nodo específico
+- `src/lib/stopNodes.ts`: Para nodos específicos o por tipo
+- `src/lib/test/testDeployNetwork.ts`: Test de despliegue de red
+- `src/lib/test/testAddRpcNodes.ts`: Test de añadir nodos rpc
+- `src/lib/test/testStopNode.ts`: Test de parar nodo
+- `src/lib/test/testStartNode.ts`: Test de arrancar nodo
+- `src/lib/test/testDeleteNodeRpc.ts`: Test de eliminar nodo rpc individual
+- `src/lib/test/testDeleteAllRpcNodes.ts`: Test de eliminar todos los nodos rpc
+- `src/lib/test/testCleanNetwork.ts`: Test de limpieza de red
 - `src/scripts/`: Scripts bash alternativos
 
 ## Notas

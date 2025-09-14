@@ -1,3 +1,125 @@
+import fs from 'fs/promises';
+/**
+ * Obtiene la subred de una red Besu desplegada leyendo el archivo de configuración generado
+ * @param networkName Nombre de la red
+ * @returns Subred (string)
+ */
+export async function obtenerSubnet(networkName: string): Promise<string> {
+    const baseDir = path.resolve(__dirname, 'networks', networkName);
+    // Busca el archivo genesis.json y extrae la subred del docker network
+    // Alternativamente, puedes guardar la subred en un archivo propio al desplegar
+    // Aquí se asume que la subred se puede obtener con docker network inspect
+    const { stdout } = await exec(`docker network inspect ${networkName} --format '{{(index .IPAM.Config 0).Subnet}}'`);
+    return stdout.trim();
+}
+
+/**
+ * Obtiene el enode del bootnode de una red Besu desplegada
+ * @param networkName Nombre de la red
+ * @returns enode (string)
+ */
+export async function obtenerBootEnode(networkName: string): Promise<string> {
+    const baseDir = path.resolve(__dirname, 'networks', networkName);
+    const enodePath = path.join(baseDir, 'bootnode', 'enode');
+    const ipPath = path.join(baseDir, 'bootnode', 'key.priv');
+    let enode = await fs.readFile(enodePath, 'utf8');
+    // Reemplaza la IP por la IP interna del bootnode
+    const { stdout } = await exec(`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${networkName}-bootnode`);
+    const ip = stdout.trim();
+    enode = enode.replace(/@.*$/, `@${ip}:30303`);
+    return enode.trim();
+}
+// Ejemplo de uso: agregar 3 nodos RPC a una red existente
+// (puedes poner este ejemplo en un script aparte o en un test)
+/*
+import { agregarNodosRpc, obtenerSubnet, obtenerBootEnode } from './deployNetwork';
+import path from 'path';
+
+const networkName = 'redCherries';
+const n = 3;
+const baseDir = path.resolve(__dirname, 'networks', networkName);
+const imagenBesu = 'hyperledger/besu:latest';
+
+(async () => {
+    const redSubnet = await obtenerSubnet(networkName);
+    const bootEnode = await obtenerBootEnode(networkName);
+    await agregarNodosRpc({
+        networkName,
+        n,
+        baseDir,
+        redSubnet,
+        bootEnode,
+        imagenBesu
+    });
+})();
+*/
+/**
+ * Agrega n nodos RPC adicionales a una red ya desplegada
+ * @param networkName Nombre de la red
+ * @param n Número de nodos RPC a agregar
+ * @param baseDir Directorio base de la red
+ * @param redSubnet Subred de la red
+ * @param bootEnode Enode del bootnode
+ * @param imagenBesu Imagen de besu a usar
+ */
+export async function agregarNodosRpc({ networkName, n, baseDir, redSubnet, bootEnode, imagenBesu }: {
+    networkName: string,
+    n: number,
+    baseDir: string,
+    redSubnet: string,
+    bootEnode: string,
+    imagenBesu: string
+}) {
+    // Buscar los puertos ya usados
+    const fs = await import('fs/promises');
+    const dirs = await fs.readdir(baseDir);
+    const rpcDirs = dirs.filter(d => d.startsWith('rpc'));
+    const usados = rpcDirs.map(d => parseInt(d.replace('rpc', ''))).filter(Number.isFinite);
+    // Buscar los puertos ocupados a partir de 9000
+    const usadosSet = new Set(usados);
+    let creados = 0;
+    let intento = 0;
+    while (creados < n && intento < 100) { // límite de 100 intentos para evitar bucles infinitos
+        const port = 9000 + intento;
+        if (usadosSet.has(port)) {
+            intento++;
+            continue;
+        }
+        const ipIdx = 23 + intento;
+        const ip = redSubnet.replace('0/24', `${ipIdx}`);
+        const dir = `${baseDir}/rpc${port}`;
+        await fs.mkdir(dir, { recursive: true });
+        // Generar claves
+        await (await import('child_process')).exec(`cd "${dir}" && node ../../../../scripts/operations.mjs create-keys "${ip}"`);
+        // Crear config
+        const confPath = `${baseDir}/rpc${port}_config.toml`;
+        const conf = `genesis-file="/data/genesis.json"
+    p2p-host="0.0.0.0"
+    p2p-port=30303
+    p2p-enabled=true
+    rpc-http-enabled=true
+    rpc-http-host="0.0.0.0"
+    rpc-http-port=${port}
+    rpc-http-cors-origins=["*"]
+    rpc-http-api=["ETH","NET","CLIQUE","ADMIN", "TRACE", "DEBUG", "TXPOOL", "PERM"]
+    host-allowlist=["*"]
+    bootnodes=["${bootEnode}"]
+    sync-mode="FULL"
+`;
+        await fs.writeFile(confPath, conf);
+        // Lanzar contenedor
+        const name = `${networkName}-rpc${port}`;
+        const data = `/data/rpc${port}/data`;
+        const key = `/data/rpc${port}/key.priv`;
+        const confFile = `/data/rpc${port}_config.toml`;
+        await (await import('child_process')).exec(`docker run -d --name "${name}" --label nodo="rpc" --label network="${networkName}" --ip "${ip}" --network "${networkName}" -p ${port}:${port} -v "${baseDir}:/data" "${imagenBesu}" --config-file="${confFile}" --data-path="${data}" --node-private-key-file="${key}" --genesis-file="/data/genesis.json"`);
+        creados++;
+        intento++;
+    }
+    if (creados < n) {
+        throw new Error(`Solo se pudieron crear ${creados} nodos RPC. Puede que no haya suficientes puertos libres.`);
+    }
+}
 // deployNetwork.ts
 // Crea una red Besu con los parámetros dados
 
