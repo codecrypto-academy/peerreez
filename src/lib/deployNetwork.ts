@@ -331,8 +331,8 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
         console.log(`Subnet: ${redSubnet}`);
         console.log(`Chain ID: ${chainId}`);
         console.log('\n=== NODOS DESPLEGADOS ===');
-        console.log(`• Bootnode: IP interna: ${bootIp}, Puerto RPC externo: ${rpcPub}, Address: 0x${bootAddr}`);
-        console.log(`• Miner: IP interna: ${minerIp}, Puerto RPC externo: ${minerRpcPub}, Address: 0x${minerAddr}`);
+        console.log(`• Bootnode: IP interna: ${bootIp}`);
+        console.log(`• Miner: IP interna: ${minerIp}`);
         for (let i = 0; i < extraRpc.length; i++) {
             const port = extraRpc[i];
             const ip = extraRpcIps[i];
@@ -340,7 +340,7 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
             try {
                 rpcAddr = require('fs').readFileSync(path.join(baseDir, `rpc${port}/address`), 'utf8').trim();
             } catch { }
-            console.log(`• Nodo RPC ${port}: IP interna: ${ip}, Puerto RPC externo: ${port}, Address: 0x${rpcAddr}`);
+            console.log(`• Nodo RPC ${port}: IP interna: ${ip}, Puerto RPC externo: ${port}`);
         }
         console.log('\n=== ENDPOINTS RPC ===');
         for (let i = 0; i < extraRpc.length; i++) {
