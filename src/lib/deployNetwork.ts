@@ -128,9 +128,10 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { exec as _exec, spawn } from 'child_process';
+import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
 import { mkdir, writeFile } from 'fs/promises';
+import { generateNodeKeys, fundMnemonic } from './operations';
 import crypto from 'crypto';
 
 const exec = promisify(_exec);
@@ -145,13 +146,24 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
     // --- Helpers deben ir antes de su uso ---
     async function generarClavesNodo(dir: string, ip: string, nodo: string) {
         console.log(`Generando claves para nodo ${nodo}...`);
-        await exec(`cd "${dir}" && node ../../../../scripts/operations.mjs create-keys "${ip}"`);
+        // Generar claves usando la librería TypeScript
+        const keys = generateNodeKeys(ip);
+        const fs = await import('fs/promises');
+        await fs.writeFile(`${dir}/key.priv`, keys.privateKey);
+        await fs.writeFile(`${dir}/key.pub`, keys.publicKey);
+        await fs.writeFile(`${dir}/address`, keys.address);
+        await fs.writeFile(`${dir}/enode`, keys.enode);
     }
 
     async function generarClaveAccount(dir: string) {
         const ip = '172.30.0.30';
         console.log('Generando claves para la cuenta adicional (account)...');
-        await exec(`cd "${dir}" && node ../../../../scripts/operations.mjs create-keys "${ip}"`);
+        const keys = generateNodeKeys(ip);
+        const fs = await import('fs/promises');
+        await fs.writeFile(`${dir}/key.priv`, keys.privateKey);
+        await fs.writeFile(`${dir}/key.pub`, keys.publicKey);
+        await fs.writeFile(`${dir}/address`, keys.address);
+        await fs.writeFile(`${dir}/enode`, keys.enode);
     }
     if (!networkName || !chainId) throw new Error('networkName y chainId son requeridos');
 
@@ -435,40 +447,20 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
 
     async function transferirFondosMnemonic({ privPath, rpcPort, baseDir }: any) {
         const mnemonic = 'test test test test test test test test test test test junk';
-        const amount = '1';
+        const amount = 1;
         const priv = await leerArchivo(privPath);
         console.log('==============================');
         console.log('Transfiriendo fondos a las primeras 10 cuentas del mnemonic...');
         console.log(`Usando clave: ${privPath}`);
         console.log(`RPC: http://localhost:${rpcPort}`);
-        await new Promise((resolve, reject) => {
-            const child = spawn('node', [
-                '../../../scripts/operations.mjs',
-                'fund-mnemonic',
-                priv,
-                mnemonic,
-                amount,
-                `http://localhost:${rpcPort}`
-            ], {
-                cwd: baseDir,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
-            child.stdout.on('data', (data) => {
-                process.stdout.write(data);
-            });
-            child.stderr.on('data', (data) => {
-                process.stderr.write(data);
-            });
-            child.on('close', (code) => {
-                if (code === 0) {
-                    console.log('Fondos transferidos');
-                    console.log('==============================');
-                    resolve(undefined);
-                } else {
-                    reject(new Error(`fund-mnemonic process exited with code ${code}`));
-                }
-            });
-        });
+        try {
+            await fundMnemonic(priv, mnemonic, amount, `http://localhost:${rpcPort}`);
+            console.log('Fondos transferidos');
+            console.log('==============================');
+        } catch (e: any) {
+            console.error('Error al transferir fondos:', e.message);
+            throw e;
+        }
     }
 
     function mostrarResumen({ networkName, redSubnet, chainId, bootIp, rpcPub, bootAddr, minerIp, minerRpcPub, minerAddr, extraRpc, extraRpcIps, baseDir }: any) {
@@ -619,12 +611,6 @@ async function verificarRequisitos(): Promise<void> {
             throw new Error(`Dependencia requerida no encontrada: ${dep}`);
         }
     }
-    // Verificar que operations.mjs existe en scripts/operations.mjs desde src/lib
-    const operationsPath = path.resolve(__dirname, '../scripts/operations.mjs');
-    try {
-        await exec(`[ -f "${operationsPath}" ]`);
-    } catch {
-        throw new Error('No se encontró operations.mjs en scripts.');
-    }
+    // Ya no es necesario verificar operations.mjs, solo docker y node
     console.log('✔️ Todas las herramientas están disponibles');
 }
