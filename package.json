@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.43",
+    "@types/elliptic": "^6.4.18",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.19.13",
     "@types/react": "^19",

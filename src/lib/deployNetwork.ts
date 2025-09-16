@@ -1,4 +1,16 @@
 // Ejecuta automáticamente si se llama desde la terminal
+// Definir __filename y __dirname para módulos ES
+import { fileURLToPath } from 'url';
+import path from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import { exec as _exec } from 'child_process';
+import { promisify } from 'util';
+import { mkdir, writeFile } from 'fs/promises';
+import crypto from 'crypto';
+
+const exec = promisify(_exec);
+
 if (typeof process !== 'undefined' && process.argv && process.argv[1] && process.argv[1].endsWith('deployNetwork.ts')) {
     const args = process.argv.slice(2);
     const networkName = args[0];
@@ -17,7 +29,6 @@ if (typeof process !== 'undefined' && process.argv && process.argv[1] && process
         }
     })();
 }
-import fs from 'fs/promises';
 /**
  * Obtiene la subred de una red Besu desplegada leyendo el archivo de configuración generado
  * @param networkName Nombre de la red
@@ -41,6 +52,7 @@ export async function obtenerBootEnode(networkName: string): Promise<string> {
     const baseDir = path.resolve(__dirname, 'networks', networkName);
     const enodePath = path.join(baseDir, 'bootnode', 'enode');
     const ipPath = path.join(baseDir, 'bootnode', 'key.priv');
+    const fs = await import('fs/promises');
     let enode = await fs.readFile(enodePath, 'utf8');
     // Reemplaza la IP por la IP interna del bootnode
     const { stdout } = await exec(`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${networkName}-bootnode`);
@@ -48,30 +60,7 @@ export async function obtenerBootEnode(networkName: string): Promise<string> {
     enode = enode.replace(/@.*$/, `@${ip}:30303`);
     return enode.trim();
 }
-// Ejemplo de uso: agregar 3 nodos RPC a una red existente
-// (puedes poner este ejemplo en un script aparte o en un test)
-/*
-import { agregarNodosRpc, obtenerSubnet, obtenerBootEnode } from './deployNetwork';
-import path from 'path';
 
-const networkName = 'redCherries';
-const n = 3;
-const baseDir = path.resolve(__dirname, 'networks', networkName);
-const imagenBesu = 'hyperledger/besu:latest';
-
-(async () => {
-    const redSubnet = await obtenerSubnet(networkName);
-    const bootEnode = await obtenerBootEnode(networkName);
-    await agregarNodosRpc({
-        networkName,
-        n,
-        baseDir,
-        redSubnet,
-        bootEnode,
-        imagenBesu
-    });
-})();
-*/
 /**
  * Agrega n nodos RPC adicionales a una red ya desplegada
  * @param networkName Nombre de la red
@@ -151,18 +140,7 @@ export async function agregarNodosRpc({ networkName, n, baseDir, redSubnet, boot
 // deployNetwork.ts
 // Crea una red Besu con los parámetros dados
 
-import { fileURLToPath } from 'url';
-import path from 'path';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-import { exec as _exec } from 'child_process';
-import { promisify } from 'util';
-import { mkdir, writeFile } from 'fs/promises';
-import { generateNodeKeys, fundMnemonic } from './operations.js';
-import crypto from 'crypto';
-
-const exec = promisify(_exec);
+// ...existing code...
 
 /**
  * Despliega una red Besu con los parámetros dados.
@@ -171,6 +149,15 @@ const exec = promisify(_exec);
  * @param chainId Chain ID de la red
  */
 export async function deployNetwork(networkName: string, chainId: number): Promise<void> {
+    // Importar helpers según entorno
+    let generateNodeKeys: any;
+    let fundMnemonic: any;
+    const isCli = typeof process !== 'undefined' && process.argv && process.argv[1] && process.argv[1].endsWith('deployNetwork.ts');
+    if (isCli) {
+        ({ generateNodeKeys, fundMnemonic } = await import('./operations.ts'));
+    } else {
+        ({ generateNodeKeys, fundMnemonic } = await import('./operations'));
+    }
     // --- Helpers deben ir antes de su uso ---
     async function generarClavesNodo(dir: string, ip: string, nodo: string) {
         console.log(`Generando claves para nodo ${nodo}...`);
