@@ -1,3 +1,22 @@
+// Ejecuta automáticamente si se llama desde la terminal
+if (typeof process !== 'undefined' && process.argv && process.argv[1] && process.argv[1].endsWith('deployNetwork.ts')) {
+    const args = process.argv.slice(2);
+    const networkName = args[0];
+    const chainId = Number(args[1]);
+    if (!networkName || isNaN(chainId)) {
+        console.error('Uso: node --loader ts-node/esm src/lib/deployNetwork.ts <networkName> <chainId>');
+        process.exit(1);
+    }
+    (async () => {
+        try {
+            await deployNetwork(networkName, chainId);
+            console.log('Red desplegada correctamente.');
+        } catch (e) {
+            console.error('Error al desplegar la red:', e);
+            process.exit(1);
+        }
+    })();
+}
 import fs from 'fs/promises';
 /**
  * Obtiene la subred de una red Besu desplegada leyendo el archivo de configuración generado
@@ -72,26 +91,36 @@ export async function agregarNodosRpc({ networkName, n, baseDir, redSubnet, boot
 }) {
     // Buscar los puertos ya usados
     const fs = await import('fs/promises');
+    const { execSync } = await import('child_process');
     const dirs = await fs.readdir(baseDir);
     const rpcDirs = dirs.filter(d => d.startsWith('rpc'));
-    const usados = rpcDirs.map(d => parseInt(d.replace('rpc', ''))).filter(Number.isFinite);
-    // Buscar los puertos ocupados a partir de 9000
+    let usados = rpcDirs.map(d => parseInt(d.replace('rpc', ''))).filter(Number.isFinite);
+    // Verificar contenedores Docker y puertos realmente ocupados
+    try {
+        const dockerPs = execSync('docker ps -a --format "{{.Names}}"').toString().split('\n');
+        for (const name of dockerPs) {
+            const match = name.match(/rpc(\d+)$/);
+            if (match) {
+                const port = parseInt(match[1]);
+                if (!usados.includes(port)) usados.push(port);
+            }
+        }
+    } catch { }
+    // Verificar puertos ocupados en el host
+    const netstat = execSync('ss -tuln | grep LISTEN || true').toString();
     const usadosSet = new Set(usados);
     let creados = 0;
     let intento = 0;
-    while (creados < n && intento < 100) { // límite de 100 intentos para evitar bucles infinitos
+    while (creados < n && intento < 100) {
         const port = 9000 + intento;
-        if (usadosSet.has(port)) {
+        if (usadosSet.has(port) || netstat.includes(`:${port} `)) {
             intento++;
             continue;
         }
-        const ipIdx = 23 + intento;
-        const ip = redSubnet.replace('0/24', `${ipIdx}`);
         const dir = `${baseDir}/rpc${port}`;
         await fs.mkdir(dir, { recursive: true });
-        // Generar claves
-        await (await import('child_process')).exec(`cd "${dir}" && node ../../../../scripts/operations.mjs create-keys "${ip}"`);
-        // Crear config
+        // Generar claves (ya no se usa IP fija)
+        await (await import('child_process')).exec(`cd "${dir}" && node ../../../../scripts/operations.mjs create-keys ""`);
         const confPath = `${baseDir}/rpc${port}_config.toml`;
         const conf = `genesis-file="/data/genesis.json"
     p2p-host="0.0.0.0"
@@ -107,12 +136,11 @@ export async function agregarNodosRpc({ networkName, n, baseDir, redSubnet, boot
     sync-mode="FULL"
 `;
         await fs.writeFile(confPath, conf);
-        // Lanzar contenedor
         const name = `${networkName}-rpc${port}`;
         const data = `/data/rpc${port}/data`;
         const key = `/data/rpc${port}/key.priv`;
         const confFile = `/data/rpc${port}_config.toml`;
-        await (await import('child_process')).exec(`docker run -d --name "${name}" --label nodo="rpc" --label network="${networkName}" --ip "${ip}" --network "${networkName}" -p ${port}:${port} -v "${baseDir}:/data" "${imagenBesu}" --config-file="${confFile}" --data-path="${data}" --node-private-key-file="${key}" --genesis-file="/data/genesis.json"`);
+        await (await import('child_process')).exec(`docker run -d --name "${name}" --label nodo="rpc" --label network="${networkName}" --network "${networkName}" -p ${port}:${port} -v "${baseDir}:/data" "${imagenBesu}" --config-file="${confFile}" --data-path="${data}" --node-private-key-file="${key}" --genesis-file="/data/genesis.json"`);
         creados++;
         intento++;
     }
@@ -131,7 +159,7 @@ const __dirname = path.dirname(__filename);
 import { exec as _exec } from 'child_process';
 import { promisify } from 'util';
 import { mkdir, writeFile } from 'fs/promises';
-import { generateNodeKeys, fundMnemonic } from './operations';
+import { generateNodeKeys, fundMnemonic } from './operations.js';
 import crypto from 'crypto';
 
 const exec = promisify(_exec);
@@ -365,7 +393,7 @@ export async function deployNetwork(networkName: string, chainId: number): Promi
     }
 
     // 10. Esperar sincronización
-    await esperarSincronizacion(50);
+    await esperarSincronizacion(55);
 
     // 11. Verificar nodo RPC
     await verificarBootnode(extraRpc[0]);
@@ -607,8 +635,17 @@ async function verificarRequisitos(): Promise<void> {
     for (const dep of dependencias) {
         try {
             await exec(`command -v ${dep}`);
-        } catch {
-            throw new Error(`Dependencia requerida no encontrada: ${dep}`);
+        } catch (err) {
+            // Si falla docker, intenta docker --version para dar más información
+            if (dep === 'docker') {
+                try {
+                    await exec('docker --version');
+                    continue;
+                } catch (err2) {
+                    throw new Error(`Dependencia requerida no encontrada: ${dep}. Error: ${typeof err2 === 'object' && err2 !== null && 'message' in err2 ? (err2 as any).message : String(err2)}`);
+                }
+            }
+            throw new Error(`Dependencia requerida no encontrada: ${dep}. Error: ${typeof err === 'object' && err !== null && 'message' in err ? (err as any).message : String(err)}`);
         }
     }
     // Ya no es necesario verificar operations.mjs, solo docker y node

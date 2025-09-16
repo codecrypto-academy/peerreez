@@ -27,7 +27,7 @@ Supongamos que quieres crear una red llamada `test` con chainId `2025`, detener 
 ### 1. Desplegar la red
 
 ```bash
-node --loader ts-node/esm src/lib/runNetwork.ts test 2025
+node --loader ts-node/esm src/lib/runNetwork.ts rr3 22222
 ```
 
 Esto creará la red Docker, los contenedores bootnode, miner y un rpc, y dejará todo listo para operar.
@@ -37,7 +37,7 @@ Esto creará la red Docker, los contenedores bootnode, miner y un rpc, y dejará
 Puedes añadir más nodos rpc a la red en cualquier momento:
 
 ```bash
-node --loader ts-node/esm src/lib/deployNodeRpc.ts test 3
+node --loader ts-node/esm src/lib/deployNodeRpc.ts rr3 1
 ```
 
 El ejemplo anterior añade 3 nodos rpc extra a la red `test`.
@@ -45,7 +45,7 @@ El ejemplo anterior añade 3 nodos rpc extra a la red `test`.
 ### 2. Parar un nodo específico (por ejemplo, un nodo rpc)
 
 ```bash
-node --loader ts-node/esm src/lib/stopNodes.ts test test-rpc9010
+node --loader ts-node/esm src/lib/stopNodes.ts rr3 rr3-rpc9000
 ```
 
 Si el nodo pertenece a la red, será detenido aunque esté parado previamente. Si no pertenece, mostrará un error.
@@ -53,7 +53,7 @@ Si el nodo pertenece a la red, será detenido aunque esté parado previamente. S
 ### 3. Arrancar un nodo específico
 
 ```bash
-node --loader ts-node/esm src/lib/startNode.ts test test-rpc9010
+node --loader ts-node/esm src/lib/startNode.ts rr3 rr3-rpc9000
 ```
 
 Esto arrancará el contenedor si pertenece a la red y no es un bootnode.
@@ -61,13 +61,13 @@ Esto arrancará el contenedor si pertenece a la red y no es un bootnode.
 ### 4. Parar todos los nodos rpc de la red
 
 ```bash
-node --loader ts-node/esm src/lib/stopNodes.ts test rpc
+node --loader ts-node/esm src/lib/stopNodes.ts rr3 rpc
 ```
 
 ### 5. Eliminar un nodo rpc específico
 
 ```bash
-node --loader ts-node/esm src/lib/deleteNodeRpc.ts test test-rpc9008
+node --loader ts-node/esm src/lib/deleteNodeRpc.ts rr3 rr3-rpc9000
 ```
 
 Esto eliminará el contenedor, el directorio y la configuración del nodo rpc indicado.
@@ -75,7 +75,7 @@ Esto eliminará el contenedor, el directorio y la configuración del nodo rpc in
 ### 6. Eliminar todos los nodos rpc de la red
 
 ```bash
-node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts test
+node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts rr3
 ```
 
 Esto eliminará todos los contenedores rpc y sus directorios/config asociados de la red indicada.
@@ -83,7 +83,7 @@ Esto eliminará todos los contenedores rpc y sus directorios/config asociados de
 ### 7. Limpiar la red (eliminar todos los recursos)
 
 ```bash
-node --loader ts-node/esm src/lib/cleanNetwork.ts test
+node --loader ts-node/esm src/lib/cleanNetwork.ts rr3
 ```
 
 Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
