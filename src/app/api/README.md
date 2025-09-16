@@ -1,44 +1,86 @@
-curl -X POST http://localhost:3000/api/networks/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nameNetwork": "network0",
-    "chainId": 55255,
-    "subnet": "172.24.0.0/16",
-    "rpcPort": 8888,
-    "founderAccounts": [
-      "0xCB7291CAAa10683f2E8761F1e8d50F66713267D2",
-      "0x8BD4C37E1d60A8bDaa2E82e6De8568faBb346201"
-    ]
-  }'
+# API Control Panel Besu
 
-curl -X POST http://localhost:3000/api/nodes/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nodeName": "nodo0",
-    "nodeType": "rpc",
-    "networkName": "network0"
-  }'
+Esta API te permite desplegar, limpiar y gestionar redes Hyperledger Besu de forma programática mediante endpoints REST.
 
-curl -X POST http://localhost:3000/api/nodes/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nodeName": "nodo00",
-    "nodeType": "validator",
-    "networkName": "network0"
-  }'
+## Requisitos
 
-curl -X POST http://localhost:3000/api/nodes/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nodeName": "nodo000",
-    "nodeType": "signer",
-    "networkName": "network0"
-  }'
+## Comandos principales
 
-curl -X DELETE http://localhost:3000/api/networks/delete \
+### 1. Desplegar la red
+```bash
+curl -X POST http://localhost:3000/api/deploy \
   -H "Content-Type: application/json" \
-  -d '{"networkName": "network0"}'
+  -d '{"networkName": "rr5", "chainId": 675}'
+```
 
-curl -X DELETE http://localhost:3000/api/nodes/delete \
+### 2. Añadir nodos rpc adicionales
+```bash
+curl -X POST http://localhost:3000/api/deployNodeRpc \
   -H "Content-Type: application/json" \
-  -d '{"networkName": "network0", "nodeName": "nodo00"}'
+  -d '{"networkName": "rr5", "n": 3}'
+```
+
+### 3. Arrancar un nodo específico
+```bash
+curl -X POST http://localhost:3000/api/startNode \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5", "nombreContenedor": "rr5-rpc9000"}'
+```
+
+### 4. Parar un nodo específico o todos los nodos rpc
+```bash
+# Parar nodo específico
+curl -X POST http://localhost:3000/api/stopNode \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5", "tipoOContenedor": "rr5-rpc9000"}'
+
+# Parar todos los nodos rpc
+curl -X POST http://localhost:3000/api/stopNode \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5", "tipoOContenedor": "rpc"}'
+```
+
+### 5. Eliminar un nodo rpc específico
+```bash
+curl -X POST http://localhost:3000/api/deleteNodeRpc \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5", "nombreContenedor": "rr5-rpc9000"}'
+```
+
+### 6. Eliminar todos los nodos rpc de la red
+```bash
+curl -X POST http://localhost:3000/api/deleteAllRpcNodes \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5"}'
+```
+
+### 7. Limpiar la red (eliminar todos los recursos)
+```bash
+curl -X POST http://localhost:3000/api/cleanNetwork \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5"}'
+```
+
+### 6. Limpiar la red (eliminar todos los recursos)
+```bash
+curl -X POST http://localhost:3000/api/cleanNetwork \
+  -H "Content-Type: application/json" \
+  -d '{"networkName": "rr5"}'
+```
+
+---
+
+## Estructura relevante
+
+## Endpoints disponibles
+- `/api/deploy`: Despliega una red Besu
+- `/api/deployNodeRpc`: Añade nodos rpc a una red existente
+- `/api/startNode`: Arranca un nodo específico
+- `/api/stopNode`: Para nodos específicos o por tipo
+- `/api/deleteNodeRpc`: Elimina un nodo rpc individual
+- `/api/deleteAllRpcNodes`: Elimina todos los nodos rpc de una red
+- `/api/cleanNetwork`: Limpia una red Besu
+
+## Notas
+- Todos los endpoints devuelven un mensaje de éxito o error en formato JSON.
+- Puedes adaptar los nombres de red y contenedores según tu despliegue.

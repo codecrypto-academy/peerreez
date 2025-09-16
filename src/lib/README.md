@@ -27,7 +27,7 @@ Supongamos que quieres crear una red llamada `test` con chainId `2025`, detener 
 ### 1. Desplegar la red
 
 ```bash
-node --loader ts-node/esm src/lib/runNetwork.ts rr3 22222
+node --loader ts-node/esm src/lib/deployNetwork.ts rr3 112121
 ```
 
 Esto creará la red Docker, los contenedores bootnode, miner y un rpc, y dejará todo listo para operar.
@@ -37,7 +37,7 @@ Esto creará la red Docker, los contenedores bootnode, miner y un rpc, y dejará
 Puedes añadir más nodos rpc a la red en cualquier momento:
 
 ```bash
-node --loader ts-node/esm src/lib/deployNodeRpc.ts rr3 1
+node --loader ts-node/esm src/lib/deployNodeRpc.ts rr3 2
 ```
 
 El ejemplo anterior añade 3 nodos rpc extra a la red `test`.

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "tsc": "tsc -p tsconfig.scripts.json",
@@ -14,14 +14,20 @@
     "check-balance": "node src/scripts/operations.mjs balance"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.1.13",
+    "autoprefixer": "^10.4.21",
+    "clsx": "^2.1.1",
     "dockerode": "^4.0.8",
     "elliptic": "^6.6.1",
     "ethers": "^6.13.7",
     "fs-extra": "^11.3.1",
     "keccak256": "^1.0.6",
     "next": "15.5.2",
+    "postcss": "^8.5.6",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^4.1.13"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.43",

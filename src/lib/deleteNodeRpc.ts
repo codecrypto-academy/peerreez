@@ -1,5 +1,5 @@
 
-import process from 'process';
+
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -7,17 +7,12 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Uso: node --loader ts-node/esm src/lib/deleteNodeRpc.ts <networkName> <nombreContenedor>
-
-async function main() {
-    const [, , networkName, nombreContenedor] = process.argv;
+export async function deleteNodeRpc(networkName: string, nombreContenedor: string): Promise<{ ok: boolean; message: string }> {
     if (!networkName || !nombreContenedor) {
-        console.error('Uso: node --loader ts-node/esm src/lib/deleteNodeRpc.ts <networkName> <nombreContenedor>');
-        process.exit(1);
+        return { ok: false, message: 'Faltan parámetros: networkName y nombreContenedor son requeridos.' };
     }
     if (!/rpc\d+$/.test(nombreContenedor)) {
-        console.error('[ERROR] Solo se pueden eliminar nodos rpc individuales (nombre debe contener "rpc<puerto>").');
-        process.exit(1);
+        return { ok: false, message: 'Solo se pueden eliminar nodos rpc individuales (nombre debe contener "rpc<puerto>").' };
     }
     try {
         const { exec } = await import('child_process');
@@ -26,16 +21,14 @@ async function main() {
         const { stdout } = await execAsync(`docker inspect --format='{{json .NetworkSettings.Networks}}' ${nombreContenedor}`);
         const networks = JSON.parse(stdout || '{}');
         if (!networks || !Object.keys(networks).includes(networkName)) {
-            console.error(`[ERROR] El contenedor '${nombreContenedor}' no pertenece a la red Docker '${networkName}'.`);
-            process.exit(1);
+            return { ok: false, message: `El contenedor '${nombreContenedor}' no pertenece a la red Docker '${networkName}'.` };
         }
         // Parar y eliminar el contenedor
-        console.log(`[INFO] Parando y eliminando contenedor '${nombreContenedor}'...`);
         await execAsync(`docker rm -f ${nombreContenedor}`);
         // Eliminar directorio y config asociados
-        const path = (await import('path')).default;
+        const pathMod = (await import('path')).default;
         const fs = await import('fs/promises');
-        const baseDir = path.resolve(__dirname, 'networks', networkName);
+        const baseDir = pathMod.resolve(__dirname, 'networks', networkName);
         // Buscar el puerto en el nombre
         const match = nombreContenedor.match(/rpc(\d+)$/);
         if (match) {
@@ -45,11 +38,22 @@ async function main() {
             try { await fs.rm(dir, { recursive: true, force: true }); } catch { }
             try { await fs.rm(conf, { force: true }); } catch { }
         }
-        console.log(`[OK] Nodo RPC '${nombreContenedor}' eliminado completamente.`);
-    } catch (e) {
-        console.error(`[ERROR] No se pudo eliminar el nodo RPC '${nombreContenedor}':`, e);
-        process.exit(1);
+        return { ok: true, message: `Nodo RPC '${nombreContenedor}' eliminado completamente.` };
+    } catch (e: any) {
+        return { ok: false, message: `[ERROR] No se pudo eliminar el nodo RPC '${nombreContenedor}': ${e?.message}` };
     }
 }
 
-main();
+// Permite ejecutar como CLI además de librería (compatible ES modules)
+if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === process.argv[1]) {
+    const [, , networkName, nombreContenedor] = process.argv;
+    deleteNodeRpc(networkName, nombreContenedor).then(result => {
+        if (result.ok) {
+            console.log(result.message);
+            process.exit(0);
+        } else {
+            console.error(result.message);
+            process.exit(1);
+        }
+    });
+}

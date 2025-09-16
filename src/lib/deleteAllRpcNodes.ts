@@ -1,4 +1,4 @@
-import process from 'process';
+
 import { promisify } from 'util';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -6,13 +6,9 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Uso: node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts <networkName>
-
-async function main() {
-    const [, , networkName] = process.argv;
+export async function deleteAllRpcNodes(networkName: string): Promise<{ ok: boolean; message: string }> {
     if (!networkName) {
-        console.error('Uso: node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts <networkName>');
-        process.exit(1);
+        return { ok: false, message: 'Falta el parámetro networkName.' };
     }
     try {
         const { exec } = await import('child_process');
@@ -21,12 +17,9 @@ async function main() {
         const { stdout } = await execAsync(`docker ps -a --filter "label=network=${networkName}" --filter "label=nodo=rpc" --format "{{.Names}}"`);
         const nombres = stdout.trim().split('\n').filter(Boolean);
         if (nombres.length === 0) {
-            console.log(`[INFO] No hay nodos rpc para eliminar en la red '${networkName}'.`);
-            return;
+            return { ok: true, message: `[INFO] No hay nodos rpc para eliminar en la red '${networkName}'.` };
         }
         for (const nombreContenedor of nombres) {
-            console.log(`[INFO] Eliminando nodo RPC '${nombreContenedor}'...`);
-            // Parar y eliminar el contenedor
             await execAsync(`docker rm -f ${nombreContenedor}`);
             // Eliminar directorio y config asociados
             const match = nombreContenedor.match(/rpc(\d+)$/);
@@ -38,13 +31,23 @@ async function main() {
                 try { await (await import('fs/promises')).rm(dir, { recursive: true, force: true }); } catch { }
                 try { await (await import('fs/promises')).rm(conf, { force: true }); } catch { }
             }
-            console.log(`[OK] Nodo RPC '${nombreContenedor}' eliminado.`);
         }
-        console.log(`[OK] Todos los nodos rpc de la red '${networkName}' han sido eliminados.`);
-    } catch (e) {
-        console.error(`[ERROR] No se pudieron eliminar los nodos rpc:`, e);
-        process.exit(1);
+        return { ok: true, message: `[OK] Todos los nodos rpc de la red '${networkName}' han sido eliminados.` };
+    } catch (e: any) {
+        return { ok: false, message: `[ERROR] No se pudieron eliminar los nodos rpc: ${e?.message}` };
     }
 }
 
-main();
+// Permite ejecutar como CLI además de librería (compatible ES modules)
+if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === process.argv[1]) {
+    const [, , networkName] = process.argv;
+    deleteAllRpcNodes(networkName).then(result => {
+        if (result.ok) {
+            console.log(result.message);
+            process.exit(0);
+        } else {
+            console.error(result.message);
+            process.exit(1);
+        }
+    });
+}
