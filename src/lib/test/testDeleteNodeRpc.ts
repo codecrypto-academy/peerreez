@@ -1,8 +1,9 @@
+
 import { promisify } from 'util';
 
 async function main() {
     const networkName = 'r1';
-    const nombreContenedor = 'r1-rpc9000'; // No requiere baseDir, pero si se usa, debe ser ../networks
+    const nombreContenedor = 'r1-rpc9000';
     try {
         const { exec } = await import('child_process');
         const execAsync = promisify(exec);

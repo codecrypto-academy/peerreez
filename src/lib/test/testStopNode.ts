@@ -1,8 +1,9 @@
+
 import { promisify } from 'util';
 
 async function main() {
     const networkName = 'r1';
-    const nombreContenedor = 'r1-rpc9125'; // Cambia por el nombre real de un nodo rpc existente
+    const nombreContenedor = 'r1-rpc9125';
     try {
         const { exec } = await import('child_process');
         const execAsync = promisify(exec);
