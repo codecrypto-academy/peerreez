@@ -1,12 +1,71 @@
 import pkg from "elliptic";
+import Docker from "dockerode";
 const { ec: EC } = pkg;
 import { ethers } from "ethers";
 import { Buffer } from "buffer";
 import keccak256 from "keccak256";
 
-
 // ================= FUNCIONES DE UTILIDAD =================
+// Obtiene las redes Besu y sus nodos usando Dockerode
+export async function getNetworks() {
+    const docker = new Docker();
+    const allNetworks = await docker.listNetworks();
+    const allContainers = await docker.listContainers({ all: true });
 
+    // Busca redes que tengan al menos un contenedor Besu asociado
+    const result = [];
+    for (const net of allNetworks) {
+        // Busca contenedores que estén conectados a esta red y sean de imagen Besu
+        const nodes = allContainers.filter(cont => {
+            // Verifica si el contenedor está en la red
+            const inNetwork = cont.Names && cont.Names.some(n => n.includes(net.Name));
+            // Verifica si el contenedor es de imagen Besu
+            const isBesu = cont.Image && cont.Image.includes('besu');
+            return inNetwork && isBesu;
+        }).map(cont => ({
+            id: cont.Id,
+            name: cont.Names?.[0]?.replace(/\//, "") || cont.Id,
+            status: cont.State,
+            ports: cont.Ports
+        }));
+
+        if (nodes.length > 0) {
+            // Intenta obtener chainId del nombre o labels
+            let chainId = null;
+            if (net.Labels && net.Labels.chainId) {
+                chainId = net.Labels.chainId;
+            } else {
+                // Busca en el nombre de la red
+                const match = net.Name.match(/(\d{4,6})/);
+                if (match) {
+                    chainId = match[1];
+                } else {
+                    // Consulta el nodo RPC vía JSON-RPC para obtener el chainId real
+                    const rpcNode = nodes.find(n => n.name.includes('rpc') && n.ports && n.ports.length > 0);
+                    if (rpcNode) {
+                        // Busca el puerto público
+                        const publicPortObj = rpcNode.ports.find((p: any) => p.IP && p.PublicPort);
+                        const port = publicPortObj ? publicPortObj.PublicPort : null;
+                        if (port) {
+                            try {
+                                const url = `http://localhost:${port}`;
+                                const netVersion = await rpcCall(url, "net_version", []);
+                                if (netVersion && netVersion.result) chainId = netVersion.result;
+                            } catch { }
+                        }
+                    }
+                }
+            }
+
+            result.push({
+                name: net.Name,
+                chainId,
+                nodes
+            });
+        }
+    }
+    return result;
+}
 /** Realiza una llamada JSON-RPC a un nodo. */
 export async function rpcCall(url: string, method: string, params: any[]): Promise<any> {
     const res = await fetch(url, {
