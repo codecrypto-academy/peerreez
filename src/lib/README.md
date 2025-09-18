@@ -80,14 +80,46 @@ node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts rr3
 
 Esto eliminará todos los contenedores rpc y sus directorios/config asociados de la red indicada.
 
+
+
+Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
+
+### 8. Arrancar el bootnode de una red
+
+```bash
+node --loader ts-node/esm src/lib/startBootnode.ts test
+```
+
+Esto arrancará el bootnode de la red indicada.
+
+### 9. Arrancar todos los nodos de una red
+
+```bash
+node --loader ts-node/esm src/lib/startNetwork.ts test
+```
+
+Esto arrancará todos los nodos (bootnode, miner, rpc) de la red indicada.
+
+### 10. Parar todos los nodos de una red
+
+```bash
+node --loader ts-node/esm src/lib/stopNetwork.ts test
+```
+
+Esto detendrá todos los nodos de la red indicada.
+
+### 11. Listar redes disponibles
+
+```bash
+node --loader ts-node/esm src/lib/operations.ts listNetworks
+```
+
+Esto mostrará el listado de redes Besu gestionadas por la librería.
 ### 7. Limpiar la red (eliminar todos los recursos)
 
 ```bash
 node --loader ts-node/esm src/lib/cleanNetwork.ts rr3
 ```
-
-Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
-
 ---
 
 ## Tests automáticos
@@ -106,62 +138,56 @@ node --loader ts-node/esm src/lib/test/testCleanNetwork.ts          # Limpia la 
 
 Puedes ejecutar cada test por separado según la funcionalidad que quieras validar.
 
-### 1b. Añadir nodos rpc adicionales
+### Comandos ordenados para la librería
 
-Puedes añadir más nodos rpc a la red en cualquier momento:
-
+1. Desplegar la red
+```bash
+node --loader ts-node/esm src/lib/deployNetwork.ts test 2025
+```
+2. Añadir nodos rpc adicionales
 ```bash
 node --loader ts-node/esm src/lib/deployNodeRpc.ts test 2
 ```
-
-El ejemplo anterior añade 2 nodos rpc extra a la red `test`. Puedes cambiar el número según lo que necesites.
-
-### 2. Parar un nodo específico (por ejemplo, un nodo rpc)
-
+3. Arrancar el bootnode de una red
 ```bash
-node --loader ts-node/esm src/lib/stopNodes.ts test test-rpc9010
+node --loader ts-node/esm src/lib/startBootnode.ts test
 ```
-
-Si el nodo pertenece a la red, será detenido aunque esté parado previamente. Si no pertenece, mostrará un error.
-
-### 3. Arrancar un nodo específico
-
+4. Arrancar todos los nodos de una red
 ```bash
-node --loader ts-node/esm src/lib/startNode.ts test test-rpc9010
+node --loader ts-node/esm src/lib/startNetwork.ts test
 ```
-
-Esto arrancará el contenedor si pertenece a la red y no es un bootnode.
-
-
-### 4. Parar todos los nodos rpc de la red
-
+5. Arrancar un nodo específico
+```bash
+node --loader ts-node/esm src/lib/startNode.ts test test-rpc9000
+```
+6. Parar un nodo específico
+```bash
+node --loader ts-node/esm src/lib/stopNodes.ts test test-rpc9000
+```
+7. Parar todos los nodos rpc de la red
 ```bash
 node --loader ts-node/esm src/lib/stopNodes.ts test rpc
 ```
-
-### 5. Eliminar un nodo rpc específico
-
+8. Parar todos los nodos de una red
 ```bash
-node --loader ts-node/esm src/lib/deleteNodeRpc.ts test test-rpc9008
+node --loader ts-node/esm src/lib/stopNetwork.ts test
 ```
-
-Esto eliminará el contenedor, el directorio y la configuración del nodo rpc indicado.
-
-### 6. Eliminar todos los nodos rpc de la red
-
+9. Eliminar un nodo rpc específico
+```bash
+node --loader ts-node/esm src/lib/deleteNodeRpc.ts test test-rpc9000
+```
+10. Eliminar todos los nodos rpc de la red
 ```bash
 node --loader ts-node/esm src/lib/deleteAllRpcNodes.ts test
 ```
-
-Esto eliminará todos los contenedores rpc y sus directorios/config asociados de la red indicada.
-
-### 7. Limpiar la red (eliminar todos los recursos)
-
+11. Limpiar la red (eliminar todos los recursos)
 ```bash
 node --loader ts-node/esm src/lib/cleanNetwork.ts test
 ```
-
-Esto eliminará todos los contenedores, la red Docker y los archivos asociados a la red `test`.
+12. Listar redes disponibles
+```bash
+node --loader ts-node/esm src/lib/operations.ts listNetworks
+```
 
 ---
 
@@ -185,6 +211,10 @@ await cleanNetwork('r1');
 - `src/lib/deleteAllRpcNodes.ts`: Elimina todos los nodos rpc de una red
 - `src/lib/startNode.ts`: Arranca un nodo específico
 - `src/lib/stopNodes.ts`: Para nodos específicos o por tipo
+- `src/lib/startBootnode.ts`: Arranca el bootnode de una red
+- `src/lib/startNetwork.ts`: Arranca todos los nodos de una red
+- `src/lib/stopNetwork.ts`: Para todos los nodos de una red
+- `src/lib/operations.ts`: Operaciones utilitarias (listado de redes, etc.)
 - `src/lib/test/testDeployNetwork.ts`: Test de despliegue de red
 - `src/lib/test/testAddRpcNodes.ts`: Test de añadir nodos rpc
 - `src/lib/test/testStopNode.ts`: Test de parar nodo

@@ -1,11 +1,11 @@
 
 import { promisify } from 'util';
 
-export async function startNode(networkName: string, nombreContenedor: string): Promise<{ ok: boolean; message: string }> {
+export async function startNode(networkName: string, nombreContenedor: string, forceBootnode: boolean = false): Promise<{ ok: boolean; message: string }> {
     if (!networkName || !nombreContenedor) {
         return { ok: false, message: 'Faltan parámetros: networkName y nombreContenedor son requeridos.' };
     }
-    if (nombreContenedor.endsWith('-bootnode')) {
+    if (nombreContenedor.endsWith('-bootnode') && !forceBootnode) {
         return { ok: false, message: `El contenedor bootnode ('${nombreContenedor}') no debe ser arrancado manualmente con este método.` };
     }
     try {

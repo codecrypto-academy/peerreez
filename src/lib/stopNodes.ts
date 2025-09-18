@@ -1,3 +1,28 @@
+/**
+ * Detiene el contenedor bootnode de una red específica.
+ * @param networkName Nombre de la red
+ * @returns Resultado de la operación
+ */
+export async function stopBootnode(networkName: string): Promise<{ ok: boolean; message: string }> {
+    if (!networkName) {
+        return { ok: false, message: 'Falta el nombre de la red.' };
+    }
+    try {
+        const bootnodeName = `${networkName}-bootnode`;
+        const { exec } = await import('child_process');
+        const execAsync = promisify(exec);
+        // Verifica si el contenedor existe y está en la red
+        const { stdout } = await execAsync(`docker inspect --format='{{json .NetworkSettings.Networks}}' ${bootnodeName}`);
+        const networks = JSON.parse(stdout || '{}');
+        if (!networks || !Object.keys(networks).includes(networkName)) {
+            return { ok: false, message: `El contenedor bootnode ('${bootnodeName}') no pertenece a la red Docker '${networkName}'.` };
+        }
+        await execAsync(`docker stop ${bootnodeName}`);
+        return { ok: true, message: `Contenedor bootnode ('${bootnodeName}') parado.` };
+    } catch (e: any) {
+        return { ok: false, message: `[ERROR] No se pudo parar el bootnode: ${e?.message}` };
+    }
+}
 // Permite ejecutar como CLI además de librería (compatible ES modules)
 if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === process.argv[1]) {
     const [, , networkName, tipoOContenedor] = process.argv;
@@ -36,7 +61,11 @@ export async function stopNodes(networkName: string, tipoOContenedor: string): P
             if (ids.length === 0) {
                 return { ok: true, message: `No se encontraron contenedores tipo '${tipoOContenedor}' en la red '${networkName}'.` };
             }
-            await execAsync(`docker stop ${ids.join(' ')}`);
+            // Log para depuración
+            console.log(`[stopNodes] Deteniendo contenedores:`, ids);
+            const stopCmd = `docker stop ${ids.join(' ')}`;
+            console.log(`[stopNodes] Ejecutando:`, stopCmd);
+            await execAsync(stopCmd);
             return { ok: true, message: `Contenedores tipo '${tipoOContenedor}' parados en la red '${networkName}'.` };
         } catch (e: any) {
             return { ok: false, message: `[ERROR] No se pudieron parar los nodos: ${e?.message}` };

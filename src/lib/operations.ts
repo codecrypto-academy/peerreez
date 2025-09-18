@@ -30,33 +30,23 @@ export async function getNetworks() {
         }));
 
         if (nodes.length > 0) {
-            // Intenta obtener chainId del nombre o labels
+            // Obtiene chainId leyendo genesis.json del bootnode
             let chainId = null;
-            if (net.Labels && net.Labels.chainId) {
-                chainId = net.Labels.chainId;
-            } else {
-                // Busca en el nombre de la red
-                const match = net.Name.match(/(\d{4,6})/);
-                if (match) {
-                    chainId = match[1];
-                } else {
-                    // Consulta el nodo RPC vía JSON-RPC para obtener el chainId real
-                    const rpcNode = nodes.find(n => n.name.includes('rpc') && n.ports && n.ports.length > 0);
-                    if (rpcNode) {
-                        // Busca el puerto público
-                        const publicPortObj = rpcNode.ports.find((p: any) => p.IP && p.PublicPort);
-                        const port = publicPortObj ? publicPortObj.PublicPort : null;
-                        if (port) {
-                            try {
-                                const url = `http://localhost:${port}`;
-                                const netVersion = await rpcCall(url, "net_version", []);
-                                if (netVersion && netVersion.result) chainId = netVersion.result;
-                            } catch { }
-                        }
-                    }
+            try {
+                // Asume estructura: src/lib/networks/[networkName]/genesis.json
+                const fs = await import('fs/promises');
+                const path = await import('path');
+                const { fileURLToPath } = await import('url');
+                const __dirname = path.dirname(fileURLToPath(import.meta.url));
+                const genesisPath = path.join(__dirname, 'networks', net.Name, 'genesis.json');
+                const genesisRaw = await fs.readFile(genesisPath, 'utf8');
+                const genesis = JSON.parse(genesisRaw);
+                if (genesis.config && genesis.config.chainId) {
+                    chainId = genesis.config.chainId;
                 }
+            } catch (e) {
+                // Si falla, chainId queda null
             }
-
             result.push({
                 name: net.Name,
                 chainId,

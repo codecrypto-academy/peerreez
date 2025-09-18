@@ -1,16 +1,20 @@
+
 "use client";
 import React, { useState, useEffect } from 'react';
 
+// Componente AddNetworkForm: formulario para crear una nueva red Besu
 interface AddNetworkFormProps {
     onNetworkAdded?: () => void;
 }
 
 export default function AddNetworkForm({ onNetworkAdded }: AddNetworkFormProps) {
-    const [name, setName] = useState('');
-    const [chainId, setChainId] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    // Estados para los campos y feedback
+    const [name, setName] = useState(''); // Nombre de la red
+    const [chainId, setChainId] = useState(''); // Chain ID
+    const [loading, setLoading] = useState(false); // Indicador de carga
+    const [error, setError] = useState(''); // Mensaje de error
 
+    // Maneja el envío del formulario
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
@@ -36,20 +40,21 @@ export default function AddNetworkForm({ onNetworkAdded }: AddNetworkFormProps) 
         }
     };
 
+    // Renderizado del formulario
     return (
-        <form onSubmit={handleSubmit} className="bg-gradient-to-br from-gray-900 via-blue-950 to-gray-950 border border-gray-800 rounded-2xl shadow-2xl p-8 sm:p-12 w-full max-w-2xl mx-auto text-gray-100 mb-8 flex flex-col gap-8 animate-fade-in">
-            <h2 className="text-3xl font-extrabold mb-6 text-cyan-400 tracking-tight text-center drop-shadow-lg">Añadir Red</h2>
+        <form onSubmit={handleSubmit} className="bg-gradient-to-br from-gray-900 via-blue-950 to-gray-950 border border-gray-800 rounded-2xl shadow-2xl p-8 sm:p-12 w-full max-w-2xl mx-auto text-gray-100 mb-8 flex flex-col gap-8 animate-fade-in" aria-label="Formulario para añadir red Besu">
+            <h2 className="text-3xl font-extrabold mb-6 text-cyan-400 tracking-tight text-center drop-shadow-lg" aria-label="Título añadir red">Añadir Red</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
                     <label className="block mb-2 text-purple-300 text-lg font-semibold" htmlFor="network-name">Nombre de la red</label>
-                    <input id="network-name" value={name} onChange={e => setName(e.target.value)} className="border border-gray-700 bg-gray-800 text-gray-100 rounded-xl p-4 w-full text-lg focus:outline-none focus:border-cyan-400 transition-colors font-mono placeholder:text-gray-500" required autoComplete="off" placeholder="Ej: besu-testnet" />
+                    <input id="network-name" value={name} onChange={e => setName(e.target.value)} className="border border-gray-700 bg-gray-800 text-gray-100 rounded-xl p-4 w-full text-lg focus:outline-none focus:border-cyan-400 transition-colors font-mono placeholder:text-gray-500" required autoComplete="off" placeholder="Ej: besu-testnet" aria-label="Nombre de la red" />
                 </div>
                 <div>
                     <label className="block mb-2 text-purple-300 text-lg font-semibold" htmlFor="chain-id">Chain ID</label>
-                    <input id="chain-id" value={chainId} onChange={e => setChainId(e.target.value)} className="border border-gray-700 bg-gray-800 text-gray-100 rounded-xl p-4 w-full text-lg focus:outline-none focus:border-cyan-400 transition-colors font-mono placeholder:text-gray-500" required autoComplete="off" placeholder="Ej: 2025" />
+                    <input id="chain-id" value={chainId} onChange={e => setChainId(e.target.value)} className="border border-gray-700 bg-gray-800 text-gray-100 rounded-xl p-4 w-full text-lg focus:outline-none focus:border-cyan-400 transition-colors font-mono placeholder:text-gray-500" required autoComplete="off" placeholder="Ej: 2025" aria-label="Chain ID" />
                 </div>
             </div>
-            <button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-500 via-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-blue-600 text-white font-bold px-10 py-4 rounded-2xl shadow-lg transition-all text-xl w-full md:w-auto mx-auto mt-4 focus:outline-none focus:ring-2 focus:ring-cyan-400">
+            <button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-500 via-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-blue-600 text-white font-bold px-10 py-4 rounded-2xl shadow-lg transition-all text-xl w-full md:w-auto mx-auto mt-4 focus:outline-none focus:ring-2 focus:ring-cyan-400" aria-label="Botón añadir red">
                 {loading ? (
                     <span className="flex items-center gap-2 justify-center">
                         <svg className="animate-spin h-6 w-6 text-cyan-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>
@@ -62,7 +67,8 @@ export default function AddNetworkForm({ onNetworkAdded }: AddNetworkFormProps) 
                     </span>
                 )}
             </button>
-            {error && <div className="text-red-400 mt-6 text-center text-lg font-semibold">{error}</div>}
+            {/* Mensaje de error si ocurre */}
+            {error && <div className="text-red-400 mt-6 text-center text-lg font-semibold" aria-live="polite">{error}</div>}
         </form>
     );
 }
