@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+# web25-control-panel-besu-2025
 
-First, run the development server:
+Panel de control para la gestión de redes Besu, desarrollado con Next.js.
+
+## Índice
+
+- [Introducción](#introducción)
+- [Instalación y ejecución](#instalación-y-ejecución)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [API](#api)
+- [Librería (`lib/`)](#librería-lib)
+- [Scripts (`scripts/`)](#scripts-scripts)
+- [Testing](#testing)
+- [Recursos útiles](#recursos-útiles)
+
+---
+
+## Introducción
+
+Este proyecto permite gestionar redes Besu de forma sencilla a través de una interfaz web. Incluye endpoints API, una librería de utilidades y scripts para automatizar tareas.
+
+## Instalación y ejecución
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estructura del proyecto
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `src/app/api/`: Endpoints API para operaciones sobre la red Besu.
+- `src/lib/`: Funciones y utilidades para interactuar con Besu.
+- `src/scripts/`: Scripts bash para automatizar tareas.
+- `src/components/`: Componentes React del panel.
+- `public/`: Recursos estáticos.
 
-## Learn More
+## API
 
-To learn more about Next.js, take a look at the following resources:
+Los endpoints se encuentran en `src/app/api/`. Ejemplos de rutas disponibles:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/api/cleanNetwork`: Limpia la red.
+- `/api/deleteAllRpcNodes`: Elimina todos los nodos RPC.
+- `/api/deleteNodeRpc`: Elimina un nodo RPC específico.
+- `/api/deploy`: Despliega una red.
+- `/api/deployNodeRpc`: Despliega un nodo RPC.
+- `/api/networks`: Listado y gestión de redes.
+- `/api/startBootnode`: Inicia el bootnode.
+- `/api/startNetwork`: Inicia la red.
+- `/api/startNode`: Inicia un nodo.
+- `/api/stopNetwork`: Detiene la red.
+- `/api/stopNode`: Detiene un nodo.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Librería (`lib/`)
 
-## Deploy on Vercel
+La carpeta `src/lib/` contiene funciones reutilizables para la gestión de redes Besu:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `cleanNetwork.ts`: Limpieza de la red.
+- `deployNetwork.ts`: Despliegue de redes.
+- `startNetwork.ts`, `stopNetwork.ts`: Inicio y parada de redes.
+- `startNode.ts`, `stopNodes.ts`: Gestión de nodos.
+- `utils.ts`: Utilidades generales.
+- `networks/`: Configuración y utilidades específicas de redes.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts (`scripts/`)
+
+Scripts bash para automatizar tareas:
+
+- `clean.sh`: Limpia la red o nodos específicos.
+- `deploy.sh`: Despliega la red.
+- `operations.mjs`: Operaciones automatizadas.
+- Carpeta `networks/`: Configuraciones de red.
+
+Ejemplo de uso:
+
+```bash
+cd src/scripts
+./clean.sh n1
+./deploy.sh
+```
+
+## Testing
+
+Tests disponibles en `src/lib/test/` para las funciones principales de la librería.
+
+## Recursos útiles
+
+- [Documentación Next.js](https://nextjs.org/docs)
+- [Documentación Besu](https://besu.hyperledger.org/)
+- [Vercel para despliegue](https://vercel.com/)
+
+---

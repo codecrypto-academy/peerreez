@@ -1,9 +1,12 @@
 
+
 import { promisify } from 'util';
 
+// Leer argumentos desde la línea de comandos
+const networkName = process.argv[2] || 'r1';
+const chainId = process.argv[3] || 2025;
+
 async function main() {
-    const networkName = 'r1';
-    const chainId = 2025;
     try {
         const { exec } = await import('child_process');
         const execAsync = promisify(exec);

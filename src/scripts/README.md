@@ -20,6 +20,10 @@ Este script permite desplegar múltiples redes privadas de Ethereum Hyperledger 
 
 ---
 
+- **Scripts auxiliares:**
+   - `clean.sh`: Limpia todos los recursos de una red específica (contenedores, red Docker y directorio de datos).
+   - `operations.mjs`: CLI para consultar balances, transferir fondos, generar claves y obtener información de la red.
+
 ## ⚠️ Requisitos del Sistema
 **Recomendación:** Linux o macOS para máxima compatibilidad.
 
@@ -42,6 +46,18 @@ chmod +x deploy.sh
 ./deploy.sh <network-name> <chain-id>
 ```
 Ejemplo:
+```
+Ejemplo:
+```bash
+./deploy.sh mi-red-1 12345
+```
+
+Para limpiar una red específica:
+```bash
+chmod +x clean.sh
+./clean.sh mi-red-1
+```
+Consulta los endpoints y puertos generados al final del despliegue.
 ```bash
 ./deploy.sh mi-red-1 12345
 ```
@@ -54,6 +70,18 @@ Consulta los endpoints y puertos generados al final del despliegue.
 2. **Limpia solo la red seleccionada** (no borra otras redes)
 3. **Crea directorios por red y nodo**
 4. **Asigna subred y puertos libres automáticamente**
+
+---
+
+## 📁 Estructura de la carpeta `networks/`
+
+Cada red desplegada crea una subcarpeta en `networks/<network-name>/` con los datos, claves y configuración de cada nodo:
+
+- `bootnode/`, `miner/`, `rpc<puerto>/`: Datos y claves de cada nodo.
+- `genesis.json`, `config.toml`: Configuración de la red y nodos.
+- `account/`: Claves de cuenta adicional.
+
+Puedes eliminar toda la red y sus datos usando `clean.sh <network-name>`.
 5. **Genera claves y archivos de configuración**
 6. **Lanza contenedores Docker**
 7. **Solo los nodos RPC exponen puertos a localhost**
@@ -87,10 +115,20 @@ curl -X POST \
 ```bash
 curl -X POST \
    --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["<address>", "latest"],"id":1}' \
-   -H "Content-Type: application/json" \
-   http://localhost:<puerto_rpc>
-```
 
+### Usar el CLI `operations.mjs`
+Comandos disponibles:
+```bash
+node operations.mjs create-keys <ip>                # Genera claves para nodo
+node operations.mjs network-info [url]              # Info de la red
+node operations.mjs balance <address> [url]         # Consulta balance
+node operations.mjs transfer <fromPriv> <to> <amt> [url]   # Transfiere ETH
+node operations.mjs fund-mnemonic <fromPriv> <mnemonic> <amt> [url] # Fondea cuentas
+```
+Ejemplo:
+```bash
+node operations.mjs balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 http://localhost:9000
+```
 ### Usar el CLI para consultar balances
 ```bash
 node operations.mjs balance <address> http://localhost:<puerto_rpc>
@@ -142,9 +180,10 @@ docker logs <network-name>-rpc<puerto>
 docker rm -f $(docker ps -aq --filter "label=network=<network-name>")
 
 # Eliminar la red Docker
-docker network rm <network-name>
+```bash
+./clean.sh <network-name>
 ```
-
+Elimina todos los contenedores, la red Docker y el directorio de datos de la red indicada.
 ### Limpiar solo una red
 ```bash
 ./clean.sh <network-name>
@@ -156,6 +195,13 @@ docker network rm <network-name>
 
 - **No puedes conectar a un nodo:**
    - Asegúrate de usar el puerto correcto mostrado en el resumen del despliegue.
+
+- **No se limpia la red correctamente:**
+   - Usa `./clean.sh <network-name>` para eliminar todos los recursos asociados a la red.
+
+---
+
+**Desarrollado por David Perez Sanchez con ayuda de GitHub Copilot.**
 - **El script falla al crear la red Docker:**
    - Puede haber conflicto de subred. El script busca automáticamente otra subred.
 - **Las transferencias fallan:**
