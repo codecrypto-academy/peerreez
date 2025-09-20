@@ -1,6 +1,7 @@
 
 "use client";
 import React, { useEffect, useState } from 'react';
+import LogsModal from './LogsModal';
 
 // Componente NetworksList: muestra las redes Besu y sus nodos, permite gestionar nodos y redes
 interface NetworksListProps {
@@ -19,6 +20,41 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
     // Estado para detener todos los nodos RPC
     const [stoppingAllRpc, setStoppingAllRpc] = useState<string | null>(null);
     const [stopAllRpcError, setStopAllRpcError] = useState<string>('');
+    // Estado para arrancar todos los nodos RPC
+    const [startingAllRpc, setStartingAllRpc] = useState<string | null>(null);
+    const [startAllRpcError, setStartAllRpcError] = useState<string>('');
+    // Estado para el modal de logs
+    const [logsModalOpen, setLogsModalOpen] = useState<boolean>(false);
+    const [selectedContainer, setSelectedContainer] = useState<{ name: string, network: string }>({ name: '', network: '' });
+    // Estado para controlar si la red está corriendo o detenida
+    const [networkStatus, setNetworkStatus] = useState<{ [key: string]: 'running' | 'stopped' }>({});
+
+    // Función para determinar el estado de la red basado en sus nodos
+    const getNetworkStatus = (net: any): 'running' | 'stopped' => {
+        if (!net.nodes || net.nodes.length === 0) return 'stopped';
+
+        // Una red se considera "running" si el bootnode está corriendo (es el componente esencial)
+        // El miner puede parar sin afectar la funcionalidad de los nodos RPC
+        const bootnode = net.nodes.find((node: any) => node.name.includes('bootnode'));
+        const bootnodeRunning = bootnode && bootnode.status === 'running';
+
+        return bootnodeRunning ? 'running' : 'stopped';
+    };
+
+    // Función para determinar si hay nodos RPC corriendo en la red
+    const getRpcNodesStatus = (net: any): 'running' | 'stopped' | 'mixed' => {
+        if (!net.nodes || net.nodes.length === 0) return 'stopped';
+
+        const rpcNodes = net.nodes.filter((node: any) => node.name.includes('rpc'));
+        if (rpcNodes.length === 0) return 'stopped';
+
+        const runningRpc = rpcNodes.filter((node: any) => node.status === 'running');
+        const stoppedRpc = rpcNodes.filter((node: any) => node.status !== 'running');
+
+        if (runningRpc.length === 0) return 'stopped';
+        if (stoppedRpc.length === 0) return 'running';
+        return 'mixed'; // Algunos corriendo, algunos parados
+    };
 
     // Eliminar nodo RPC
     const handleDeleteNodeRpc = async (networkName: string, nodeName: string) => {
@@ -79,6 +115,39 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
             setStopAllRpcError(err instanceof Error ? err.message : 'Error desconocido');
             setStoppingAllRpc(null);
         }
+    };
+
+    // Arrancar todos los nodos RPC de una red
+    const handleStartAllRpcNodes = async (networkName: string) => {
+        setStartingAllRpc(networkName);
+        setStartAllRpcError('');
+        try {
+            const res = await fetch('/api/startNodes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ networkName, tipoOContenedor: 'rpc' })
+            });
+            if (!res.ok) throw new Error('Error al arrancar todos los nodos RPC');
+            setTimeout(() => {
+                setStartingAllRpc(null);
+                if (typeof fetchNetworks === 'function') fetchNetworks();
+            }, 1500);
+        } catch (err) {
+            setStartAllRpcError(err instanceof Error ? err.message : 'Error desconocido');
+            setStartingAllRpc(null);
+        }
+    };
+
+    // Abrir modal de logs
+    const handleOpenLogs = (containerName: string, networkName: string) => {
+        setSelectedContainer({ name: containerName, network: networkName });
+        setLogsModalOpen(true);
+    };
+
+    // Cerrar modal de logs
+    const handleCloseLogs = () => {
+        setLogsModalOpen(false);
+        setSelectedContainer({ name: '', network: '' });
     };
 
     // Añadir nodos RPC a una red
@@ -196,6 +265,17 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
         return () => clearInterval(intervalId);
     }, [fetchNetworks]);
 
+    // Actualizar el estado de las redes cuando cambian los datos
+    useEffect(() => {
+        if (networks && networks.length > 0) {
+            const newStatus: { [key: string]: 'running' | 'stopped' } = {};
+            networks.forEach((net: any) => {
+                newStatus[net.name] = getNetworkStatus(net);
+            });
+            setNetworkStatus(newStatus);
+        }
+    }, [networks]);
+
 
     // Renderizado principal del componente
     return (
@@ -282,20 +362,20 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
                                                         {(tipo === 'RPC' || tipo === 'Miner') && (
                                                             node.status === 'running' ? (
                                                                 <button
-                                                                    className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded font-bold shadow transition-all duration-200 text-xs"
+                                                                    className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                                     title="Parar nodo"
                                                                     aria-label={`Parar nodo ${node.name}`}
-                                                                    disabled={stoppingNode === node.name}
+                                                                    disabled={stoppingNode === node.name || getNetworkStatus(net) === 'stopped'}
                                                                     onClick={() => handleStopNode(node.networkName || node.network || net.name, node.name)}
                                                                 >
                                                                     {stoppingNode === node.name ? 'Parando...' : 'Parar nodo'}
                                                                 </button>
                                                             ) : (
                                                                 <button
-                                                                    className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold shadow transition-all duration-200 text-xs"
+                                                                    className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                                     title="Arrancar nodo"
                                                                     aria-label={`Arrancar nodo ${node.name}`}
-                                                                    disabled={startingNode === node.name}
+                                                                    disabled={startingNode === node.name || getNetworkStatus(net) === 'stopped'}
                                                                     onClick={() => handleStartNode(node.networkName || node.network || net.name, node.name)}
                                                                 >
                                                                     {startingNode === node.name ? 'Arrancando...' : 'Arrancar nodo'}
@@ -304,15 +384,27 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
                                                         )}
                                                         {tipo === 'RPC' && (
                                                             <button
-                                                                className="px-2 py-1 bg-red-500 hover:bg-red-400 text-white rounded font-bold shadow transition-all duration-200 text-xs"
+                                                                className="px-2 py-1 bg-red-500 hover:bg-red-400 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                                 title="Eliminar nodo RPC"
                                                                 aria-label={`Eliminar nodo RPC ${node.name}`}
-                                                                disabled={deletingNode === node.name}
+                                                                disabled={deletingNode === node.name || getNetworkStatus(net) === 'stopped'}
                                                                 onClick={() => handleDeleteNodeRpc(node.networkName || node.network || net.name, node.name)}
                                                             >
                                                                 {deletingNode === node.name ? 'Eliminando...' : 'Eliminar RPC'}
                                                             </button>
                                                         )}
+                                                        {/* Botón de logs - disponible para todos los nodos */}
+                                                        <button
+                                                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold shadow transition-all duration-200 text-xs flex items-center gap-1"
+                                                            title="Ver logs del contenedor"
+                                                            aria-label={`Ver logs de ${node.name}`}
+                                                            onClick={() => handleOpenLogs(node.name, node.networkName || node.network || net.name)}
+                                                        >
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            Logs
+                                                        </button>
                                                         <span className={`px-3 py-1 rounded text-xs font-bold shadow transition-all duration-200 ${node.status === 'running' ? 'bg-green-600/90 text-white' : 'bg-red-600/90 text-white'}`}>{node.status}</span>
                                                     </div>
                                                     {/* Mensajes de error por acción */}
@@ -354,112 +446,146 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
                                                     title="Cantidad de nodos RPC a crear"
                                                     aria-label="Cantidad de nodos RPC a crear"
                                                 />
+                                                {/* 1. Crear RPC */}
                                                 <button
-                                                    className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold shadow transition-all duration-200 text-xs"
+                                                    className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                     title="Añadir nodos RPC"
                                                     aria-label={`Añadir nodos RPC a red ${net.name}`}
-                                                    disabled={addingRpc === net.name}
+                                                    disabled={addingRpc === net.name || getNetworkStatus(net) === 'stopped'}
                                                     onClick={() => handleAddRpcNodes(net.name)}
                                                 >
                                                     {addingRpc === net.name ? 'Creando...' : 'Crear RPC'}
                                                 </button>
+                                                {/* 2. Eliminar todos RPC */}
                                                 <button
-                                                    className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs"
-                                                    title="Detener red"
-                                                    aria-label={`Detener red ${net.name}`}
-                                                    disabled={stoppingNode === net.name}
-                                                    onClick={async () => {
-                                                        setStoppingNode(net.name);
-                                                        setStopError('');
-                                                        try {
-                                                            // Detiene todos los nodos de la red
-                                                            const res = await fetch('/api/stopNetwork', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ networkName: net.name })
-                                                            });
-                                                            if (!res.ok) throw new Error('Error al detener la red');
-                                                            setTimeout(() => {
-                                                                setStoppingNode(null);
-                                                                // Forzar refresco de redes tras detener
-                                                                if (typeof fetchNetworks === 'function') fetchNetworks();
-                                                            }, 1500);
-                                                        } catch (err) {
-                                                            setStopError(err instanceof Error ? err.message : 'Error desconocido');
-                                                            setStoppingNode(null);
-                                                        }
-                                                    }}
-                                                >
-                                                    {stoppingNode === net.name ? (
-                                                        <span className="animate-pulse">Deteniendo...</span>
-                                                    ) : (
-                                                        <>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                                            Detener red
-                                                        </>
-                                                    )}
-                                                </button>
-                                                <button
-                                                    className="px-3 py-1 bg-pink-600 hover:bg-pink-500 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs"
+                                                    className="px-3 py-1 bg-pink-600 hover:bg-pink-500 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                     title="Eliminar todos los nodos RPC"
                                                     aria-label={`Eliminar todos los nodos RPC de red ${net.name}`}
-                                                    disabled={deletingAll === net.name}
+                                                    disabled={deletingAll === net.name || getNetworkStatus(net) === 'stopped'}
                                                     onClick={() => handleDeleteAllRpcNodes(net.name)}
                                                 >
                                                     {deletingAll === net.name ? 'Eliminando todos...' : 'Eliminar todos RPC'}
                                                 </button>
-                                                <button
-                                                    className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded font-bold shadow transition-all duration-200 text-xs"
-                                                    title="Detener todos los nodos RPC"
-                                                    aria-label={`Detener todos los nodos RPC de red ${net.name}`}
-                                                    disabled={stoppingAllRpc === net.name}
-                                                    onClick={() => handleStopAllRpcNodes(net.name)}
-                                                >
-                                                    {stoppingAllRpc === net.name ? 'Deteniendo todos...' : 'Detener todos RPC'}
-                                                </button>
-                                                <button
-                                                    className="px-3 py-1 bg-green-700 hover:bg-green-600 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs"
-                                                    title="Levantar red"
-                                                    aria-label={`Levantar red ${net.name}`}
-                                                    disabled={startingNode === net.name}
-                                                    onClick={async () => {
-                                                        setStartingNode(net.name);
-                                                        setStartError('');
-                                                        try {
-                                                            // Arranca primero el bootnode
-                                                            const bootRes = await fetch('/api/startBootnode', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ networkName: net.name })
-                                                            });
-                                                            if (!bootRes.ok) throw new Error('Error al arrancar el bootnode');
-                                                            // Luego el resto de nodos
-                                                            const res = await fetch('/api/startNetwork', {
-                                                                method: 'POST',
-                                                                headers: { 'Content-Type': 'application/json' },
-                                                                body: JSON.stringify({ networkName: net.name })
-                                                            });
-                                                            if (!res.ok) throw new Error('Error al levantar la red');
-                                                            setTimeout(() => {
+                                                {/* 3. Toggle Arrancar/Detener todos RPC */}
+                                                {getRpcNodesStatus(net) === 'running' ? (
+                                                    <button
+                                                        className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                                        title="Detener todos los nodos RPC"
+                                                        aria-label={`Detener todos los nodos RPC de red ${net.name}`}
+                                                        disabled={stoppingAllRpc === net.name || getNetworkStatus(net) === 'stopped'}
+                                                        onClick={() => handleStopAllRpcNodes(net.name)}
+                                                    >
+                                                        {stoppingAllRpc === net.name ? 'Deteniendo todos...' : 'Detener todos RPC'}
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded font-bold shadow transition-all duration-200 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                                        title="Arrancar todos los nodos RPC"
+                                                        aria-label={`Arrancar todos los nodos RPC de red ${net.name}`}
+                                                        disabled={startingAllRpc === net.name || getNetworkStatus(net) === 'stopped'}
+                                                        onClick={() => handleStartAllRpcNodes(net.name)}
+                                                    >
+                                                        {startingAllRpc === net.name ? 'Arrancando todos...' : 'Arrancar todos RPC'}
+                                                    </button>
+                                                )}
+                                                {/* 4. Toggle Detener/Levantar red */}
+                                                {getNetworkStatus(net) === 'running' ? (
+                                                    <button
+                                                        className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                                        title="Detener red"
+                                                        aria-label={`Detener red ${net.name}`}
+                                                        disabled={stoppingNode === net.name}
+                                                        onClick={async () => {
+                                                            setStoppingNode(net.name);
+                                                            setStopError('');
+                                                            try {
+                                                                // Detiene todos los nodos de la red
+                                                                const res = await fetch('/api/stopNetwork', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ networkName: net.name })
+                                                                });
+                                                                if (!res.ok) throw new Error('Error al detener la red');
+
+                                                                // Actualizar estado de la red a 'stopped'
+                                                                setNetworkStatus(prev => ({
+                                                                    ...prev,
+                                                                    [net.name]: 'stopped'
+                                                                }));
+
+                                                                setTimeout(() => {
+                                                                    setStoppingNode(null);
+                                                                    // Forzar refresco de redes tras detener
+                                                                    if (typeof fetchNetworks === 'function') fetchNetworks();
+                                                                }, 1500);
+                                                            } catch (err) {
+                                                                setStopError(err instanceof Error ? err.message : 'Error desconocido');
+                                                                setStoppingNode(null);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {stoppingNode === net.name ? (
+                                                            <span className="animate-pulse">Deteniendo...</span>
+                                                        ) : (
+                                                            <>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                                                Detener red
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        className="px-3 py-1 bg-green-700 hover:bg-green-600 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
+                                                        title="Levantar red"
+                                                        aria-label={`Levantar red ${net.name}`}
+                                                        disabled={startingNode === net.name}
+                                                        onClick={async () => {
+                                                            setStartingNode(net.name);
+                                                            setStartError('');
+                                                            try {
+                                                                // Arranca primero el bootnode
+                                                                const bootRes = await fetch('/api/startBootnode', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ networkName: net.name })
+                                                                });
+                                                                if (!bootRes.ok) throw new Error('Error al arrancar el bootnode');
+                                                                // Luego el resto de nodos
+                                                                const res = await fetch('/api/startNetwork', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ networkName: net.name })
+                                                                });
+                                                                if (!res.ok) throw new Error('Error al levantar la red');
+
+                                                                // Actualizar estado de la red a 'running'
+                                                                setNetworkStatus(prev => ({
+                                                                    ...prev,
+                                                                    [net.name]: 'running'
+                                                                }));
+
+                                                                setTimeout(() => {
+                                                                    setStartingNode(null);
+                                                                }, 1500);
+                                                            } catch (err) {
+                                                                setStartError(err instanceof Error ? err.message : 'Error desconocido');
                                                                 setStartingNode(null);
-                                                            }, 1500);
-                                                        } catch (err) {
-                                                            setStartError(err instanceof Error ? err.message : 'Error desconocido');
-                                                            setStartingNode(null);
-                                                        }
-                                                    }}
-                                                >
-                                                    {startingNode === net.name ? (
-                                                        <span className="animate-pulse">Levantando...</span>
-                                                    ) : (
-                                                        <>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                                            Levantar red
-                                                        </>
-                                                    )}
-                                                </button>
+                                                            }
+                                                        }}
+                                                    >
+                                                        {startingNode === net.name ? (
+                                                            <span className="animate-pulse">Levantando...</span>
+                                                        ) : (
+                                                            <>
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                                                Levantar red
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                )}
+                                                {/* 5. Limpiar red */}
                                                 <button
-                                                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs"
+                                                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow transition-all duration-200 flex items-center gap-2 text-xs disabled:bg-gray-500 disabled:cursor-not-allowed"
                                                     title="Limpiar red"
                                                     aria-label={`Limpiar red ${net.name}`}
                                                     disabled={cleaning === net.name}
@@ -490,6 +616,9 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
                                     {stopAllRpcError && stoppingAllRpc === net.name && (
                                         <div className="text-red-400 mb-1 text-xs font-semibold" aria-live="polite">{stopAllRpcError}</div>
                                     )}
+                                    {startAllRpcError && startingAllRpc === net.name && (
+                                        <div className="text-red-400 mb-1 text-xs font-semibold" aria-live="polite">{startAllRpcError}</div>
+                                    )}
                                     <div className="mt-1">
                                         <h3 className="text-cyan-400 font-bold mb-2 text-base" aria-label="Nodos de la red">Nodos</h3>
                                         {grouped.rpc.length > 0 && renderNodes(grouped.rpc, 'RPC')}
@@ -506,6 +635,14 @@ export default function NetworksList({ onSelect }: NetworksListProps) {
                     </ul>
                 </div>
             </div>
+
+            {/* Modal de logs */}
+            <LogsModal
+                isOpen={logsModalOpen}
+                onClose={handleCloseLogs}
+                containerName={selectedContainer.name}
+                networkName={selectedContainer.network}
+            />
         </div>
     );
 }

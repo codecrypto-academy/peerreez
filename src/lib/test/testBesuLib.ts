@@ -33,9 +33,21 @@ async function main() {
         if (result.stdout) console.log(result.stdout);
         if (result.stderr) console.error(result.stderr);
 
+        // 4.1. Arrancar todos los nodos RPC
+        console.log('--- Ejecutando testStartNodes.ts (rpc) ---');
+        result = await execAsync(`node --loader ts-node/esm src/lib/test/testStartNodes.ts ${networkName} rpc`);
+        if (result.stdout) console.log(result.stdout);
+        if (result.stderr) console.error(result.stderr);
+
         // 5. Detener nodos tipo miner
         console.log('--- Ejecutando testStopNodes.ts (miner) ---');
         result = await execAsync(`node --loader ts-node/esm src/lib/test/testStopNodes.ts ${networkName} miner`);
+        if (result.stdout) console.log(result.stdout);
+        if (result.stderr) console.error(result.stderr);
+
+        // 5.1. Arrancar todos los nodos miner
+        console.log('--- Ejecutando testStartNodes.ts (miner) ---');
+        result = await execAsync(`node --loader ts-node/esm src/lib/test/testStartNodes.ts ${networkName} miner`);
         if (result.stdout) console.log(result.stdout);
         if (result.stderr) console.error(result.stderr);
 

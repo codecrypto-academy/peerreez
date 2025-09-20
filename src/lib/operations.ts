@@ -27,7 +27,7 @@ export async function getNetworks() {
             name: cont.Names?.[0]?.replace(/\//, "") || cont.Id,
             status: cont.State,
             ports: cont.Ports
-        }));
+        })).sort((a, b) => a.name.localeCompare(b.name)); // Ordenar nodos alfabéticamente
 
         if (nodes.length > 0) {
             // Obtiene chainId leyendo genesis.json del bootnode
@@ -54,7 +54,8 @@ export async function getNetworks() {
             });
         }
     }
-    return result;
+    // Ordenar las redes alfabéticamente por nombre
+    return result.sort((a, b) => a.name.localeCompare(b.name));
 }
 /** Realiza una llamada JSON-RPC a un nodo. */
 export async function rpcCall(url: string, method: string, params: any[]): Promise<any> {

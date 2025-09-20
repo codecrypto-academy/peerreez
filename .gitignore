@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 /src/scripts/networks/
 /src/lib/networks/
+/src/app/api/server.log
