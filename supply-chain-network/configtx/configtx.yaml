@@ -108,14 +108,14 @@ Organizations:
           - Host: peer0.consumer.supplychain.com
             Port: 10051
 
-# Capabilities para la versión de Fabric
+# Capabilities para Fabric 2.5.x
 Capabilities:
     Channel: &ChannelCapabilities
         V2_0: true
     Orderer: &OrdererCapabilities
         V2_0: true
     Application: &ApplicationCapabilities
-        V2_5: true
+        V2_0: true
 
 # Configuración de aplicación por defecto
 Application: &ApplicationDefaults
@@ -142,7 +142,7 @@ Application: &ApplicationDefaults
 
 # Configuración del orderer
 Orderer: &OrdererDefaults
-    OrdererType: solo
+    OrdererType: etcdraft
     Addresses:
         - orderer.supplychain.com:7050
     BatchTimeout: 2s
@@ -150,6 +150,12 @@ Orderer: &OrdererDefaults
         MaxMessageCount: 10
         AbsoluteMaxBytes: 99 MB
         PreferredMaxBytes: 512 KB
+    EtcdRaft:
+        Consenters:
+        - Host: orderer.supplychain.com
+          Port: 7050
+          ClientTLSCert: ../crypto-config/ordererOrganizations/supplychain.com/orderers/orderer.supplychain.com/tls/server.crt
+          ServerTLSCert: ../crypto-config/ordererOrganizations/supplychain.com/orderers/orderer.supplychain.com/tls/server.crt
     Organizations:
     Policies:
         Readers:
@@ -184,8 +190,8 @@ Channel: &ChannelDefaults
 
 # Perfiles de configuración
 Profiles:
-    # Perfil para el genesis block del orderer
-    SupplyChainOrdererGenesis:
+    # Perfil para el canal de supply chain (sin system channel para Fabric 2.5+)
+    SupplyChainChannel:
         <<: *ChannelDefaults
         Orderer:
             <<: *OrdererDefaults
@@ -193,18 +199,6 @@ Profiles:
                 - *OrdererOrg
             Capabilities:
                 <<: *OrdererCapabilities
-        Consortiums:
-            SupplyChainConsortium:
-                Organizations:
-                    - *ProducerOrg
-                    - *FactoryOrg
-                    - *RetailerOrg
-                    - *ConsumerOrg
-
-    # Perfil para el canal de supply chain
-    SupplyChainChannel:
-        Consortium: SupplyChainConsortium
-        <<: *ChannelDefaults
         Application:
             <<: *ApplicationDefaults
             Organizations:

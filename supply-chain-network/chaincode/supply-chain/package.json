@@ -1,0 +1,25 @@
+{
+    "name": "supply-chain-chaincode",
+    "version": "1.0.0",
+    "description": "Supply Chain Traceability Chaincode for Hyperledger Fabric",
+    "main": "start.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "start": "fabric-chaincode-node start",
+        "package": "npm run build"
+    },
+    "dependencies": {
+        "fabric-contract-api": "^2.5.4",
+        "fabric-shim": "^2.5.4"
+    },
+    "devDependencies": {
+        "@types/node": "^18.15.0",
+        "typescript": "^5.0.0"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "author": "Codecrypto Academy",
+    "license": "Apache-2.0"
+}

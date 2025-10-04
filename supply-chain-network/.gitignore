@@ -1,0 +1,51 @@
+# =============================================================================
+# HYPERLEDGER FABRIC - ARCHIVOS GENERADOS AUTOMÁTICAMENTE
+# =============================================================================
+
+# Binarios de Fabric (se descargan automáticamente)
+bin/
+config/
+
+# Certificados (se generan automáticamente)
+crypto-config/
+channel-artifacts/
+
+# Chaincode compilado (se genera automáticamente)
+chaincode/supply-chain/dist/
+chaincode/supply-chain/node_modules/
+chaincode/supply-chain/*.tar.gz
+
+# Logs y archivos temporales
+*.log
+*.tmp
+.fabric-ca-client/
+
+# Docker volumes y datos
+docker/volumes/
+*.block
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Fabric network artifacts generados
+orderer.genesis.block
+mychannel.tx
+Org*MSPanchors.tx
+
+# =============================================================================
+# NOTA: Estos archivos se generan automáticamente durante el despliegue
+# Solo se versionan los scripts de automatización y configuración base
+# =============================================================================
