@@ -344,7 +344,7 @@ Plataforma de trazabilidad blockchain usando **Hyperledger Fabric** con arquitec
 ### 📁 Estructura del Proyecto
 
 ```
-web25-control-panel-besu-2025/
+web3.0-cadena-suministros-dps-2025/
 ├── src/                         # Frontend Next.js
 │   ├── app/                    # App Router
 │   ├── components/             # Componentes React

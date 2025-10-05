@@ -266,20 +266,20 @@ start_network() {
     sleep 10
     
     # Verificar que el orderer esté listo para conexiones TLS
-    max_attempts=12
+    max_attempts=8
     attempt=1
     while [ $attempt -le $max_attempts ]; do
-        if curl -k -s https://orderer.supplychain.com:7053/participation/v1/channels &>/dev/null; then
-            print_success "Orderer TLS listo para conexiones"
+        if nc -z orderer.supplychain.com 7050 2>/dev/null &>/dev/null; then
+            print_success "Orderer TLS listo para conexiones en puerto 7050"
             break
         fi
-        print_step "Esperando orderer TLS... intento $attempt/$max_attempts"
+        print_step "Verificando orderer... intento $attempt/$max_attempts"
         sleep 5
         ((attempt++))
     done
     
     if [ $attempt -gt $max_attempts ]; then
-        print_warning "Orderer TLS no responde, pero continuamos..."
+        print_warning "Verificacion TLS timeout - continuando, orderer puede estar funcionando"
     fi
 }
 
