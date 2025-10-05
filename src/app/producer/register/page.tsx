@@ -1,190 +1,274 @@
-export default function RegisterAssetPage() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
-      <div className="container mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <a href="/producer" className="mr-4 p-2 hover:bg-white/50 rounded-lg transition-colors">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </a>
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900">Register Raw Material</h1>
-              <p className="text-lg text-gray-600 mt-2">Add new assets to your supply chain inventory</p>
-            </div>
-          </div>
-        </div>
+'use client';
 
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-            <form className="space-y-8">
-              {/* Basic Information Section */}
-              <div className="border-b border-gray-200 pb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  Basic Information
-                </h2>
+import { useState } from 'react';
+import Layout from '../../../components/layout/Layout';
+import RoleGuard from '../../../components/auth/RoleGuard';
+import { useAsset } from '../../../hooks/useFabric';
+import { Asset } from '../../../lib/fabric/mock-asset-service';
+
+export default function RegisterAssetPage() {
+  const { createAsset, loading, error, clearError } = useAsset();
+
+  // Form state
+  const [formData, setFormData] = useState({
+    id: '',
+    name: '',
+    category: 'Grains',
+    description: '',
+    location: '',
+    quantity: 0,
+    certifications: [] as string[]
+  });
+
+  // UI state
+  const [success, setSuccess] = useState(false);
+
+  // Available options
+  const categories = ['Grains', 'Fruits', 'Vegetables', 'Dairy', 'Meat', 'Other'];
+  const certificationOptions = ['Organic', 'Non-GMO', 'Fair Trade', 'Sustainable', 'Kosher', 'Halal'];
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleArrayToggle = (field: string, value: string) => {
+    const currentArray = (formData as any)[field];
+    const newArray = currentArray.includes(value)
+      ? currentArray.filter((item: string) => item !== value)
+      : [...currentArray, value];
+
+    handleInputChange(field, newArray);
+  };
+
+  const generateAssetId = () => {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substr(2, 5);
+    return `RAW-${timestamp}-${random}`.toUpperCase();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (error) clearError();
+    setSuccess(false);
+
+    // Generate ID if not provided
+    const assetId = formData.id || generateAssetId();
+
+    // Prepare asset data
+    const assetData: Asset = {
+      id: assetId,
+      name: formData.name,
+      type: 'RAW_MATERIAL',
+      category: formData.category,
+      description: formData.description,
+      location: formData.location,
+      quantity: formData.quantity,
+      certifications: formData.certifications.length > 0 ? formData.certifications : undefined
+    };
+
+    try {
+      const result = await createAsset(assetId, assetData);
+
+      if (result.success) {
+        setSuccess(true);
+        setFormData({
+          id: '',
+          name: '',
+          category: 'Grains',
+          description: '',
+          location: '',
+          quantity: 0,
+          certifications: []
+        });
+      }
+    } catch (error) {
+      console.error('Failed to create asset:', error);
+    }
+  };
+
+  return (
+    <RoleGuard allowedRoles={['producer']}>
+      <Layout title="Register Raw Materials" description="Register new raw materials into the supply chain">
+        <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+          <div className="container mx-auto px-6 py-8">
+
+            {/* Success Alert */}
+            {success && (
+              <div className="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-xl flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                ✅ Asset registered successfully! It&apos;s now part of the blockchain supply chain.
+              </div>
+            )}
+
+            {/* Error Alert */}
+            {error && (
+              <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {error}
+                </div>
+                <button onClick={clearError} className="ml-2 text-red-500 hover:text-red-700">
+                  ×
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+
+              {/* Basic Information */}
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Basic Information</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-semibold text-gray-800 mb-3">
-                      Asset Name *
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Asset ID (optional)
                     </label>
                     <input
                       type="text"
-                      id="name"
-                      name="name"
+                      value={formData.id}
+                      onChange={(e) => handleInputChange('id', e.target.value)}
+                      placeholder="Auto-generated if empty"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Leave empty to auto-generate a unique ID</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Product Name *
+                    </label>
+                    <input
+                      type="text"
                       required
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                      placeholder="e.g., Premium Organic Wheat Grain"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      placeholder="e.g., Premium Organic Wheat"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="category" className="block text-sm font-semibold text-gray-800 mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Category *
                     </label>
                     <select
-                      id="category"
-                      name="category"
                       required
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                      value={formData.category}
+                      onChange={(e) => handleInputChange('category', e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     >
-                      <option value="">Select category</option>
-                      <option value="grains">🌾 Grains & Cereals</option>
-                      <option value="vegetables">🥕 Vegetables</option>
-                      <option value="fruits">🍎 Fruits</option>
-                      <option value="dairy">🥛 Dairy Products</option>
-                      <option value="meat">🥩 Meat & Poultry</option>
-                      <option value="spices">🌿 Herbs & Spices</option>
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
                     </select>
                   </div>
 
                   <div>
-                    <label htmlFor="origin" className="block text-sm font-semibold text-gray-800 mb-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={formData.quantity}
+                      onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 0)}
+                      placeholder="e.g., 500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => handleInputChange('description', e.target.value)}
+                      placeholder="Detailed description of the raw material..."
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Origin Location *
                     </label>
                     <input
                       type="text"
-                      id="origin"
-                      name="origin"
                       required
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                      placeholder="Farm name and location"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="batchNumber" className="block text-sm font-semibold text-gray-800 mb-3">
-                      Batch Number *
-                    </label>
-                    <input
-                      type="text"
-                      id="batchNumber"
-                      name="batchNumber"
-                      required
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                      placeholder="Unique batch identifier"
+                      value={formData.location}
+                      onChange={(e) => handleInputChange('location', e.target.value)}
+                      placeholder="e.g., Farm Valley, Oregon, USA"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Quality & Certification Section */}
-              <div className="border-b border-gray-200 pb-8">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  Quality & Certification
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="expiryDate" className="block text-sm font-semibold text-gray-800 mb-3">
-                      Expiry Date
+              {/* Certifications */}
+              <div className="mb-8">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Certifications</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {certificationOptions.map(cert => (
+                    <label key={cert} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.certifications.includes(cert)}
+                        onChange={() => handleArrayToggle('certifications', cert)}
+                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{cert}</span>
                     </label>
-                    <input
-                      type="date"
-                      id="expiryDate"
-                      name="expiryDate"
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="certifications" className="block text-sm font-semibold text-gray-800 mb-3">
-                      Certifications
-                    </label>
-                    <input
-                      type="text"
-                      id="certifications"
-                      name="certifications"
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                      placeholder="Organic, Fair Trade, Non-GMO (comma separated)"
-                    />
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Description Section */}
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </div>
-                  Additional Details
-                </h2>
+              {/* Submit Button */}
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={() => window.history.back()}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all duration-200"
+                >
+                  Cancel
+                </button>
 
-                <div>
-                  <label htmlFor="description" className="block text-sm font-semibold text-gray-800 mb-3">
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    rows={4}
-                    className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
-                    placeholder="Provide detailed information about the raw material, including quality specifications, harvesting methods, storage conditions, etc..."
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4 pt-6">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-8 py-4 rounded-xl hover:from-green-600 hover:to-emerald-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-lg flex items-center justify-center"
+                  disabled={loading}
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Register Asset on Blockchain
+                  {loading ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Registering...
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Register Asset
+                    </div>
+                  )}
                 </button>
-                <a
-                  href="/producer"
-                  className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all duration-200 font-semibold text-lg flex items-center justify-center"
-                >
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Cancel
-                </a>
               </div>
             </form>
           </div>
         </div>
-      </div>
-    </div>
+      </Layout>
+    </RoleGuard>
   );
 }
