@@ -122,7 +122,7 @@ export default function ConsumerPage() {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bold text-gray-900">Recent Purchases</h2>
-                                <p className="text-gray-600">Products you've bought recently</p>
+                                <p className="text-gray-600">Products you&apos;ve bought recently</p>
                             </div>
                         </div>
 

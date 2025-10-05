@@ -32,7 +32,7 @@ export interface Asset {
   transfers?: AssetTransfer[];
 
   // Custom properties
-  properties?: { [key: string]: any };
+  properties?: { [key: string]: string | number | boolean };
 }
 
 export interface AssetTransfer {
@@ -52,7 +52,7 @@ export interface AssetHistory {
   actor: string;
   previousOwner: string;
   newOwner: string;
-  data: any;
+  data: Record<string, unknown>;
 }
 
 // Frontend specific types
@@ -82,7 +82,7 @@ export interface CreateAssetForm {
   batchNumber: string;
   expiryDate: string;
   certifications: string[];
-  properties: { [key: string]: any };
+  properties: { [key: string]: string | number | boolean };
 }
 
 export interface TransferAssetForm {
@@ -101,11 +101,11 @@ export interface TransformAssetForm {
   category: string;
   batchNumber: string;
   expiryDate: string;
-  properties: { [key: string]: any };
+  properties: { [key: string]: string | number | boolean };
 }
 
 // API Response types
-export interface ChainCodeResponse<T = any> {
+export interface ChainCodeResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

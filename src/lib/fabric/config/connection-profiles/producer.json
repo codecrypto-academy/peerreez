@@ -1,0 +1,76 @@
+{
+    "name": "supply-chain-network-producer",
+    "version": "1.0.0",
+    "client": {
+        "organization": "Producer",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                }
+            }
+        }
+    },
+    "organizations": {
+        "Producer": {
+            "mspid": "ProducerMSP",
+            "peers": [
+                "peer0.producer.supplychain.com"
+            ],
+            "certificateAuthorities": [
+                "ca.producer.supplychain.com"
+            ]
+        }
+    },
+    "peers": {
+        "peer0.producer.supplychain.com": {
+            "url": "grpcs://localhost:7051",
+            "tlsCACerts": {
+                "pem": "-----BEGIN CERTIFICATE-----\nMIICeTCCAiCgAwIBAgIRAMrnkB9n1ljvBJkTfdRj1AQwCgYIKoZIzj0EAwIwgYYx\nCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4g\nRnJhbmNpc2NvMSEwHwYDVQQKExhwcm9kdWNlci5zdXBwbHljaGFpbi5jb20xJzAl\nBgNVBAMTHnRsc2NhLnByb2R1Y2VyLnN1cHBseWNoYWluLmNvbTAeFw0yNTEwMDQx\nNjUzMDBaFw0zNTEwMDIxNjUzMDBaMIGGMQswCQYDVQQGEwJVUzETMBEGA1UECBMK\nQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEhMB8GA1UEChMYcHJv\nZHVjZXIuc3VwcGx5Y2hhaW4uY29tMScwJQYDVQQDEx50bHNjYS5wcm9kdWNlci5z\ndXBwbHljaGFpbi5jb20wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQnxT9ipWUw\nKtpf5o4DACcf9grCKOx9BhI7dc6InBFfRRlbk2rDL/VMFNJ0tVGv5KSxyz3T2K32\nrbvhDxJzP+ixo20wazAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYBBQUH\nAwIGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEIPc6W+QFbmFx\nhA7R6ArQPgWNAv59MyUodhTwnuZetaUJMAoGCCqGSM49BAMCA0cAMEQCIDa0cBS0\nROSHtHQVsGCk5AOeq3P1tk7V2LilK61ec9+zAiAWsN7NLMvZPR3EsMVaTGIfJavH\nwtcAPa1ZVlMcrxZrAA==\n-----END CERTIFICATE-----"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.producer.supplychain.com",
+                "hostnameOverride": "peer0.producer.supplychain.com"
+            }
+        }
+    },
+    "certificateAuthorities": {
+        "ca.producer.supplychain.com": {
+            "url": "https://localhost:7054",
+            "caName": "ca-producer",
+            "tlsCACerts": {
+                "pem": "-----BEGIN CERTIFICATE-----\nMIICdTCCAhqgAwIBAgIRAKrokA5t49klTGImu7+iQGgwCgYIKoZIzj0EAwIwgYMx\nCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4g\nRnJhbmNpc2NvMSEwHwYDVQQKExhwcm9kdWNlci5zdXBwbHljaGFpbi5jb20xJDAi\nBgNVBAMTG2NhLnByb2R1Y2VyLnN1cHBseWNoYWluLmNvbTAeFw0yNTEwMDQxNjUz\nMDBaFw0zNTEwMDIxNjUzMDBaMIGDMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2Fs\naWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEhMB8GA1UEChMYcHJvZHVj\nZXIuc3VwcGx5Y2hhaW4uY29tMSQwIgYDVQQDExtjYS5wcm9kdWNlci5zdXBwbHlj\naGFpbi5jb20wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASS2jMmwUX+zbxWHc8G\ntckRxakApy1FnjOx4QwSkmtH53n8Q8HxKRPDUd97YKFuyrmjL1XianRpwwfLoyr0\niS2to20wazAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsG\nAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEINVMDPpP0gW0loiUj1qf\nCPjlSxtD6oVIvH/wfcHHCBtqMAoGCCqGSM49BAMCA0kAMEYCIQCJuzY/LmRGm9kx\nJlP8L0BD4xpnpBiIWLUTuMZ3DK10jAIhAIBhbAQ0qLgawcTDJ5TQfSLiapPk47Td\n09ZLG+F/EiyX\n-----END CERTIFICATE-----"
+            },
+            "httpOptions": {
+                "verify": false
+            }
+        }
+    },
+    "channels": {
+        "supply-chain-channel": {
+            "orderers": [
+                "orderer.supplychain.com"
+            ],
+            "peers": {
+                "peer0.producer.supplychain.com": {
+                    "endorsingPeer": true,
+                    "chaincodeQuery": true,
+                    "ledgerQuery": true,
+                    "eventSource": true
+                }
+            }
+        }
+    },
+    "orderers": {
+        "orderer.supplychain.com": {
+            "url": "grpcs://localhost:7050",
+            "tlsCACerts": {
+                "pem": "-----BEGIN CERTIFICATE-----\nMIICVDCCAfqgAwIBAgIRAInmDzWDKeLF/FHPfPOL+EswCgYIKoZIzj0EAwIwdDEL\nMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBG\nrmFuY2lzY28xGDAWBgNVBAoTD3N1cHBseWNoYWluLmNvbTEeMBwGA1UEAxMVdGxz\nY2Euc3VwcGx5Y2hhaW4uY29tMB4XDTI1MTAwNDE2NTMwMFoXDTM1MTAwMjE2NTMw\nMFowdDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcT\nDVNhbiBGcmFuY2lzY28xGDAWBgNVBAoTD3N1cHBseWNoYWluLmNvbTEeMBwGA1UE\nAxMVdGxzY2Euc3VwcGx5Y2hhaW4uY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD\nQgAEgoyAxHESn+S+QrIVGGWuYAx+jaepAFIBH72YGTr+p8bF+lNGKoHzD7CSpfvr\nMDwdKumeLTmBmktkAp1MVBsjQKNtMGswDgYDVR0PAQH/BAQDAgGmMB0GA1UdJQQW\nMBQGCCsGAQUFBwMCBggrBgEFBQcDATAPBgNVHRMBAf8EBTADAQH/MCkGA1UdDgQi\nBCAbxCXx/jeGcTx9yV0sNdvWCIs6JtOyNL2feSFISDHGWTAKBggqhkjOPQQDAgNI\nADBFAiEAvUB2FaKIs3F+5HKIDYBwb/6Joe6CltCsgXQUufU0HlQCIC3/tsZ/kz+2\nAygEt89etFx516GQxjqt64xNKst6uypk\n-----END CERTIFICATE-----"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "orderer.supplychain.com",
+                "hostnameOverride": "orderer.supplychain.com"
+            }
+        }
+    }
+}
