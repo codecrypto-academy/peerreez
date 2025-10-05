@@ -1,7 +1,7 @@
 // Fabric SDK Types
 export type Role = 'producer' | 'factory' | 'retailer' | 'consumer';
 
-export interface ConnectionProfile {
+export interface ConnectionProfile extends Record<string, unknown> {
     name: string;
     version: string;
     client: {
@@ -14,11 +14,11 @@ export interface ConnectionProfile {
             };
         };
     };
-    organizations: Record<string, object>;
-    peers: Record<string, object>;
-    certificateAuthorities: Record<string, object>;
-    channels: Record<string, object>;
-    orderers: Record<string, object>;
+    organizations: Record<string, unknown>;
+    peers: Record<string, unknown>;
+    certificateAuthorities: Record<string, unknown>;
+    channels: Record<string, unknown>;
+    orderers: Record<string, unknown>;
 }
 
 export interface FabricUser {
@@ -80,14 +80,12 @@ export interface ChaincodeOperations {
     GetSupplyChainTrace: (assetId: string) => Promise<TransactionResult>;
 }
 
-// Gateway and Network Types
+// Gateway and Network Types (using 'unknown' for now to avoid circular imports)
 export interface NetworkConnection {
-    gateway: object; // fabric-network Gateway
-    network: object; // fabric-network Network  
-    contract: object; // fabric-network Contract
-}
-
-export interface WalletConfig {
+    gateway: unknown; // fabric-network Gateway
+    network: unknown; // fabric-network Network  
+    contract: unknown; // fabric-network Contract
+}export interface WalletConfig {
     walletPath: string;
     userId: string;
     userRole: Role;

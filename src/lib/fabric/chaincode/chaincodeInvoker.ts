@@ -1,19 +1,8 @@
+// fabric-network types imported in fabricGateway
 import { TransactionResult, ChaincodeOperations, Role } from '../../../types/fabric';
 import { FabricGatewayManager } from '../gateway/fabricGateway';
 
-// Temporary mock until fabric-network is installed
-interface MockContract {
-    createTransaction: (functionName: string) => MockTransaction;
-    evaluateTransaction: (functionName: string, ...args: string[]) => Promise<Buffer>;
-}
-
-interface MockTransaction {
-    submit: (...args: string[]) => Promise<Buffer>;
-    getTransactionId: () => string;
-}
-
 export class ChaincodeInvoker implements ChaincodeOperations {
-    private contract: MockContract | null = null;
     private gatewayManager: FabricGatewayManager;
 
     constructor() {
@@ -22,20 +11,17 @@ export class ChaincodeInvoker implements ChaincodeOperations {
 
     private async ensureConnection(role: Role, userId: string): Promise<void> {
         if (!this.gatewayManager.isConnected() || this.gatewayManager.getCurrentRole() !== role) {
-            const connection = await this.gatewayManager.connectAsRole(role, userId);
-            this.contract = connection.contract as MockContract;
+            await this.gatewayManager.connectAsRole(role, userId);
         }
     }
 
     private async submitTransaction(functionName: string, ...args: string[]): Promise<TransactionResult> {
         try {
-            if (!this.contract) {
-                throw new Error('No contract available. Please connect first.');
-            }
+            const contract = this.gatewayManager.getContract();
 
             console.log(`🔄 Submitting transaction: ${functionName}`, args);
 
-            const transaction = this.contract.createTransaction(functionName);
+            const transaction = contract.createTransaction(functionName);
             const result = await transaction.submit(...args);
 
             const txId = transaction.getTransactionId();
@@ -61,13 +47,11 @@ export class ChaincodeInvoker implements ChaincodeOperations {
 
     private async evaluateTransaction(functionName: string, ...args: string[]): Promise<TransactionResult> {
         try {
-            if (!this.contract) {
-                throw new Error('No contract available. Please connect first.');
-            }
+            const contract = this.gatewayManager.getContract();
 
             console.log(`🔍 Evaluating query: ${functionName}`, args);
 
-            const result = await this.contract.evaluateTransaction(functionName, ...args);
+            const result = await contract.evaluateTransaction(functionName, ...args);
 
             console.log(`✅ Query completed: ${functionName}`);
 
@@ -139,6 +123,5 @@ export class ChaincodeInvoker implements ChaincodeOperations {
 
     async disconnect(): Promise<void> {
         await this.gatewayManager.disconnect();
-        this.contract = null;
     }
 }
