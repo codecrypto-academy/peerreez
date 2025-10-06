@@ -250,8 +250,13 @@ export class SupplyChainContract extends Contract {
     @Returns('string')
     public async GetAssetHistory(ctx: Context, assetId: string): Promise<string> {
         const historyKey = `HISTORY_${assetId}`;
-        const historyIterator = await ctx.stub.getHistoryForKey(historyKey);
-        const history = await this.getAllResults(historyIterator, true);
+        const existingHistoryBytes = await ctx.stub.getState(historyKey);
+
+        let history: AssetHistory[] = [];
+        if (existingHistoryBytes && existingHistoryBytes.length > 0) {
+            history = JSON.parse(existingHistoryBytes.toString());
+        }
+
         return JSON.stringify(history);
     }
 
@@ -362,6 +367,15 @@ export class SupplyChainContract extends Contract {
 
     private extractMSPFromIdentity(identity: string): string {
         // Extract MSP from identity string
+        // Pattern for x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@ORG.supplychain.com::/C=US/ST=California/L=San Francisco/O=ORG.supplychain.com/CN=ca.ORG.supplychain.com
+        const orgMatch = identity.match(/CN=Admin@(\w+)\.supplychain\.com/);
+        if (orgMatch) {
+            const org = orgMatch[1];
+            // Convert organization name to MSP ID (capitalize first letter + MSP)
+            return org.charAt(0).toUpperCase() + org.slice(1) + 'MSP';
+        }
+
+        // Fallback to original pattern for backward compatibility
         const mspMatch = identity.match(/::CN=.*?,OU=.*?,OU=(.*?)MSP/);
         return mspMatch ? mspMatch[1] + 'MSP' : '';
     }

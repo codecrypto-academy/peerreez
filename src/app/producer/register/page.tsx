@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Layout from '../../../components/layout/Layout';
 import RoleGuard from '../../../components/auth/RoleGuard';
 import { useAsset } from '../../../hooks/useFabric';
-import { Asset } from '../../../lib/fabric/mock-asset-service';
+import { Asset } from '../../../lib/fabric/http-service';
 
 export default function RegisterAssetPage() {
   const { createAsset, loading, error, clearError } = useAsset();

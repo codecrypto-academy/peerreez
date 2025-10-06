@@ -1,25 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getMockAssetService, Asset } from '../lib/fabric/mock-asset-service';
-import { TransactionResult, Role } from '../types/fabric';
+'use client';
+
+import { useState, useCallback } from 'react';
+import { getFabricHttpService, Asset } from '../lib/fabric/http-service';
+import { TransactionResult } from '../types/fabric';
 import { useCurrentUser } from '../components/auth/RoleGuard';
 
-// Hook para operaciones con assets
+// Hook simplificado para operaciones con assets usando HTTP API
 export function useAsset() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const user = useCurrentUser();
-    const assetService = getMockAssetService();
+    const httpService = getFabricHttpService();
 
     const createAsset = useCallback(async (assetId: string, assetData: Asset): Promise<TransactionResult> => {
         if (!user) {
-            return { success: false, error: 'User not authenticated' };
+            return { success: false, error: 'User not authenticated', data: null };
         }
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await assetService.createAsset(assetId, assetData, user.role);
+            const result = await httpService.createAsset(assetId, assetData, user.role);
             if (!result.success) {
                 setError(result.error || 'Failed to create asset');
             }
@@ -27,22 +29,22 @@ export function useAsset() {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to create asset';
             setError(errorMsg);
-            return { success: false, error: errorMsg };
+            return { success: false, error: errorMsg, data: null };
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const readAsset = useCallback(async (assetId: string): Promise<TransactionResult> => {
         if (!user) {
-            return { success: false, error: 'User not authenticated' };
+            return { success: false, error: 'User not authenticated', data: null };
         }
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await assetService.readAsset(assetId, user.role);
+            const result = await httpService.readAsset(assetId, user.role);
             if (!result.success) {
                 setError(result.error || 'Failed to read asset');
             }
@@ -50,22 +52,22 @@ export function useAsset() {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to read asset';
             setError(errorMsg);
-            return { success: false, error: errorMsg };
+            return { success: false, error: errorMsg, data: null };
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const updateAsset = useCallback(async (assetId: string, updates: Partial<Asset>): Promise<TransactionResult> => {
         if (!user) {
-            return { success: false, error: 'User not authenticated' };
+            return { success: false, error: 'User not authenticated', data: null };
         }
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await assetService.updateAsset(assetId, updates, user.role);
+            const result = await httpService.updateAsset(assetId, updates, user.role);
             if (!result.success) {
                 setError(result.error || 'Failed to update asset');
             }
@@ -73,11 +75,11 @@ export function useAsset() {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to update asset';
             setError(errorMsg);
-            return { success: false, error: errorMsg };
+            return { success: false, error: errorMsg, data: null };
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const transferAsset = useCallback(async (
         assetId: string,
@@ -85,14 +87,14 @@ export function useAsset() {
         transferData: any = {}
     ): Promise<TransactionResult> => {
         if (!user) {
-            return { success: false, error: 'User not authenticated' };
+            return { success: false, error: 'User not authenticated', data: null };
         }
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await assetService.transferAsset(assetId, newOwner, transferData, user.role);
+            const result = await httpService.transferAsset(assetId, newOwner, transferData, user.role);
             if (!result.success) {
                 setError(result.error || 'Failed to transfer asset');
             }
@@ -100,21 +102,21 @@ export function useAsset() {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to transfer asset';
             setError(errorMsg);
-            return { success: false, error: errorMsg };
+            return { success: false, error: errorMsg, data: null };
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const assetExists = useCallback(async (assetId: string): Promise<boolean> => {
         if (!user) return false;
 
         try {
-            return await assetService.assetExists(assetId, user.role);
+            return await httpService.assetExists(assetId, user.role);
         } catch {
             return false;
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     return {
         loading,
@@ -134,7 +136,7 @@ export function useAssetQuery() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const user = useCurrentUser();
-    const assetService = getMockAssetService();
+    const httpService = getFabricHttpService();
 
     const queryAssetsByOwner = useCallback(async (): Promise<Asset[]> => {
         if (!user) return [];
@@ -143,7 +145,7 @@ export function useAssetQuery() {
         setError(null);
 
         try {
-            const result = await assetService.queryAssetsByOwner(user.role);
+            const result = await httpService.queryAssetsByOwner(user.role);
             if (result.success && Array.isArray(result.data)) {
                 setAssets(result.data);
                 return result.data;
@@ -158,7 +160,7 @@ export function useAssetQuery() {
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const getAssetHistory = useCallback(async (assetId: string) => {
         if (!user) return null;
@@ -167,7 +169,7 @@ export function useAssetQuery() {
         setError(null);
 
         try {
-            const result = await assetService.getAssetHistory(assetId, user.role);
+            const result = await httpService.getAssetHistory(assetId, user.role);
             if (result.success) {
                 return result.data;
             } else {
@@ -181,7 +183,7 @@ export function useAssetQuery() {
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     const getSupplyChainTrace = useCallback(async (assetId: string) => {
         if (!user) return null;
@@ -190,7 +192,7 @@ export function useAssetQuery() {
         setError(null);
 
         try {
-            const result = await assetService.getSupplyChainTrace(assetId, user.role);
+            const result = await httpService.getSupplyChainTrace(assetId, user.role);
             if (result.success) {
                 return result.data;
             } else {
@@ -204,7 +206,7 @@ export function useAssetQuery() {
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     return {
         assets,
@@ -222,7 +224,7 @@ export function useAssetTransform() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const user = useCurrentUser();
-    const assetService = getMockAssetService();
+    const httpService = getFabricHttpService();
 
     const transformAsset = useCallback(async (
         rawMaterialIds: string[],
@@ -230,14 +232,14 @@ export function useAssetTransform() {
         productData: Asset
     ): Promise<TransactionResult> => {
         if (!user || user.role !== 'factory') {
-            return { success: false, error: 'Only factories can transform assets' };
+            return { success: false, error: 'Only factories can transform assets', data: null };
         }
 
         setLoading(true);
         setError(null);
 
         try {
-            const result = await assetService.transformAsset(rawMaterialIds, newAssetId, productData, user.role);
+            const result = await httpService.transformAsset(rawMaterialIds, newAssetId, productData, user.role);
             if (!result.success) {
                 setError(result.error || 'Failed to transform asset');
             }
@@ -245,11 +247,11 @@ export function useAssetTransform() {
         } catch (err: any) {
             const errorMsg = err.message || 'Failed to transform asset';
             setError(errorMsg);
-            return { success: false, error: errorMsg };
+            return { success: false, error: errorMsg, data: null };
         } finally {
             setLoading(false);
         }
-    }, [user, assetService]);
+    }, [user, httpService]);
 
     return {
         loading,

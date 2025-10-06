@@ -1,4 +1,82 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAssetTransform, useAssetQuery } from '../../../hooks/useFabric';
+
+interface TransformForm {
+    rawMaterialIds: string[];
+    newAssetId: string;
+    productData: {
+        name: string;
+        type: 'PRODUCT';
+        category: string;
+        description: string;
+        transformationProcess: string;
+    };
+}
+
 export default function TransformAssetPage() {
+    const [form, setForm] = useState<TransformForm>({
+        rawMaterialIds: [],
+        newAssetId: '',
+        productData: {
+            name: '',
+            type: 'PRODUCT',
+            category: '',
+            description: '',
+            transformationProcess: ''
+        }
+    });
+    const [success, setSuccess] = useState(false);
+
+    const { assets, loading: assetsLoading, queryAssetsByOwner } = useAssetQuery();
+    const { transformAsset, loading: transformLoading } = useAssetTransform();
+
+    useEffect(() => {
+        queryAssetsByOwner();
+    }, [queryAssetsByOwner]);
+
+    const handleRawMaterialToggle = (assetId: string) => {
+        setForm(prev => ({
+            ...prev,
+            rawMaterialIds: prev.rawMaterialIds.includes(assetId)
+                ? prev.rawMaterialIds.filter(id => id !== assetId)
+                : [...prev.rawMaterialIds, assetId]
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (form.rawMaterialIds.length === 0) {
+            alert('Please select at least one raw material');
+            return;
+        }
+
+        const result = await transformAsset(
+            form.rawMaterialIds,
+            form.newAssetId,
+            { ...form.productData, id: form.newAssetId }
+        );
+
+        if (result.success) {
+            setSuccess(true);
+            setForm({
+                rawMaterialIds: [],
+                newAssetId: '',
+                productData: {
+                    name: '',
+                    type: 'PRODUCT',
+                    category: '',
+                    description: '',
+                    transformationProcess: ''
+                }
+            });
+            // Refresh assets
+            queryAssetsByOwner();
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50">
             <div className="container mx-auto px-6 py-8">
@@ -18,8 +96,14 @@ export default function TransformAssetPage() {
                 </div>
 
                 <div className="max-w-4xl mx-auto">
+                    {success && (
+                        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <p className="text-green-800 font-semibold">✅ Product transformed successfully!</p>
+                        </div>
+                    )}
+
                     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                        <form className="space-y-8">
+                        <form onSubmit={handleSubmit} className="space-y-8">
                             {/* Raw Materials Selection */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -35,40 +119,36 @@ export default function TransformAssetPage() {
                                     <label className="block text-sm font-semibold text-gray-800 mb-3">
                                         Choose Raw Materials to Transform *
                                     </label>
-                                    <div className="space-y-3">
-                                        {/* Raw Material Items */}
-                                        <div className="flex items-center p-4 bg-white/70 border-2 border-gray-200 rounded-xl hover:border-orange-300 transition-colors">
-                                            <input type="checkbox" id="raw1" className="mr-4 w-5 h-5 text-orange-600 rounded" />
-                                            <label htmlFor="raw1" className="flex-1 cursor-pointer">
-                                                <div className="flex justify-between items-center">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">🌾 Organic Wheat Batch #001</p>
-                                                        <p className="text-sm text-gray-600">From: GreenFarm Producer • Received: 2 days ago</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold text-gray-900">500kg</p>
-                                                        <p className="text-sm text-green-600">Available</p>
-                                                    </div>
+                                    {assetsLoading ? (
+                                        <div className="text-center py-8">Loading raw materials...</div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {assets?.filter(asset => asset.type === 'RAW_MATERIAL').map((asset) => (
+                                                <div key={asset.id} className="flex items-center p-4 bg-white/70 border-2 border-gray-200 rounded-xl hover:border-orange-300 transition-colors">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={asset.id}
+                                                        checked={form.rawMaterialIds.includes(asset.id)}
+                                                        onChange={() => handleRawMaterialToggle(asset.id)}
+                                                        className="mr-4 w-5 h-5 text-orange-600 rounded"
+                                                    />
+                                                    <label htmlFor={asset.id} className="flex-1 cursor-pointer">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900">{asset.name}</p>
+                                                                <p className="text-sm text-gray-600">
+                                                                    ID: {asset.id} • Category: {asset.category}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-sm text-green-600">Available</p>
+                                                            </div>
+                                                        </div>
+                                                    </label>
                                                 </div>
-                                            </label>
+                                            ))}
                                         </div>
-
-                                        <div className="flex items-center p-4 bg-white/70 border-2 border-gray-200 rounded-xl hover:border-orange-300 transition-colors">
-                                            <input type="checkbox" id="raw2" className="mr-4 w-5 h-5 text-orange-600 rounded" />
-                                            <label htmlFor="raw2" className="flex-1 cursor-pointer">
-                                                <div className="flex justify-between items-center">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">🥕 Fresh Carrot Batch #003</p>
-                                                        <p className="text-sm text-gray-600">From: Valley Producer • Received: 1 day ago</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold text-gray-900">150kg</p>
-                                                        <p className="text-sm text-green-600">Available</p>
-                                                    </div>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -85,144 +165,109 @@ export default function TransformAssetPage() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label htmlFor="productName" className="block text-sm font-semibold text-gray-800 mb-3">
+                                        <label htmlFor="newAssetId" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Product ID *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="newAssetId"
+                                            value={form.newAssetId}
+                                            onChange={(e) => setForm(prev => ({ ...prev, newAssetId: e.target.value }))}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="PROD_001"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="name" className="block text-sm font-semibold text-gray-800 mb-2">
                                             Product Name *
                                         </label>
                                         <input
                                             type="text"
-                                            id="productName"
-                                            name="productName"
+                                            id="name"
+                                            value={form.productData.name}
+                                            onChange={(e) => setForm(prev => ({
+                                                ...prev,
+                                                productData: { ...prev.productData, name: e.target.value }
+                                            }))}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="Premium Flour"
                                             required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                                            placeholder="e.g., Premium Wheat Flour"
                                         />
                                     </div>
 
                                     <div>
-                                        <label htmlFor="category" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Product Category *
-                                        </label>
-                                        <select
-                                            id="category"
-                                            name="category"
-                                            required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
-                                        >
-                                            <option value="">Select product category</option>
-                                            <option value="flour">🌾 Flour & Grains</option>
-                                            <option value="processed">🥫 Processed Foods</option>
-                                            <option value="packaged">📦 Packaged Goods</option>
-                                            <option value="beverages">🥤 Beverages</option>
-                                            <option value="snacks">🍪 Snacks & Confectionery</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="batchNumber" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Product Batch Number *
+                                        <label htmlFor="category" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Category *
                                         </label>
                                         <input
                                             type="text"
-                                            id="batchNumber"
-                                            name="batchNumber"
+                                            id="category"
+                                            value={form.productData.category}
+                                            onChange={(e) => setForm(prev => ({
+                                                ...prev,
+                                                productData: { ...prev.productData, category: e.target.value }
+                                            }))}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="food"
                                             required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                                            placeholder="Generated product batch ID"
                                         />
                                     </div>
 
                                     <div>
-                                        <label htmlFor="expiryDate" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Product Expiry Date
+                                        <label htmlFor="transformationProcess" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Transformation Process *
                                         </label>
                                         <input
-                                            type="date"
-                                            id="expiryDate"
-                                            name="expiryDate"
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                                            type="text"
+                                            id="transformationProcess"
+                                            value={form.productData.transformationProcess}
+                                            onChange={(e) => setForm(prev => ({
+                                                ...prev,
+                                                productData: { ...prev.productData, transformationProcess: e.target.value }
+                                            }))}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="Milling and Processing"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="md:col-span-2">
+                                        <label htmlFor="description" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Description
+                                        </label>
+                                        <textarea
+                                            id="description"
+                                            value={form.productData.description}
+                                            onChange={(e) => setForm(prev => ({
+                                                ...prev,
+                                                productData: { ...prev.productData, description: e.target.value }
+                                            }))}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            placeholder="Detailed description of the finished product..."
+                                            rows={4}
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Manufacturing Process */}
-                            <div className="border-b border-gray-200 pb-8">
-                                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </div>
-                                    Manufacturing Process
-                                </h2>
-
-                                <div>
-                                    <label htmlFor="description" className="block text-sm font-semibold text-gray-800 mb-3">
-                                        Process Description & Quality Notes
-                                    </label>
-                                    <textarea
-                                        id="description"
-                                        name="description"
-                                        rows={4}
-                                        className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
-                                        placeholder="Describe the manufacturing process, quality controls, temperature conditions, processing time, etc..."
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Transformation Preview */}
-                            <div className="bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-200 rounded-xl p-6">
-                                <div className="flex items-start">
-                                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                                        <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-semibold text-orange-900 mb-3">Blockchain Transformation Preview</h3>
-                                        <div className="space-y-2 text-orange-800">
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-orange-500 rounded-full mr-3"></span>
-                                                Raw materials will be marked as <strong>CONSUMED</strong>
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-orange-500 rounded-full mr-3"></span>
-                                                New product will be created with <strong>MANUFACTURED</strong> status
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-orange-500 rounded-full mr-3"></span>
-                                                Complete transformation record will be stored on blockchain
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-orange-500 rounded-full mr-3"></span>
-                                                Traceability chain will link product to source materials
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-4 pt-6">
+                            {/* Submit */}
+                            <div className="flex justify-end space-x-4">
+                                <button
+                                    type="button"
+                                    onClick={() => window.history.back()}
+                                    className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white px-8 py-4 rounded-xl hover:from-orange-600 hover:to-red-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-lg flex items-center justify-center"
+                                    disabled={transformLoading}
+                                    className="px-8 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl hover:from-orange-600 hover:to-red-600 font-semibold transition-all transform hover:scale-105 disabled:opacity-50"
                                 >
-                                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    </svg>
-                                    Execute Transformation
+                                    {transformLoading ? 'Transforming...' : 'Transform Product'}
                                 </button>
-                                <a
-                                    href="/factory"
-                                    className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all duration-200 font-semibold text-lg flex items-center justify-center"
-                                >
-                                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    Cancel
-                                </a>
                             </div>
                         </form>
                     </div>

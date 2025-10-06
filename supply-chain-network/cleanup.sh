@@ -50,7 +50,8 @@ print_success "Docker limpio"
 
 print_step "Eliminando archivos generados..."
 rm -rf crypto-config channel-artifacts *.tar.gz *.block *.tx config bin fabric-samples 2>/dev/null || true
-print_success "Archivos eliminados"
+rm -rf wallets 2>/dev/null || true
+print_success "Archivos eliminados (incluyendo genesis.block y wallets)"
 
 print_step "Limpiando node_modules del chaincode..."
 rm -rf chaincode/supply-chain/node_modules chaincode/supply-chain/dist 2>/dev/null || true
