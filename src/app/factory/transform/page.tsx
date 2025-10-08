@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAssetTransform, useAssetQuery } from '../../../hooks/useFabric';
+import { useState } from 'react';
+import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
 
 interface TransformForm {
     rawMaterialIds: string[];
+    quantities: { [materialId: string]: number }; // cantidad a usar de cada material
     newAssetId: string;
     productData: {
         name: string;
@@ -18,6 +19,7 @@ interface TransformForm {
 export default function TransformAssetPage() {
     const [form, setForm] = useState<TransformForm>({
         rawMaterialIds: [],
+        quantities: {},
         newAssetId: '',
         productData: {
             name: '',
@@ -28,20 +30,41 @@ export default function TransformAssetPage() {
         }
     });
     const [success, setSuccess] = useState(false);
+    const [transformLoading, setTransformLoading] = useState(false);
 
-    const { assets, loading: assetsLoading, queryAssetsByOwner } = useAssetQuery();
-    const { transformAsset, loading: transformLoading } = useAssetTransform();
-
-    useEffect(() => {
-        queryAssetsByOwner();
-    }, [queryAssetsByOwner]);
+    const { data: assets = [], isLoading: assetsLoading, refetch } = useAssetsByOwner();
 
     const handleRawMaterialToggle = (assetId: string) => {
+        setForm(prev => {
+            const isSelected = prev.rawMaterialIds.includes(assetId);
+            const newQuantities = { ...prev.quantities };
+
+            if (isSelected) {
+                // Deselect: remove from list and quantities
+                delete newQuantities[assetId];
+                return {
+                    ...prev,
+                    rawMaterialIds: prev.rawMaterialIds.filter(id => id !== assetId),
+                    quantities: newQuantities
+                };
+            } else {
+                // Select: add to list with default quantity of 0
+                return {
+                    ...prev,
+                    rawMaterialIds: [...prev.rawMaterialIds, assetId],
+                    quantities: { ...newQuantities, [assetId]: 0 }
+                };
+            }
+        });
+    };
+
+    const handleQuantityChange = (assetId: string, quantity: number) => {
         setForm(prev => ({
             ...prev,
-            rawMaterialIds: prev.rawMaterialIds.includes(assetId)
-                ? prev.rawMaterialIds.filter(id => id !== assetId)
-                : [...prev.rawMaterialIds, assetId]
+            quantities: {
+                ...prev.quantities,
+                [assetId]: quantity
+            }
         }));
     };
 
@@ -53,27 +76,76 @@ export default function TransformAssetPage() {
             return;
         }
 
-        const result = await transformAsset(
-            form.rawMaterialIds,
-            form.newAssetId,
-            { ...form.productData, id: form.newAssetId }
-        );
+        // Validar que todas las cantidades sean mayores a 0
+        for (const materialId of form.rawMaterialIds) {
+            const quantity = form.quantities[materialId] || 0;
+            if (quantity <= 0) {
+                alert(`Please specify a valid quantity for material ${materialId}`);
+                return;
+            }
 
-        if (result.success) {
-            setSuccess(true);
-            setForm({
-                rawMaterialIds: [],
-                newAssetId: '',
-                productData: {
-                    name: '',
-                    type: 'PRODUCT',
-                    category: '',
-                    description: '',
-                    transformationProcess: ''
-                }
+            // Validar que no exceda la cantidad disponible
+            const material = assets?.find(a => a.id === materialId);
+            if (material && quantity > (material.quantity || 0)) {
+                alert(`Insufficient quantity for ${material.name}. Available: ${material.quantity}, Requested: ${quantity}`);
+                return;
+            }
+        }
+
+        // Calcular la cantidad total del producto (suma de materiales usados)
+        const totalProductQuantity = Object.values(form.quantities).reduce((sum, qty) => sum + qty, 0);
+
+        setTransformLoading(true);
+        try {
+            // Call Gateway API with correct parameters
+            const response = await fetch('/api/fabric/gateway', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    operation: 'transformAsset',
+                    role: 'Factory',
+                    rawMaterialIds: form.rawMaterialIds,
+                    newAssetId: form.newAssetId,
+                    quantities: form.quantities,
+                    productData: {
+                        id: form.newAssetId,
+                        name: form.productData.name,
+                        type: 'PRODUCT',
+                        category: form.productData.category,
+                        description: form.productData.description,
+                        transformationProcess: form.productData.transformationProcess,
+                        quantity: totalProductQuantity,
+                        unit: 'kg'
+                    }
+                })
             });
-            // Refresh assets
-            queryAssetsByOwner();
+
+            const result = await response.json();
+
+            if (result.success) {
+                setSuccess(true);
+                setForm({
+                    rawMaterialIds: [],
+                    quantities: {},
+                    newAssetId: '',
+                    productData: {
+                        name: '',
+                        type: 'PRODUCT',
+                        category: '',
+                        description: '',
+                        transformationProcess: ''
+                    }
+                });
+                // Refresh assets
+                refetch();
+            } else {
+                alert(`Transform failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error('Transform failed:', error);
+            alert(`Transform failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            setTransformLoading(false);
         }
     };
 
@@ -123,30 +195,56 @@ export default function TransformAssetPage() {
                                         <div className="text-center py-8">Loading raw materials...</div>
                                     ) : (
                                         <div className="space-y-3">
-                                            {assets?.filter(asset => asset.type === 'RAW_MATERIAL').map((asset) => (
-                                                <div key={asset.id} className="flex items-center p-4 bg-white/70 border-2 border-gray-200 rounded-xl hover:border-orange-300 transition-colors">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={asset.id}
-                                                        checked={form.rawMaterialIds.includes(asset.id)}
-                                                        onChange={() => handleRawMaterialToggle(asset.id)}
-                                                        className="mr-4 w-5 h-5 text-orange-600 rounded"
-                                                    />
-                                                    <label htmlFor={asset.id} className="flex-1 cursor-pointer">
-                                                        <div className="flex justify-between items-center">
-                                                            <div>
-                                                                <p className="font-semibold text-gray-900">{asset.name}</p>
-                                                                <p className="text-sm text-gray-600">
-                                                                    ID: {asset.id} • Category: {asset.category}
-                                                                </p>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <p className="text-sm text-green-600">Available</p>
+                                            {assets?.filter(asset => asset.type === 'RAW_MATERIAL' && asset.status !== 'CONSUMED').map((asset) => {
+                                                const isSelected = form.rawMaterialIds.includes(asset.id);
+                                                const availableQty = asset.quantity || 0;
+                                                const selectedQty = form.quantities[asset.id] || 0;
+
+                                                return (
+                                                    <div key={asset.id} className={`p-4 bg-white/70 border-2 rounded-xl transition-colors ${isSelected ? 'border-orange-500 bg-orange-50/50' : 'border-gray-200 hover:border-orange-300'}`}>
+                                                        <div className="flex items-start gap-4">
+                                                            <input
+                                                                type="checkbox"
+                                                                id={asset.id}
+                                                                checked={isSelected}
+                                                                onChange={() => handleRawMaterialToggle(asset.id)}
+                                                                className="mt-1 w-5 h-5 text-orange-600 rounded"
+                                                            />
+                                                            <div className="flex-1">
+                                                                <label htmlFor={asset.id} className="cursor-pointer block mb-2">
+                                                                    <p className="font-semibold text-gray-900">{asset.name}</p>
+                                                                    <p className="text-sm text-gray-600">
+                                                                        ID: {asset.id} • Category: {asset.category}
+                                                                    </p>
+                                                                    <p className="text-sm font-medium text-green-600 mt-1">
+                                                                        Available: {availableQty} {asset.unit || 'kg'}
+                                                                    </p>
+                                                                </label>
+
+                                                                {isSelected && (
+                                                                    <div className="mt-3 flex items-center gap-3">
+                                                                        <label htmlFor={`qty-${asset.id}`} className="text-sm font-semibold text-gray-700 min-w-[100px]">
+                                                                            Quantity to use:
+                                                                        </label>
+                                                                        <input
+                                                                            type="number"
+                                                                            id={`qty-${asset.id}`}
+                                                                            min="0"
+                                                                            max={availableQty}
+                                                                            step="0.1"
+                                                                            value={selectedQty}
+                                                                            onChange={(e) => handleQuantityChange(asset.id, parseFloat(e.target.value) || 0)}
+                                                                            className="flex-1 px-3 py-2 border-2 border-orange-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                                                                            placeholder={`Max: ${availableQty}`}
+                                                                        />
+                                                                        <span className="text-sm text-gray-600 min-w-[50px]">{asset.unit || 'kg'}</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
-                                                    </label>
-                                                </div>
-                                            ))}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>

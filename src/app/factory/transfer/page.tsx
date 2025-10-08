@@ -1,6 +1,85 @@
+'use client';
+
+import { useState } from 'react';
+import { useAssetsByOwner, useTransferAsset } from '../../../hooks/useGatewayAssets';
+
+interface TransferForm {
+    assetId: string;
+    retailerId: string;
+    shipmentLocation: string;
+    transportMethod: string;
+    temperature?: number;
+    notes?: string;
+}
+
 export default function FactoryTransferPage() {
+    const [formData, setFormData] = useState<TransferForm>({
+        assetId: '',
+        retailerId: '',
+        shipmentLocation: '',
+        transportMethod: '',
+        temperature: undefined,
+        notes: ''
+    });
+
+    const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
+    const { mutate: transferAsset, isPending: loading, isError, error, isSuccess: success, reset } = useTransferAsset();
+
+    // Filter only PRODUCT type assets (manufactured products)
+    const products = assets?.filter(asset => asset.type === 'PRODUCT' && asset.status === 'MANUFACTURED') || [];
+
+    const handleInputChange = (field: string, value: any) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        reset();
+
+        // Validation
+        if (!formData.assetId || !formData.retailerId || !formData.shipmentLocation || !formData.transportMethod) {
+            return;
+        }
+
+        // Map retailer selection to full x509 identity
+        const retailerIdentity = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@retailer.supplychain.com::/C=US/ST=California/L=San Francisco/O=retailer.supplychain.com/CN=ca.retailer.supplychain.com';
+
+        const transferData = {
+            destination: formData.retailerId,
+            transportMethod: formData.transportMethod,
+            shipmentLocation: formData.shipmentLocation,
+            temperature: formData.temperature,
+            notes: formData.notes,
+            transferType: 'factory-to-retailer' as const
+        };
+
+        transferAsset(
+            {
+                assetId: formData.assetId,
+                newOwner: retailerIdentity,
+                transferData
+            },
+            {
+                onSuccess: () => {
+                    // Reset form on success
+                    setFormData({
+                        assetId: '',
+                        retailerId: '',
+                        shipmentLocation: '',
+                        transportMethod: '',
+                        temperature: undefined,
+                        notes: ''
+                    });
+                }
+            }
+        );
+    };
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50">
+        <div className="min-h-screen bg-gradient-to-br from-orange-50 via-red-50 to-pink-50">
             <div className="container mx-auto px-6 py-8">
                 {/* Header */}
                 <div className="mb-8">
@@ -12,14 +91,42 @@ export default function FactoryTransferPage() {
                         </a>
                         <div>
                             <h1 className="text-4xl font-bold text-gray-900">Ship to Retailer</h1>
-                            <p className="text-lg text-gray-600 mt-2">Transfer finished products to retail partners</p>
+                            <p className="text-lg text-gray-600 mt-2">Send your manufactured products to retail partners</p>
                         </div>
                     </div>
+
+                    {/* Success/Error Messages */}
+                    {success && (
+                        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center">
+                                <svg className="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                <p className="text-green-800 font-semibold">✅ Product shipped successfully to Retailer!</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {isError && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                    <p className="text-red-800">❌ Transfer failed: {error?.message || 'Unknown error'}</p>
+                                </div>
+                                <button onClick={() => reset()} className="text-red-500 hover:text-red-700">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="max-w-4xl mx-auto">
                     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                        <form className="space-y-8">
+                        <form onSubmit={handleSubmit} className="space-y-8">
                             {/* Product Selection */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -28,222 +135,179 @@ export default function FactoryTransferPage() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                         </svg>
                                     </div>
-                                    Select Products
+                                    Select Product
                                 </h2>
 
                                 <div>
-                                    <label htmlFor="productId" className="block text-sm font-semibold text-gray-800 mb-3">
+                                    <label htmlFor="assetId" className="block text-sm font-semibold text-gray-800 mb-3">
                                         Choose Product to Ship *
                                     </label>
-                                    <select
-                                        id="productId"
-                                        name="productId"
-                                        required
-                                        className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                                    >
-                                        <option value="">Choose from your finished products...</option>
-                                        <option value="product1">🌾 Premium Wheat Flour Batch #WF001 - Ready (400kg)</option>
-                                        <option value="product2">🥫 Organic Vegetable Mix Batch #VM002 - Ready (250kg)</option>
-                                        <option value="product3">🍪 Artisan Crackers Batch #AC003 - Ready (100kg)</option>
-                                        <option value="product4">🥤 Natural Juice Blend Batch #JB004 - Ready (300L)</option>
-                                    </select>
+                                    {assetsLoading ? (
+                                        <div className="text-center py-8">Loading products...</div>
+                                    ) : products.length > 0 ? (
+                                        <select
+                                            id="assetId"
+                                            value={formData.assetId}
+                                            onChange={(e) => handleInputChange('assetId', e.target.value)}
+                                            required
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors"
+                                        >
+                                            <option value="">Select a product...</option>
+                                            {products.map((asset) => (
+                                                <option key={asset.id} value={asset.id}>
+                                                    {asset.id} - {asset.name} ({asset.category})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                                            <p className="text-gray-600 mb-4">No manufactured products available to ship.</p>
+                                            <a
+                                                href="/factory/transform"
+                                                className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                </svg>
+                                                Transform Materials First
+                                            </a>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Retailer Selection */}
+                            {/* Retailer Information */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    <div className="w-8 h-8 bg-pink-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                                         </svg>
                                     </div>
                                     Destination Retailer
                                 </h2>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label htmlFor="retailerId" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Select Retail Partner *
-                                        </label>
-                                        <select
-                                            id="retailerId"
-                                            name="retailerId"
-                                            required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                                        >
-                                            <option value="">Select retail destination...</option>
-                                            <option value="retailer1">🏪 FreshMart Supermarkets</option>
-                                            <option value="retailer2">🏬 Organic Grocers Network</option>
-                                            <option value="retailer3">🛒 Premium Food Stores</option>
-                                            <option value="retailer4">🍃 Green Market Chain</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="deliveryAddress" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Delivery Address *
-                                        </label>
-                                        <input
-                                            type="text"
-                                            id="deliveryAddress"
-                                            name="deliveryAddress"
-                                            required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                                            placeholder="Retailer warehouse or store address"
-                                        />
-                                    </div>
+                                <div>
+                                    <label htmlFor="retailerId" className="block text-sm font-semibold text-gray-800 mb-3">
+                                        Retailer Partner *
+                                    </label>
+                                    <select
+                                        id="retailerId"
+                                        value={formData.retailerId}
+                                        onChange={(e) => handleInputChange('retailerId', e.target.value)}
+                                        required
+                                        className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:outline-none transition-colors"
+                                    >
+                                        <option value="">Select retailer...</option>
+                                        <option value="retailer">Main Retailer Network</option>
+                                    </select>
                                 </div>
                             </div>
 
-                            {/* Shipping Details */}
+                            {/* Shipment Details */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                         </svg>
                                     </div>
-                                    Shipping Information
+                                    Shipment Details
                                 </h2>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label htmlFor="transportMethod" className="block text-sm font-semibold text-gray-800 mb-3">
+                                        <label htmlFor="shipmentLocation" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Shipment Origin *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="shipmentLocation"
+                                            value={formData.shipmentLocation}
+                                            onChange={(e) => handleInputChange('shipmentLocation', e.target.value)}
+                                            placeholder="Factory Address, City"
+                                            required
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="transportMethod" className="block text-sm font-semibold text-gray-800 mb-2">
                                             Transport Method *
                                         </label>
                                         <select
                                             id="transportMethod"
-                                            name="transportMethod"
+                                            value={formData.transportMethod}
+                                            onChange={(e) => handleInputChange('transportMethod', e.target.value)}
                                             required
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
                                         >
-                                            <option value="">Select shipping method...</option>
-                                            <option value="truck">🚛 Refrigerated Truck</option>
-                                            <option value="container">📦 Standard Container</option>
-                                            <option value="express">⚡ Express Delivery</option>
-                                            <option value="bulk">🚚 Bulk Transport</option>
+                                            <option value="">Select method...</option>
+                                            <option value="Truck">Truck</option>
+                                            <option value="Rail">Rail</option>
+                                            <option value="Ship">Ship</option>
+                                            <option value="Air">Air Freight</option>
                                         </select>
                                     </div>
 
                                     <div>
-                                        <label htmlFor="temperature" className="block text-sm font-semibold text-gray-800 mb-3">
+                                        <label htmlFor="temperature" className="block text-sm font-semibold text-gray-800 mb-2">
                                             Storage Temperature (°C)
                                         </label>
                                         <input
                                             type="number"
                                             id="temperature"
-                                            name="temperature"
-                                            step="0.1"
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                                            placeholder="e.g., 18.0 for room temperature"
+                                            value={formData.temperature || ''}
+                                            onChange={(e) => handleInputChange('temperature', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                            placeholder="e.g., 4"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
                                         />
                                     </div>
 
-                                    <div>
-                                        <label htmlFor="estimatedDelivery" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Estimated Delivery Date
+                                    <div className="md:col-span-2">
+                                        <label htmlFor="notes" className="block text-sm font-semibold text-gray-800 mb-2">
+                                            Shipment Notes
                                         </label>
-                                        <input
-                                            type="date"
-                                            id="estimatedDelivery"
-                                            name="estimatedDelivery"
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="trackingNumber" className="block text-sm font-semibold text-gray-800 mb-3">
-                                            Tracking Reference
-                                        </label>
-                                        <input
-                                            type="text"
-                                            id="trackingNumber"
-                                            name="trackingNumber"
-                                            className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                                            placeholder="Internal tracking or order number"
+                                        <textarea
+                                            id="notes"
+                                            value={formData.notes}
+                                            onChange={(e) => handleInputChange('notes', e.target.value)}
+                                            placeholder="Special handling instructions, quality checks, etc."
+                                            rows={4}
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Quality & Documentation */}
-                            <div className="border-b border-gray-200 pb-8">
-                                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
-                                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    </div>
-                                    Quality & Documentation
-                                </h2>
-
-                                <div>
-                                    <label htmlFor="shippingNotes" className="block text-sm font-semibold text-gray-800 mb-3">
-                                        Shipping Notes & Quality Certifications
-                                    </label>
-                                    <textarea
-                                        id="shippingNotes"
-                                        name="shippingNotes"
-                                        rows={4}
-                                        className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
-                                        placeholder="Quality test results, certifications, handling instructions, special requirements, delivery contact information..."
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Transfer Preview */}
-                            <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6">
-                                <div className="flex items-start">
-                                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-semibold text-purple-900 mb-3">Blockchain Transfer Preview</h3>
-                                        <div className="space-y-2 text-purple-800">
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
-                                                Ownership will transfer from <strong>Factory</strong> to <strong>Retailer</strong>
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
-                                                Product status will change to <strong>IN_TRANSIT</strong>
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
-                                                Complete shipping record will be stored on blockchain
-                                            </p>
-                                            <p className="flex items-center">
-                                                <span className="w-2 h-2 bg-purple-500 rounded-full mr-3"></span>
-                                                Supply chain flow validation will be enforced
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-4 pt-6">
+                            {/* Submit */}
+                            <div className="flex justify-end space-x-4">
+                                <button
+                                    type="button"
+                                    onClick={() => window.history.back()}
+                                    className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold transition-colors"
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-4 rounded-xl hover:from-purple-600 hover:to-pink-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-lg flex items-center justify-center"
+                                    disabled={loading || products.length === 0}
+                                    className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:from-purple-600 hover:to-pink-600 font-semibold transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                 >
-                                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5" />
-                                    </svg>
-                                    Ship to Retailer
+                                    {loading ? (
+                                        <div className="flex items-center">
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                                            Shipping...
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center">
+                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                            </svg>
+                                            Ship to Retailer
+                                        </div>
+                                    )}
                                 </button>
-                                <a
-                                    href="/factory"
-                                    className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all duration-200 font-semibold text-lg flex items-center justify-center"
-                                >
-                                    <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    Cancel
-                                </a>
                             </div>
                         </form>
                     </div>

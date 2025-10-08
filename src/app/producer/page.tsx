@@ -1,6 +1,69 @@
+'use client';
+
 import Layout from '../../components/layout/Layout';
+import { useAssetsByOwner, useTransferAsset, useRefetchAssets } from '../../hooks/useGatewayAssets';
+import { useTransferHistory } from '../../hooks/useTransferHistory';
+import { useEffect, useState } from 'react';
 
 export default function ProducerPage() {
+  const [showAssetsList, setShowAssetsList] = useState(false);
+  const [showHistoryList, setShowHistoryList] = useState(false);
+  const [transferringAssetId, setTransferringAssetId] = useState<string | null>(null);
+
+  // Using new Gateway hooks with React Query
+  const { data: assets = [], isLoading: assetsLoading, refetch: refetchAssets } = useAssetsByOwner();
+  const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('producer');
+  const transferMutation = useTransferAsset();
+  const refreshAssets = useRefetchAssets();
+
+  const transferLoading = transferMutation.isPending;
+  const transferError = transferMutation.error?.message || null;
+  const transferSuccess = transferMutation.isSuccess;
+
+  // Calcular estadísticas reales basadas en assets cargados
+  // IMPORTANTE: useAssetsByOwner() solo devuelve assets que aún pertenecen al Producer
+  // Los assets transferidos ya no aparecen aquí (owner cambió a Factory)
+
+  const rawMaterials = assets?.filter(asset => asset.type === 'RAW_MATERIAL') || [];
+
+  const realStats = {
+    totalAssets: rawMaterials.length || 0, // Total materias primas en poder del Producer
+    transferHistory: transferHistory.length || 0, // Assets transferidos a Factory
+    loading: assetsLoading || historyLoading,
+    error: null
+  };
+
+  // Siempre usar stats reales para mostrar datos actualizados
+  const displayStats = realStats;
+
+  // Handle quick transfer to factory
+  const handleQuickTransfer = async (assetId: string) => {
+    setTransferringAssetId(assetId);
+    transferMutation.reset(); // Clear previous state
+
+    const newOwner = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@factory.supplychain.com::/C=US/ST=California/L=San Francisco/O=factory.supplychain.com/CN=ca.factory.supplychain.com';
+
+    try {
+      await transferMutation.mutateAsync({
+        assetId,
+        newOwner,
+      });
+      console.log(`Transfer of ${assetId} completed successfully`);
+      // React Query will automatically invalidate and refetch
+    } catch (error) {
+      console.error('Transfer failed:', error);
+    } finally {
+      setTransferringAssetId(null);
+    }
+  };
+
+  const toggleAssetsList = () => {
+    setShowAssetsList(!showAssetsList);
+    if (!showAssetsList && assets.length === 0) {
+      refetchAssets();
+    }
+  };
+
   return (
     <Layout title="Producer Dashboard" description="Manage your raw materials and supply chain operations">
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -9,17 +72,69 @@ export default function ProducerPage() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Producer Dashboard</h1>
             <p className="text-lg text-gray-600">Manage your raw materials and supply chain operations</p>
+            {displayStats.error && (
+              <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">⚠️ {displayStats.error}</p>
+              </div>
+            )}
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+          {/* Success/Error Messages */}
+          {transferSuccess && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-green-700 font-medium">Asset transferred to factory successfully!</p>
+                <button onClick={() => transferMutation.reset()} className="ml-auto text-green-600 hover:text-green-800">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {transferError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-red-700">{transferError}</p>
+                <button onClick={() => transferMutation.reset()} className="ml-auto text-red-600 hover:text-red-800">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Stats Cards CON DATOS REALES */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Clickeable Total Assets Card */}
+            <div
+              onClick={toggleAssetsList}
+              className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Total Assets</p>
-                  <p className="text-3xl font-bold text-green-600">24</p>
+                  <div className="flex items-center">
+                    <p className="text-sm font-medium text-gray-500">Total Assets</p>
+                    <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showAssetsList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  {displayStats.loading ? (
+                    <div className="w-16 h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
+                  ) : (
+                    <p className="text-3xl font-bold text-green-600 group-hover:text-green-700 transition-colors">{displayStats.totalAssets}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Click to view assets</p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
                   <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
@@ -27,29 +142,28 @@ export default function ProducerPage() {
               </div>
             </div>
 
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+            <div
+              onClick={() => setShowHistoryList(!showHistoryList)}
+              className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+            >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">In Transit</p>
-                  <p className="text-3xl font-bold text-blue-600">7</p>
+                  <div className="flex items-center">
+                    <p className="text-sm font-medium text-gray-500">Transfer History</p>
+                    <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showHistoryList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                  {displayStats.loading ? (
+                    <div className="w-12 h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
+                  ) : (
+                    <p className="text-3xl font-bold text-emerald-600 group-hover:text-emerald-700 transition-colors">{displayStats.transferHistory}</p>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">Completed transfers</p>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Completed</p>
-                  <p className="text-3xl font-bold text-emerald-600">156</p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
                   <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
               </div>
@@ -116,51 +230,282 @@ export default function ProducerPage() {
             </div>
           </div>
 
-          {/* My Assets Section */}
-          <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">My Raw Materials</h2>
-                  <p className="text-gray-600">View and manage all your registered assets</p>
-                </div>
-              </div>
-
-              <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium transition-colors duration-200">
-                <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
-            </div>
-
-            {/* Asset list placeholder */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200">
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          {/* Expandable Assets Section */}
+          {showAssetsList && (
+            <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mr-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">Loading assets from Hyperledger Fabric...</h3>
-                    <p className="text-sm text-gray-500">Connecting to blockchain network</p>
+                    <h2 className="text-2xl font-bold text-gray-900">My Raw Materials</h2>
+                    <p className="text-gray-600">View and manage all your registered assets</p>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      refetchAssets();
+                    }}
+                    disabled={assetsLoading || displayStats.loading}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-700 font-medium transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {assetsLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+
+                  <button
+                    onClick={() => setShowAssetsList(false)}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Close
+                  </button>
                 </div>
               </div>
+
+              {/* Asset List with Transfer Buttons */}
+              <div className="space-y-4">
+                {assetsLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-gray-600">Loading assets from Hyperledger Fabric...</span>
+                    </div>
+                  </div>
+                ) : assets && assets.length > 0 ? (
+                  assets.filter(asset => asset.type === 'RAW_MATERIAL').map((asset) => (
+                    <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">
+                            {asset.category === 'cotton' ? '🌱' :
+                              asset.category === 'wheat' ? '🌾' :
+                                '📦'}
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{asset.name}</h3>
+                          <p className="text-sm text-gray-600">ID: {asset.id}</p>
+                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {typeof asset.quality === 'string' ? asset.quality : asset.quality?.grade || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${asset.status === 'CREATED' ? 'bg-green-100 text-green-800' :
+                            asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' :
+                              asset.status === 'CONSUMED' ? 'bg-purple-100 text-purple-800' :
+                                'bg-gray-100 text-gray-800'
+                            }`}>
+                            {asset.status}
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Created: {new Date(asset.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex space-x-2">
+                          {asset.status === 'CREATED' && (
+                            <>
+                              <button
+                                onClick={() => handleQuickTransfer(asset.id)}
+                                disabled={transferLoading && transferringAssetId === asset.id}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${transferLoading && transferringAssetId === asset.id
+                                  ? 'bg-gray-400 cursor-not-allowed text-white'
+                                  : 'bg-blue-500 hover:bg-blue-600 text-white shadow-md hover:shadow-lg transform hover:scale-105'
+                                  }`}
+                              >
+                                {transferLoading && transferringAssetId === asset.id ? (
+                                  <>
+                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Transferring...
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4" />
+                                    </svg>
+                                    Quick Transfer
+                                  </>
+                                )}
+                              </button>
+
+                              <a
+                                href={`/producer/transfer?assetId=${asset.id}`}
+                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-all duration-200 border border-gray-300 hover:border-gray-400"
+                              >
+                                <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                                </svg>
+                                Advanced Transfer
+                              </a>
+                            </>
+                          )}
+
+                          {asset.status === 'IN_TRANSIT' && (
+                            <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 font-medium">
+                              <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                              </svg>
+                              In Transit
+                            </div>
+                          )}
+
+                          {asset.status === 'CONSUMED' && (
+                            <div className="px-4 py-2 bg-purple-50 text-purple-700 rounded-lg border border-purple-200 font-medium">
+                              <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Processed
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Raw Materials Found</h3>
+                    <p className="text-gray-500 mb-4">Create your first raw material to start your supply chain journey.</p>
+                    <a
+                      href="/producer/register"
+                      className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Register First Asset
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Transfer History Assets Section */}
+          {showHistoryList && (
+            <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-green-500 rounded-xl flex items-center justify-center mr-4">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Transfer History</h2>
+                    <p className="text-gray-600">Assets transferred to Factory</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => refetchHistory()}
+                    disabled={historyLoading}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-700 font-medium transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {historyLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+
+                  <button
+                    onClick={() => setShowHistoryList(false)}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Transfer History Asset List */}
+              <div className="space-y-4">
+                {historyLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-gray-600">Loading transfer history...</span>
+                    </div>
+                  </div>
+                ) : transferHistory.length > 0 ? (
+                  transferHistory.map((asset: any) => (
+                    <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-emerald-200 hover:shadow-lg transition-all duration-200">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                          <span className="text-2xl">
+                            {asset.category === 'cotton' ? '🌱' :
+                              asset.category === 'wheat' ? '🌾' :
+                                '📦'}
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{asset.name}</h3>
+                          <p className="text-sm text-gray-600">ID: {asset.id}</p>
+                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {typeof asset.quality === 'string' ? asset.quality : asset.quality?.grade || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-4">
+                        <div className="text-right">
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            TRANSFERRED
+                          </span>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {asset.transferHistory && asset.transferHistory.length > 0
+                              ? `Transferred: ${new Date(asset.transferHistory[asset.transferHistory.length - 1].timestamp).toLocaleDateString()}`
+                              : `Created: ${new Date(asset.createdAt).toLocaleDateString()}`}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Current Owner: {asset.currentOwner?.includes('factory') ? '🏭 Factory' : asset.currentOwner?.split('@')[1]?.split('.')[0] || 'Unknown'}
+                          </p>
+                        </div>
+
+                        {/* Info Badge */}
+                        <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200 font-medium">
+                          <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Completed
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Transfer History</h3>
+                    <p className="text-gray-500">You haven't transferred any assets to Factory yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

@@ -1,4 +1,80 @@
+'use client';
+
+import { useState } from 'react';
+import { useAssetsByOwner, useTransferAsset } from '../../../hooks/useGatewayAssets';
+
+interface TransferForm {
+  assetId: string;
+  factoryId: string;
+  pickupLocation: string;
+  transportMethod: string;
+  temperature?: number;
+  notes?: string;
+}
+
 export default function TransferAssetPage() {
+  const [formData, setFormData] = useState<TransferForm>({
+    assetId: '',
+    factoryId: '',
+    pickupLocation: '',
+    transportMethod: '',
+    temperature: undefined,
+    notes: ''
+  });
+
+  const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
+  const { mutate: transferAsset, isPending: loading, isError, error, isSuccess: success, reset } = useTransferAsset();
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    reset();
+
+    // Validation
+    if (!formData.assetId || !formData.factoryId || !formData.pickupLocation || !formData.transportMethod) {
+      return;
+    }
+
+    // Map factory selection to full x509 identity
+    const factoryIdentity = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@factory.supplychain.com::/C=US/ST=California/L=San Francisco/O=factory.supplychain.com/CN=ca.factory.supplychain.com';
+
+    const transferData = {
+      destination: formData.factoryId,
+      transportMethod: formData.transportMethod,
+      pickupLocation: formData.pickupLocation,
+      temperature: formData.temperature,
+      notes: formData.notes,
+      transferType: 'producer-to-factory' as const
+    };
+
+    transferAsset(
+      {
+        assetId: formData.assetId,
+        newOwner: factoryIdentity,
+        transferData
+      },
+      {
+        onSuccess: () => {
+          // Reset form on success
+          setFormData({
+            assetId: '',
+            factoryId: '',
+            pickupLocation: '',
+            transportMethod: '',
+            temperature: undefined,
+            notes: ''
+          });
+        }
+      }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50">
       <div className="container mx-auto px-6 py-8">
@@ -15,11 +91,34 @@ export default function TransferAssetPage() {
               <p className="text-lg text-gray-600 mt-2">Send your raw materials to manufacturing facilities</p>
             </div>
           </div>
+
+          {/* Success/Error Messages */}
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p className="text-green-700 font-medium">Asset transferred successfully!</p>
+              </div>
+            </div>
+          )}
+
+          {isError && error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-red-700">{error instanceof Error ? error.message : 'Transfer failed'}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="max-w-4xl mx-auto">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-            <form className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-8">
               {/* Asset Selection Section */}
               <div className="border-b border-gray-200 pb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -35,17 +134,30 @@ export default function TransferAssetPage() {
                   <label htmlFor="assetId" className="block text-sm font-semibold text-gray-800 mb-3">
                     Choose Asset to Transfer *
                   </label>
-                  <select
-                    id="assetId"
-                    name="assetId"
-                    required
-                    className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Choose from your available assets...</option>
-                    <option value="asset1">🌾 Organic Wheat Batch #001 - Available (500kg)</option>
-                    <option value="asset2">🍎 Premium Apple Harvest #002 - Available (200kg)</option>
-                    <option value="asset3">🥕 Fresh Carrot Batch #003 - Available (150kg)</option>
-                  </select>
+                  {assetsLoading ? (
+                    <div className="w-full px-4 py-3 bg-gray-200 animate-pulse rounded-xl h-12"></div>
+                  ) : (
+                    <select
+                      id="assetId"
+                      name="assetId"
+                      required
+                      value={formData.assetId}
+                      onChange={(e) => handleInputChange('assetId', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="">Choose from your available assets...</option>
+                      {assets.length > 0 ? (
+                        assets.map((asset) => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.name} - {asset.id} ({asset.category || 'Raw Material'})
+                          </option>
+                        ))
+                      ) : (
+                        <option disabled>No assets available for transfer</option>
+                      )}
+                    </select>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">💡 Only assets you own can be transferred</p>
                 </div>
               </div>
 
@@ -70,6 +182,8 @@ export default function TransferAssetPage() {
                       id="factoryId"
                       name="factoryId"
                       required
+                      value={formData.factoryId}
+                      onChange={(e) => handleInputChange('factoryId', e.target.value)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     >
                       <option value="">Select manufacturing facility...</option>
@@ -81,14 +195,16 @@ export default function TransferAssetPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="location" className="block text-sm font-semibold text-gray-800 mb-3">
+                    <label htmlFor="pickupLocation" className="block text-sm font-semibold text-gray-800 mb-3">
                       Pickup Location *
                     </label>
                     <input
                       type="text"
-                      id="location"
-                      name="location"
+                      id="pickupLocation"
+                      name="pickupLocation"
                       required
+                      value={formData.pickupLocation}
+                      onChange={(e) => handleInputChange('pickupLocation', e.target.value)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
                       placeholder="Farm address or GPS coordinates"
                     />
@@ -102,6 +218,8 @@ export default function TransferAssetPage() {
                       id="transportMethod"
                       name="transportMethod"
                       required
+                      value={formData.transportMethod}
+                      onChange={(e) => handleInputChange('transportMethod', e.target.value)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     >
                       <option value="">Select transport method...</option>
@@ -121,6 +239,8 @@ export default function TransferAssetPage() {
                       id="temperature"
                       name="temperature"
                       step="0.1"
+                      value={formData.temperature || ''}
+                      onChange={(e) => handleInputChange('temperature', e.target.value ? parseFloat(e.target.value) : undefined)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
                       placeholder="e.g., 4.0 for refrigerated transport"
                     />
@@ -147,6 +267,8 @@ export default function TransferAssetPage() {
                     id="notes"
                     name="notes"
                     rows={4}
+                    value={formData.notes}
+                    onChange={(e) => handleInputChange('notes', e.target.value)}
                     className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
                     placeholder="Special handling instructions, quality requirements, delivery timeframes, contact information for coordination, etc..."
                   />
@@ -189,12 +311,28 @@ export default function TransferAssetPage() {
               <div className="flex gap-4 pt-6">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-8 py-4 rounded-xl hover:from-blue-600 hover:to-cyan-600 transform hover:scale-[1.02] transition-all duration-200 shadow-lg hover:shadow-xl font-semibold text-lg flex items-center justify-center"
+                  disabled={loading || !formData.assetId || !formData.factoryId || !formData.pickupLocation || !formData.transportMethod}
+                  className={`flex-1 px-8 py-4 rounded-xl font-semibold text-lg flex items-center justify-center transition-all duration-200 shadow-lg hover:shadow-xl ${loading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transform hover:scale-[1.02]'
+                    }`}
                 >
-                  <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4" />
-                  </svg>
-                  Initiate Blockchain Transfer
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing Transfer...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4" />
+                      </svg>
+                      Initiate Blockchain Transfer
+                    </>
+                  )}
                 </button>
                 <a
                   href="/producer"

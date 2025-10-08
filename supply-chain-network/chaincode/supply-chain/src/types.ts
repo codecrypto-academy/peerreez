@@ -14,14 +14,19 @@ export interface Asset {
     createdAt: string;
     updatedAt: string;
 
+    // Quantity management
+    quantity: number;
+    unit?: string;
+
     // Supply chain specific fields
     origin?: string;
     certifications?: string[];
     expiryDate?: string;
     batchNumber?: string;
 
-    // For products - reference to raw materials
+    // For products - reference to raw materials with quantities used
     rawMaterials?: string[];
+    rawMaterialsUsed?: { [materialId: string]: number }; // materialId -> quantity used
 
     // Transfer history
     transfers?: AssetTransfer[];

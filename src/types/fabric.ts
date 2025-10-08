@@ -85,8 +85,37 @@ export interface NetworkConnection {
     gateway: unknown; // fabric-network Gateway
     network: unknown; // fabric-network Network  
     contract: unknown; // fabric-network Contract
-}export interface WalletConfig {
+}
+
+export interface WalletConfig {
     walletPath: string;
     userId: string;
     userRole: Role;
+}
+
+// Asset Types
+export interface Asset {
+    id: string;
+    name: string;
+    type: 'RAW_MATERIAL' | 'PRODUCT';
+    category: string;
+    description?: string;
+    location?: string;
+    quantity?: number;
+    certifications?: string[];
+    quality?: {
+        grade?: string;
+        moistureLevel?: string;
+        proteinContent?: string;
+        tests?: string[];
+        defects?: string[];
+    };
+    createdAt?: string;
+    updatedAt?: string;
+    createdBy?: string;
+    currentOwner?: string;
+    status?: string;
+    rawMaterials?: string[];
+    transfers?: any[];
+    properties?: { [key: string]: any };
 }

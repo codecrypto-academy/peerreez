@@ -3,11 +3,10 @@
 import { useState } from 'react';
 import Layout from '../../../components/layout/Layout';
 import RoleGuard from '../../../components/auth/RoleGuard';
-import { useAsset } from '../../../hooks/useFabric';
-import { Asset } from '../../../lib/fabric/http-service';
 
 export default function RegisterAssetPage() {
-  const { createAsset, loading, error, clearError } = useAsset();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,26 +51,38 @@ export default function RegisterAssetPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (error) clearError();
+    setError(null);
     setSuccess(false);
-
-    // Generate ID if not provided
-    const assetId = formData.id || generateAssetId();
-
-    // Prepare asset data
-    const assetData: Asset = {
-      id: assetId,
-      name: formData.name,
-      type: 'RAW_MATERIAL',
-      category: formData.category,
-      description: formData.description,
-      location: formData.location,
-      quantity: formData.quantity,
-      certifications: formData.certifications.length > 0 ? formData.certifications : undefined
-    };
+    setLoading(true);
 
     try {
-      const result = await createAsset(assetId, assetData);
+      // Generate ID if not provided
+      const assetId = formData.id || generateAssetId();
+
+      // Prepare metadata with all additional fields
+      const metadata = {
+        category: formData.category,
+        description: formData.description,
+        location: formData.location,
+        certifications: formData.certifications.length > 0 ? formData.certifications : undefined
+      };
+
+      // Call Gateway API
+      const response = await fetch('/api/fabric/gateway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'createAsset',
+          role: 'Producer',
+          assetId,
+          assetType: formData.name,
+          quantity: formData.quantity,
+          unit: 'kg',
+          metadata
+        })
+      });
+
+      const result = await response.json();
 
       if (result.success) {
         setSuccess(true);
@@ -84,9 +95,14 @@ export default function RegisterAssetPage() {
           quantity: 0,
           certifications: []
         });
+      } else {
+        setError(result.error || 'Failed to register asset');
       }
-    } catch (error) {
-      console.error('Failed to create asset:', error);
+    } catch (err) {
+      console.error('Failed to create asset:', err);
+      setError(err instanceof Error ? err.message : 'Failed to register asset');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -115,7 +131,7 @@ export default function RegisterAssetPage() {
                   </svg>
                   {error}
                 </div>
-                <button onClick={clearError} className="ml-2 text-red-500 hover:text-red-700">
+                <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700">
                   ×
                 </button>
               </div>
