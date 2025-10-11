@@ -73,6 +73,18 @@ export default function RoleGuard({ children, allowedRoles, fallbackPath = '/' }
         return () => clearTimeout(timer);
     }, []);
 
+    // Keep a lightweight cookie so server-side routes can infer role in demo/staging
+    useEffect(() => {
+        if (user) {
+            try {
+                // Store simple role identifier for server to read (note: this is NOT a substitute for real auth)
+                document.cookie = `userRole=${user.role}; path=/; samesite=lax`;
+            } catch (e) {
+                // ignore (e.g., SSR or strict environments)
+            }
+        }
+    }, [user]);
+
     // Mostrar loading inicial
     if (isLoading) {
         return (

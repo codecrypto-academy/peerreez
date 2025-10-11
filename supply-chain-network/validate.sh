@@ -116,11 +116,11 @@ CHAINCODE_STATUS=$(docker exec cli bash -c "
     timeout 10 peer lifecycle chaincode querycommitted --channelID $CHANNEL_NAME --name $CHAINCODE_NAME --output json 2>/dev/null
 " 2>/dev/null)
 
-if echo "$CHAINCODE_STATUS" | grep -q '"version": "3.0"'; then
-    print_success "Chaincode v3.0 está commitado correctamente"
+if echo "$CHAINCODE_STATUS" | grep -q '"version": "4.0"'; then
+    print_success "Chaincode v4.0 está commitado correctamente"
     ((TESTS_PASSED++))
 else
-    print_error "Chaincode no está commitado o no es v3.0"
+    print_error "Chaincode no está commitado o no es v4.0"
 fi
 
 # Test: AssetExists función (ya probamos que funciona)
@@ -161,7 +161,7 @@ if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
     echo "• ✅ Infraestructura Docker"
     echo "• ✅ Red Hyperledger Fabric" 
     echo "• ✅ Contenedores corriendo correctamente"
-    echo "• ✅ Chaincode v3.0 commitado"
+    echo "• ✅ Chaincode v4.0 commitado"
     echo "• ✅ Funciones básicas operativas"
     echo ""
     echo -e "${BLUE}🎯 Funciones probadas y funcionando:${NC}"
@@ -218,7 +218,7 @@ run_test "Chaincode está desplegado" "
         export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/producer.supplychain.com/peers/peer0.producer.supplychain.com/tls/ca.crt
         export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp
         peer lifecycle chaincode querycommitted --channelID $CHANNEL_NAME --name $CHAINCODE_NAME
-    ' | grep -q 'version.*3.0'
+    ' | grep -q 'version.*4.0'
 "
 
 # =============================================================================
@@ -234,7 +234,7 @@ run_test "Chaincode está commitado" "
         export CORE_PEER_TLS_ROOTCERT_FILE=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/producer.supplychain.com/peers/peer0.producer.supplychain.com/tls/ca.crt
         export CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp
         peer lifecycle chaincode querycommitted --channelID $CHANNEL_NAME --name $CHAINCODE_NAME --output json --connTimeout 10s 2>/dev/null
-    ' | grep -q '\"version\": \"3.0\"'
+    ' | grep -q '\"version\": \"4.0\"'
 "
 
 run_test "AssetExists función básica" "
@@ -316,7 +316,7 @@ if [ $TESTS_PASSED -eq $TESTS_TOTAL ]; then
     echo "• ✅ Red Hyperledger Fabric" 
     echo "• ✅ Canal supply-chain-channel"
     echo "• ✅ 4 Peers unidos al canal"
-    echo "• ✅ Chaincode desplegado v3.0"
+    echo "• ✅ Chaincode desplegado v4.0"
     echo "• ✅ Funciones CRUD operativas"
     echo ""
     echo -e "${BLUE}🎯 Asset de prueba creado: $TEST_ASSET_ID${NC}"

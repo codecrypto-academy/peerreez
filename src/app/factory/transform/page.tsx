@@ -76,6 +76,19 @@ export default function TransformAssetPage() {
             return;
         }
 
+        // ⚠️ IMPORTANTE: Validar que el Product ID no sea igual a ningún raw material ID
+        if (form.rawMaterialIds.includes(form.newAssetId)) {
+            alert(`❌ Product ID "${form.newAssetId}" cannot be the same as any raw material ID!\n\nPlease use a different ID for your product (e.g., "PROD-${form.newAssetId}")`);
+            return;
+        }
+
+        // Validar que el Product ID no exista ya
+        const existingAsset = assets?.find(a => a.id === form.newAssetId);
+        if (existingAsset) {
+            alert(`❌ Asset ID "${form.newAssetId}" already exists!\n\nPlease use a unique ID for your product.`);
+            return;
+        }
+
         // Validar que todas las cantidades sean mayores a 0
         for (const materialId of form.rawMaterialIds) {
             const quantity = form.quantities[materialId] || 0;
@@ -271,10 +284,24 @@ export default function TransformAssetPage() {
                                             id="newAssetId"
                                             value={form.newAssetId}
                                             onChange={(e) => setForm(prev => ({ ...prev, newAssetId: e.target.value }))}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className={`w-full p-4 border-2 rounded-xl focus:outline-none transition-colors ${form.rawMaterialIds.includes(form.newAssetId)
+                                                    ? 'border-red-500 bg-red-50 focus:border-red-600'
+                                                    : 'border-gray-200 focus:border-blue-500'
+                                                }`}
                                             placeholder="PROD_001"
                                             required
                                         />
+                                        {form.rawMaterialIds.includes(form.newAssetId) && (
+                                            <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                </svg>
+                                                Product ID cannot be the same as a raw material ID!
+                                            </p>
+                                        )}
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            ⚠️ Must be unique and different from raw material IDs
+                                        </p>
                                     </div>
 
                                     <div>

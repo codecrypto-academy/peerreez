@@ -1,4 +1,5 @@
 import * as grpc from '@grpc/grpc-js';
+import * as crypto from 'crypto';
 import {
     connect,
     Gateway,
@@ -26,7 +27,7 @@ interface ConnectionPoolEntry {
  */
 export interface TransactionResult {
     success: boolean;
-    data?: any;
+    data?: unknown;
     error?: string;
     transactionId?: string;
 }
@@ -152,11 +153,12 @@ export class GatewayService {
                 success: true,
                 data,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`Error evaluating transaction ${functionName}:`, error);
+            const err = error as { message?: string };
             return {
                 success: false,
-                error: error.message || 'Unknown error occurred',
+                error: err.message || 'Unknown error occurred',
             };
         }
     }
@@ -190,27 +192,35 @@ export class GatewayService {
                 success: true,
                 data,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`[Gateway] Error submitting transaction ${functionName}:`, error);
 
+            // Narrow error shape
+            type EndorseDetail = { mspId?: string; address?: string; message?: string };
+            type LocalError = { message?: string; details?: EndorseDetail[]; cause?: unknown };
+            const err = error as LocalError;
+
             // Extract detailed error information
-            let detailedError = error.message || 'Unknown error occurred';
+            let detailedError = err.message || 'Unknown error occurred';
 
             // Check if error has details array (EndorseError)
-            if (error.details && Array.isArray(error.details)) {
-                console.error('[Gateway] Endorsement details:', JSON.stringify(error.details, null, 2));
+            if (err.details && Array.isArray(err.details)) {
+                try {
+                    console.error('[Gateway] Endorsement details:', JSON.stringify(err.details, null, 2));
+                } catch {
+                    // ignore stringify errors
+                }
 
-                // Try to extract the actual chaincode error message
-                const endorseDetails = error.details
-                    .map((detail: any) => `[${detail.mspId}@${detail.address}]: ${detail.message}`)
+                const endorseDetails = err.details
+                    .map((detail: EndorseDetail) => `[${detail.mspId}@${detail.address}]: ${detail.message}`)
                     .join('; ');
 
-                detailedError = `${error.message}. Details: ${endorseDetails}`;
+                detailedError = `${err.message || 'Endorse error'}. Details: ${endorseDetails}`;
             }
 
-            // Log the full error for debugging
-            if (error.cause) {
-                console.error('[Gateway] Error cause:', error.cause);
+            // Log the full error cause for debugging
+            if (err.cause) {
+                console.error('[Gateway] Error cause:', err.cause);
             }
 
             return {
@@ -244,7 +254,7 @@ export class GatewayService {
         assetType: string,
         quantity: number,
         unit: string,
-        metadata: Record<string, any>
+        metadata: Record<string, unknown>
     ): Promise<TransactionResult> {
         // Chaincode expects CreateAsset(assetId, assetData)
         // where assetData is a JSON string with all asset properties
@@ -274,7 +284,7 @@ export class GatewayService {
         role: Role,
         assetId: string,
         newOwner: string,
-        transferData: Record<string, any> = {}
+        transferData: Record<string, unknown> = {}
     ): Promise<TransactionResult> {
         // Chaincode expects transferData as JSON string (3rd parameter)
         const transferDataJson = JSON.stringify(transferData);
@@ -287,7 +297,7 @@ export class GatewayService {
     public async updateAssetMetadata(
         role: Role,
         assetId: string,
-        metadata: Record<string, any>
+        metadata: Record<string, unknown>
     ): Promise<TransactionResult> {
         // Chaincode expects UpdateAsset(assetId, updates)
         // where updates is a JSON string with partial asset properties
@@ -306,7 +316,7 @@ export class GatewayService {
         role: Role,
         rawMaterialIds: string[],
         newAssetId: string,
-        productData: Record<string, any>,
+        productData: Record<string, unknown>,
         quantities: Record<string, number>
     ): Promise<TransactionResult> {
         // Chaincode expects TransformAsset(rawMaterialIds, newAssetId, productData, quantitiesToUse)
@@ -333,7 +343,7 @@ export class GatewayService {
         productId: string,
         newOwner: string,
         quantityToSell: number,
-        transferData: Record<string, any> = {}
+        transferData: Record<string, unknown> = {}
     ): Promise<TransactionResult> {
         // Chaincode expects SellProduct(productId, newOwner, quantityToSell, transferData)
         // quantityToSell as string, transferData as JSON string
@@ -366,6 +376,78 @@ export class GatewayService {
      */
     public async queryTransferHistory(role: Role): Promise<TransactionResult> {
         return this.evaluateTransaction(role, 'QueryTransferHistory');
+    }
+
+    /**
+     * Initiate a transfer request (2-step transfer: step 1)
+     * Creates a pending transfer that requires recipient acceptance
+     */
+    public async initiateTransfer(
+        role: Role,
+        assetId: string,
+        recipientMSP: string,
+        transferData: Record<string, unknown> = {}
+    ): Promise<TransactionResult> {
+        // Chaincode v4.0 expects InitiateTransfer(assetId, recipientMSP, transferData)
+        // recipientMSP: MSP ID like "FactoryMSP", "RetailerMSP", "ConsumerMSP"
+        // transferData: JSON string with transfer details (reason, notes, location, etc.)
+        return this.submitTransaction(
+            role,
+            'InitiateTransfer',
+            assetId,
+            recipientMSP,
+            JSON.stringify(transferData)
+        );
+    }
+
+    /**
+     * Accept a pending transfer (2-step transfer: step 2a)
+     * Recipient accepts the transfer and completes ownership change
+     */
+    public async acceptTransfer(
+        role: Role,
+        transferId: string
+    ): Promise<TransactionResult> {
+        // Chaincode expects AcceptTransfer(transferId)
+        // transferId: format "TRANSFER-{assetId}-{timestamp}"
+        return this.submitTransaction(role, 'AcceptTransfer', transferId);
+    }
+
+    /**
+     * Reject a pending transfer (2-step transfer: step 2b)
+     * Recipient rejects the transfer with a reason
+     */
+    public async rejectTransfer(
+        role: Role,
+        transferId: string,
+        reason: string
+    ): Promise<TransactionResult> {
+        // Chaincode expects RejectTransfer(transferId, reason)
+        return this.submitTransaction(role, 'RejectTransfer', transferId, reason);
+    }
+
+    /**
+     * Get all pending transfers for the caller
+     * Returns both incoming and outgoing pending transfers
+     */
+    public async getPendingTransfers(role: Role): Promise<TransactionResult> {
+        // Chaincode expects GetPendingTransfers() - uses client identity from context
+        console.log(`[GatewayService] getPendingTransfers called for role: ${role}`);
+
+        const result = await this.evaluateTransaction(role, 'GetPendingTransfers');
+
+        // Debug logging: print raw chaincode data when in dev
+        if (!result.success) {
+            console.error(`[GatewayService] getPendingTransfers error for role ${role}:`, result.error);
+        } else {
+            try {
+                console.log(`[GatewayService] raw GetPendingTransfers data for ${role}:`, result.data);
+            } catch (e) {
+                console.log(`[GatewayService] could not stringify GetPendingTransfers result for ${role}`);
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -438,5 +520,3 @@ export class GatewayService {
 // Export singleton instance
 export const gatewayService = GatewayService.getInstance();
 
-// Import crypto at the top of the file after the grpc import
-import * as crypto from 'crypto';

@@ -3,7 +3,7 @@
  */
 
 import { Context, Contract, Info, Returns, Transaction } from 'fabric-contract-api';
-import { Asset, AssetHistory, AssetTransfer } from './types';
+import { Asset, AssetHistory, AssetTransfer, PendingTransfer } from './types';
 
 @Info({ title: 'SupplyChainContract', description: 'Smart contract for supply chain traceability' })
 export class SupplyChainContract extends Contract {
@@ -13,6 +13,32 @@ export class SupplyChainContract extends Contract {
     public async InitLedger(ctx: Context): Promise<void> {
         console.info('============= START : Initialize Ledger ===========');
         console.info('============= END : Initialize Ledger ===========');
+    }
+
+    // Helper function to find all pending transfers for a given asset ID
+    private async findPendingTransfersByAsset(ctx: Context, assetId: string): Promise<PendingTransfer[]> {
+        const iterator = await ctx.stub.getStateByRange('', '');
+        const pending: PendingTransfer[] = [];
+        let result = await iterator.next();
+
+        while (!result.done) {
+            const key = result.value.key;
+            if (key.startsWith('TRANSFER-')) {
+                try {
+                    const transferBytes = result.value.value;
+                    const transfer: PendingTransfer = JSON.parse(transferBytes.toString());
+                    if (transfer.assetId === assetId && transfer.status === 'PENDING') {
+                        pending.push(transfer);
+                    }
+                } catch (err) {
+                    // skip invalid entries
+                }
+            }
+            result = await iterator.next();
+        }
+
+        await iterator.close();
+        return pending;
     }
 
     // Create a new asset (raw material or product)
@@ -300,7 +326,9 @@ export class SupplyChainContract extends Contract {
         }
 
         // Verify product status
-        if (product.status !== 'MANUFACTURED') {
+        // Allow selling products that are MANUFACTURED or IN_TRANSIT.
+        // Retailer may accept a pending transfer which sets status to IN_TRANSIT and should be able to sell thereafter.
+        if (product.status !== 'MANUFACTURED' && product.status !== 'IN_TRANSIT') {
             throw new Error(`Product ${productId} is not available for sale (status: ${product.status})`);
         }
 
@@ -729,6 +757,452 @@ export class SupplyChainContract extends Contract {
         });
     }
 
+    // ========================================
+    // PENDING TRANSFER SYSTEM
+    // ========================================
+
+    // Initiate a transfer (creates pending transfer that must be accepted)
+    @Transaction()
+    public async InitiateTransfer(
+        ctx: Context,
+        assetId: string,
+        recipientMSP: string,
+        transferData: string = '{}'
+    ): Promise<string> {
+        console.info(`============= START : InitiateTransfer for ${assetId} ===========`);
+
+        // 1. Verify asset exists
+        const exists = await this.AssetExists(ctx, assetId);
+        if (!exists) {
+            throw new Error(`The asset ${assetId} does not exist`);
+        }
+
+        // 2. Read asset
+        const assetString = await this.ReadAsset(ctx, assetId);
+        const asset: Asset = JSON.parse(assetString);
+
+        // 3. Verify caller is the current owner
+        const clientId = this.getClientIdentity(ctx);
+        if (asset.currentOwner !== clientId) {
+            throw new Error(`Only the current owner can initiate a transfer`);
+        }
+
+        // 4. Parse transferData to inspect quantityRequested and check existing pending transfers for this asset
+        // Parse transferData early so we can validate requested quantity against existing pending ones
+        const tdObj: any = JSON.parse(transferData);
+        const newQtyRequested = typeof tdObj.quantityRequested === 'number' ? tdObj.quantityRequested : undefined;
+
+        // Allow multiple pending transfers only when they are partial (quantityRequested present).
+        // A full-asset transfer (no quantityRequested) still requires there be no other pending transfers.
+        const existingPendingTransfers = await this.findPendingTransfersByAsset(ctx, assetId);
+
+        if (newQtyRequested === undefined) {
+            // New transfer is a full-asset transfer; disallow if any pending exists
+            if (existingPendingTransfers && existingPendingTransfers.length > 0) {
+                throw new Error(`Asset ${assetId} already has a pending transfer: ${existingPendingTransfers[0].id}`);
+            }
+        } else {
+            // New transfer is partial. Sum existing pending quantityRequested and ensure not exceeding available quantity.
+            const totalPendingQty = (existingPendingTransfers || [])
+                .map((t: PendingTransfer) => (typeof t.quantityRequested === 'number' ? t.quantityRequested : 0))
+                .reduce((s: number, v: number) => s + v, 0);
+
+            const availableQty = asset.quantity || 0;
+            if (newQtyRequested <= 0) {
+                throw new Error('quantityRequested must be greater than 0');
+            }
+            if (newQtyRequested > availableQty) {
+                throw new Error(`quantityRequested (${newQtyRequested}) exceeds available quantity (${availableQty})`);
+            }
+            if (totalPendingQty + newQtyRequested > availableQty) {
+                throw new Error(`Cannot create pending transfer: total requested (${totalPendingQty + newQtyRequested}) would exceed available quantity (${availableQty})`);
+            }
+        }
+
+        // 5. Validate transfer flow (Producer → Factory → Retailer → Consumer)
+        const senderMSP = this.getClientMSP(ctx);
+
+        const allowedTransfers: { [key: string]: string[] } = {
+            'ProducerMSP': ['FactoryMSP'],
+            'FactoryMSP': ['RetailerMSP'],
+            'RetailerMSP': ['ConsumerMSP']
+        };
+
+        if (!allowedTransfers[senderMSP] || !allowedTransfers[senderMSP].includes(recipientMSP)) {
+            throw new Error(`Transfer from ${senderMSP} to ${recipientMSP} is not allowed in supply chain`);
+        }
+
+        // 6. Generate unique transfer ID
+        const transferId = this.generateTransferId(assetId);
+
+        // 7. Create PendingTransfer object
+        // If quantityRequested is provided, validate it's a positive number
+        const quantityRequested = typeof tdObj.quantityRequested === 'number' ? tdObj.quantityRequested : undefined;
+
+        if (quantityRequested !== undefined) {
+            if (quantityRequested <= 0) {
+                throw new Error('quantityRequested must be greater than 0');
+            }
+            const availableQty = asset.quantity || 0;
+            if (quantityRequested > availableQty) {
+                throw new Error(`quantityRequested (${quantityRequested}) exceeds available quantity (${availableQty})`);
+            }
+        }
+
+        const pendingTransfer: PendingTransfer = {
+            id: transferId,
+            assetId,
+            from: clientId,
+            fromMSP: senderMSP,
+            to: recipientMSP,  // Store the MSP directly (backwards compatible)
+            toMSP: recipientMSP,
+            initiatedAt: new Date().toISOString(),
+            status: 'PENDING',
+            transferData: tdObj,
+            previousStatus: asset.status,
+            quantityRequested
+        };
+
+        // If transferData includes an explicit recipient identity (full X.509 string), store it
+        const td = pendingTransfer.transferData || {};
+        if (td.recipientIdentity && typeof td.recipientIdentity === 'string') {
+            pendingTransfer.toIdentity = td.recipientIdentity;
+        }
+
+        // 8. Save PendingTransfer to ledger
+        await ctx.stub.putState(transferId, Buffer.from(JSON.stringify(pendingTransfer)));
+
+        // NOTE: Do NOT change the asset.status or update the asset at initiation time.
+        // Changing the asset status to 'PENDING_TRANSFER' made the seller's remaining stock
+        // disappear from inventory views until the recipient accepted. To keep stock available
+        // immediately, we only record the pending transfer and keep the asset state unchanged.
+
+        // 10. Record in history
+        const historyEntry: AssetHistory = {
+            assetId,
+            action: 'INITIATE_TRANSFER',
+            timestamp: pendingTransfer.initiatedAt,
+            actor: clientId,
+            previousOwner: asset.currentOwner,
+            newOwner: recipientMSP,
+            data: {
+                transferId,
+                transferData: pendingTransfer.transferData
+            }
+        };
+
+        await this.recordHistory(ctx, assetId, historyEntry);
+
+        console.info(`Transfer ${transferId} initiated successfully from ${senderMSP} to ${recipientMSP}`);
+        console.info(`============= END : InitiateTransfer ===========`);
+
+        return transferId;
+    }
+
+    // Accept a pending transfer (recipient only)
+    @Transaction()
+    public async AcceptTransfer(ctx: Context, transferId: string): Promise<void> {
+        console.info(`============= START : AcceptTransfer for ${transferId} ===========`);
+
+        // 1. Read PendingTransfer
+        const transferBytes = await ctx.stub.getState(transferId);
+        if (!transferBytes || transferBytes.length === 0) {
+            throw new Error(`Pending transfer ${transferId} does not exist`);
+        }
+
+        const pendingTransfer: PendingTransfer = JSON.parse(transferBytes.toString());
+
+        // 2. Verify caller is the recipient (by MSP)
+        const clientId = this.getClientIdentity(ctx);
+        const clientMSP = this.getClientMSP(ctx);
+        if (pendingTransfer.toMSP !== clientMSP) {
+            throw new Error(`Only the recipient (${pendingTransfer.toMSP}) can accept this transfer`);
+        }
+
+        // 3. Verify transfer is still pending
+        if (pendingTransfer.status !== 'PENDING') {
+            throw new Error(`Transfer ${transferId} has already been ${pendingTransfer.status.toLowerCase()}`);
+        }
+
+        // 4. Read asset
+        const assetString = await this.ReadAsset(ctx, pendingTransfer.assetId);
+        const asset: Asset = JSON.parse(assetString);
+
+        // Handle quantityRequested (if present) — perform partial transfer on accept
+        const previousOwner = asset.currentOwner;
+        const qtyReq = pendingTransfer.quantityRequested;
+        const now = new Date().toISOString();
+
+        if (qtyReq !== undefined && qtyReq > 0) {
+            const availableQty = asset.quantity || 0;
+            if (qtyReq > availableQty) {
+                throw new Error(`Pending transfer requested quantity (${qtyReq}) exceeds available quantity (${availableQty})`);
+            }
+
+            // Generate new asset id for consumer
+            const consumerProductId = `${asset.id}-SALE-${Date.now()}`;
+
+            // Build new consumer asset (split)
+            const consumerProduct: Asset = {
+                ...asset,
+                id: consumerProductId,
+                // Use the acceptor's client identity as the new owner so QueryAssetsByOwner will match
+                currentOwner: clientId,
+                status: 'IN_TRANSIT',
+                quantity: qtyReq,
+                createdAt: now,
+                updatedAt: now,
+                origin: `Split from ${asset.id}`,
+                transfers: [{
+                    from: previousOwner,
+                    to: clientId,
+                    timestamp: now,
+                    location: pendingTransfer.transferData?.location,
+                    transportMethod: pendingTransfer.transferData?.transportMethod,
+                    notes: pendingTransfer.transferData?.notes || 'Accepted partial transfer'
+                }]
+            };
+
+            // Decrease original asset quantity and restore its status so it remains visible in seller inventory
+            asset.quantity = availableQty - qtyReq;
+            asset.updatedAt = now;
+            // If the original asset was set to PENDING_TRANSFER at initiation, restore its previousStatus
+            // pendingTransfer.previousStatus was stored during InitiateTransfer
+            // Restore the original asset status so remaining quantity remains visible to the seller.
+            // Use previousStatus if available; otherwise, for products default to 'MANUFACTURED',
+            // for other asset types keep the current status value.
+            asset.status = pendingTransfer.previousStatus ?? (asset.type === 'PRODUCT' ? 'MANUFACTURED' : asset.status);
+
+            // Update transfers history on original asset
+            if (!asset.transfers) {
+                asset.transfers = [];
+            }
+            asset.transfers.push({
+                from: previousOwner,
+                to: pendingTransfer.toIdentity || clientId,
+                timestamp: now,
+                location: pendingTransfer.transferData?.location,
+                transportMethod: pendingTransfer.transferData?.transportMethod,
+                notes: pendingTransfer.transferData?.notes || `Accepted partial transfer (${qtyReq})`
+            });
+
+            // Save both assets (update seller with remaining quantity and restored status)
+            await ctx.stub.putState(pendingTransfer.assetId, Buffer.from(JSON.stringify(asset)));
+            await ctx.stub.putState(consumerProductId, Buffer.from(JSON.stringify(consumerProduct)));
+
+            // Update pending transfer status
+            pendingTransfer.status = 'ACCEPTED';
+            await ctx.stub.putState(transferId, Buffer.from(JSON.stringify(pendingTransfer)));
+
+            // Record history entries
+            const consumerHistory: AssetHistory = {
+                assetId: consumerProductId,
+                action: 'CREATE',
+                timestamp: now,
+                actor: clientId,
+                previousOwner: previousOwner,
+                newOwner: consumerProduct.currentOwner,
+                data: {
+                    transferId,
+                    quantity: qtyReq,
+                    transferData: pendingTransfer.transferData
+                }
+            };
+            await this.recordHistory(ctx, consumerProductId, consumerHistory);
+
+            const retailerHistory: AssetHistory = {
+                assetId: pendingTransfer.assetId,
+                action: 'UPDATE',
+                timestamp: now,
+                actor: clientId,
+                previousOwner: previousOwner,
+                newOwner: previousOwner,
+                data: {
+                    transferId,
+                    quantityMoved: qtyReq,
+                    remainingQuantity: asset.quantity,
+                    transferData: pendingTransfer.transferData
+                }
+            };
+            await this.recordHistory(ctx, pendingTransfer.assetId, retailerHistory);
+
+            console.info(`Transfer ${transferId} accepted (partial). Created ${consumerProductId} for ${pendingTransfer.toIdentity || clientId}`);
+        } else {
+            // Full transfer path (existing behavior)
+            // Use the acceptor's client identity as the new owner
+            const newOwnerIdentity = clientId;
+            asset.currentOwner = newOwnerIdentity;
+            asset.status = 'IN_TRANSIT';
+            asset.updatedAt = now;
+
+            if (!asset.transfers) {
+                asset.transfers = [];
+            }
+            asset.transfers.push({
+                from: previousOwner,
+                to: newOwnerIdentity,
+                timestamp: now,
+                location: pendingTransfer.transferData?.location,
+                transportMethod: pendingTransfer.transferData?.transportMethod,
+                temperature: pendingTransfer.transferData?.temperature,
+                notes: pendingTransfer.transferData?.notes || 'Transfer accepted'
+            });
+
+            await ctx.stub.putState(pendingTransfer.assetId, Buffer.from(JSON.stringify(asset)));
+
+            pendingTransfer.status = 'ACCEPTED';
+            await ctx.stub.putState(transferId, Buffer.from(JSON.stringify(pendingTransfer)));
+
+            const historyEntry: AssetHistory = {
+                assetId: pendingTransfer.assetId,
+                action: 'ACCEPT_TRANSFER',
+                timestamp: now,
+                actor: clientId,
+                previousOwner,
+                newOwner: newOwnerIdentity,
+                data: {
+                    transferId,
+                    transferData: pendingTransfer.transferData
+                }
+            };
+
+            await this.recordHistory(ctx, pendingTransfer.assetId, historyEntry);
+
+            const transferHistoryEntry: AssetHistory = {
+                assetId: pendingTransfer.assetId,
+                action: 'TRANSFER',
+                timestamp: now,
+                actor: previousOwner,
+                previousOwner,
+                newOwner: newOwnerIdentity,
+                data: pendingTransfer.transferData
+            };
+
+            await this.recordHistory(ctx, pendingTransfer.assetId, transferHistoryEntry);
+
+            console.info(`Transfer ${transferId} accepted successfully. Asset ${pendingTransfer.assetId} transferred from ${previousOwner} to ${newOwnerIdentity}`);
+        }
+        console.info(`============= END : AcceptTransfer ===========`);
+    }
+
+    // Reject a pending transfer (recipient only)
+    @Transaction()
+    public async RejectTransfer(ctx: Context, transferId: string, reason: string): Promise<void> {
+        console.info(`============= START : RejectTransfer for ${transferId} ===========`);
+
+        // 1. Read PendingTransfer
+        const transferBytes = await ctx.stub.getState(transferId);
+        if (!transferBytes || transferBytes.length === 0) {
+            throw new Error(`Pending transfer ${transferId} does not exist`);
+        }
+
+        const pendingTransfer: PendingTransfer = JSON.parse(transferBytes.toString());
+
+        // 2. Verify caller is the recipient (by MSP)
+        const clientId = this.getClientIdentity(ctx);
+        const clientMSP = this.getClientMSP(ctx);
+        if (pendingTransfer.toMSP !== clientMSP) {
+            throw new Error(`Only the recipient (${pendingTransfer.toMSP}) can reject this transfer`);
+        }
+
+        // 3. Verify transfer is still pending
+        if (pendingTransfer.status !== 'PENDING') {
+            throw new Error(`Transfer ${transferId} has already been ${pendingTransfer.status.toLowerCase()}`);
+        }
+
+        // 4. Read asset
+        const assetString = await this.ReadAsset(ctx, pendingTransfer.assetId);
+        const asset: Asset = JSON.parse(assetString);
+
+        // 5. Revert asset status back to previous status (ownership does NOT change)
+        asset.status = pendingTransfer.previousStatus ?? 'CREATED';
+        asset.updatedAt = new Date().toISOString();
+
+        // 6. Save updated asset
+        await ctx.stub.putState(pendingTransfer.assetId, Buffer.from(JSON.stringify(asset)));
+
+        // 7. Update PendingTransfer status and add rejection reason
+        pendingTransfer.status = 'REJECTED';
+        pendingTransfer.rejectionReason = reason;
+        await ctx.stub.putState(transferId, Buffer.from(JSON.stringify(pendingTransfer)));
+
+        // 8. Record in history
+        const historyEntry: AssetHistory = {
+            assetId: pendingTransfer.assetId,
+            action: 'REJECT_TRANSFER',
+            timestamp: asset.updatedAt,
+            actor: clientId,
+            previousOwner: asset.currentOwner,
+            newOwner: asset.currentOwner, // Stays the same
+            data: {
+                transferId,
+                reason,
+                transferData: pendingTransfer.transferData
+            }
+        };
+
+        await this.recordHistory(ctx, pendingTransfer.assetId, historyEntry);
+
+        console.info(`Transfer ${transferId} rejected by ${pendingTransfer.toMSP}. Reason: ${reason}`);
+        console.info(`Asset ${pendingTransfer.assetId} remains with ${asset.currentOwner}`);
+        console.info(`============= END : RejectTransfer ===========`);
+    }
+
+    // Get pending transfers for current user
+    @Transaction(false)
+    @Returns('string')
+    public async GetPendingTransfers(ctx: Context): Promise<string> {
+        console.info(`============= START : GetPendingTransfers ===========`);
+
+        const clientId = this.getClientIdentity(ctx);
+        const clientMSP = this.getClientMSP(ctx);
+        const pendingTransfers: any[] = [];
+
+        // Iterate through all state entries
+        const iterator = await ctx.stub.getStateByRange('', '');
+        let result = await iterator.next();
+
+        while (!result.done) {
+            const key = result.value.key;
+
+            // Check if this is a transfer key
+            if (key.startsWith('TRANSFER-')) {
+                try {
+                    const transferBytes = result.value.value;
+                    const transfer: PendingTransfer = JSON.parse(transferBytes.toString());
+
+                    // Only include PENDING transfers where user is sender or recipient
+                    if (transfer.status === 'PENDING') {
+                        if (transfer.fromMSP === clientMSP) {
+                            // Outgoing transfer - user initiated it
+                            pendingTransfers.push({
+                                ...transfer,
+                                direction: 'outgoing'
+                            });
+                        } else if (transfer.toMSP === clientMSP) {
+                            // Incoming transfer - user must accept/reject
+                            pendingTransfers.push({
+                                ...transfer,
+                                direction: 'incoming'
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.log(`Error parsing transfer ${key}: ${err}`);
+                }
+            }
+
+            result = await iterator.next();
+        }
+
+        await iterator.close();
+
+        console.info(`Found ${pendingTransfers.length} pending transfers for user`);
+        console.info(`============= END : GetPendingTransfers ===========`);
+
+        return JSON.stringify(pendingTransfers);
+    }
+
     // Check if asset exists
     @Transaction(false)
     @Returns('boolean')
@@ -803,6 +1277,43 @@ export class SupplyChainContract extends Contract {
     private isAdmin(ctx: Context): boolean {
         const attrs = ctx.clientIdentity.getAttributeValue('hf.Type');
         return attrs === 'admin';
+    }
+
+    // Helper function to generate unique transfer ID
+    private generateTransferId(assetId: string): string {
+        const timestamp = Date.now();
+        return `TRANSFER-${assetId}-${timestamp}`;
+    }
+
+    // Helper function to find pending transfer by asset ID
+    private async findPendingTransferByAsset(ctx: Context, assetId: string): Promise<PendingTransfer | null> {
+        const iterator = await ctx.stub.getStateByRange('', '');
+        let result = await iterator.next();
+
+        while (!result.done) {
+            const key = result.value.key;
+
+            // Check if this is a transfer key
+            if (key.startsWith('TRANSFER-')) {
+                try {
+                    const transferBytes = result.value.value;
+                    const transfer: PendingTransfer = JSON.parse(transferBytes.toString());
+
+                    // Check if this transfer is for the asset and is still pending
+                    if (transfer.assetId === assetId && transfer.status === 'PENDING') {
+                        await iterator.close();
+                        return transfer;
+                    }
+                } catch (err) {
+                    // Skip invalid entries
+                }
+            }
+
+            result = await iterator.next();
+        }
+
+        await iterator.close();
+        return null;
     }
 
     private async getAllResults(iterator: any, isHistory: boolean = false): Promise<any[]> {

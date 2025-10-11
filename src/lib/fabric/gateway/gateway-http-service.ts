@@ -1,14 +1,5 @@
 import { Role } from '../identity/identity-manager';
-
-/**
- * Transaction result from Gateway API
- */
-export interface TransactionResult {
-    success: boolean;
-    data?: any;
-    error?: string;
-    transactionId?: string;
-}
+import { TransactionResult } from '@/types/fabric';
 
 /**
  * Gateway HTTP Service
@@ -32,10 +23,12 @@ class GatewayHttpService {
      */
     async queryAssetsByOwner(role: Role): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway queryByOwner', { role });
             const response = await fetch(
                 `/api/fabric/gateway?operation=queryByOwner&role=${role}`,
                 {
                     method: 'GET',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -43,19 +36,20 @@ class GatewayHttpService {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -65,10 +59,12 @@ class GatewayHttpService {
      */
     async readAsset(role: Role, assetId: string): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway readAsset', { role, assetId });
             const response = await fetch(
                 `/api/fabric/gateway?operation=readAsset&role=${role}&assetId=${encodeURIComponent(assetId)}`,
                 {
                     method: 'GET',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -76,19 +72,20 @@ class GatewayHttpService {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -98,10 +95,12 @@ class GatewayHttpService {
      */
     async getAssetHistory(role: Role, assetId: string): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway getHistory', { role, assetId });
             const response = await fetch(
                 `/api/fabric/gateway?operation=getHistory&role=${role}&assetId=${encodeURIComponent(assetId)}`,
                 {
                     method: 'GET',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -109,19 +108,20 @@ class GatewayHttpService {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -131,10 +131,12 @@ class GatewayHttpService {
      */
     async getSupplyChainTrace(role: Role, assetId: string): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway getTrace', { role, assetId });
             const response = await fetch(
                 `/api/fabric/gateway?operation=getTrace&role=${role}&assetId=${encodeURIComponent(assetId)}`,
                 {
                     method: 'GET',
+                    credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
                     },
@@ -142,19 +144,20 @@ class GatewayHttpService {
             );
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -168,11 +171,13 @@ class GatewayHttpService {
         assetType: string,
         quantity: number,
         unit: string,
-        metadata: Record<string, any>
+        metadata: Record<string, unknown>
     ): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway createAsset', { role, assetId });
             const response = await fetch('/api/fabric/gateway', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -188,19 +193,20 @@ class GatewayHttpService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -212,11 +218,13 @@ class GatewayHttpService {
         role: Role,
         assetId: string,
         newOwner: string,
-        transferData?: Record<string, any>
+        transferData?: Record<string, unknown>
     ): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway transferAsset', { role, assetId, newOwner });
             const response = await fetch('/api/fabric/gateway', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -230,19 +238,20 @@ class GatewayHttpService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -253,11 +262,13 @@ class GatewayHttpService {
     async updateAssetMetadata(
         role: Role,
         assetId: string,
-        metadata: Record<string, any>
+        metadata: Record<string, unknown>
     ): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway updateMetadata', { role, assetId });
             const response = await fetch('/api/fabric/gateway', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -270,19 +281,20 @@ class GatewayHttpService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -295,11 +307,13 @@ class GatewayHttpService {
         productId: string,
         newOwner: string,
         quantityToSell: number,
-        transferData?: Record<string, any>
+        transferData?: Record<string, unknown>
     ): Promise<TransactionResult> {
         try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway sellProduct', { role, productId, newOwner, quantityToSell });
             const response = await fetch('/api/fabric/gateway', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -314,19 +328,20 @@ class GatewayHttpService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
             };
         }
     }
@@ -336,7 +351,7 @@ class GatewayHttpService {
      */
     async deleteAsset(role: Role, assetId: string, quantityToDelete?: number): Promise<TransactionResult> {
         try {
-            const body: any = {
+            const body: Record<string, unknown> = {
                 operation: 'deleteAsset',
                 role,
                 assetId,
@@ -347,8 +362,10 @@ class GatewayHttpService {
                 body.quantityToDelete = quantityToDelete;
             }
 
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway deleteAsset', { role, assetId, quantityToDelete });
             const response = await fetch('/api/fabric/gateway', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -356,19 +373,179 @@ class GatewayHttpService {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = (await response.json()) as { error?: string } | null;
                 return {
                     success: false,
-                    error: errorData.error || `HTTP error! status: ${response.status}`,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
                 };
             }
 
-            return await response.json();
-        } catch (error: any) {
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
             console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 success: false,
-                error: error.message || 'Network error',
+                error: message || 'Network error',
+            };
+        }
+    }
+
+    /**
+     * Initiate a transfer request (2-step transfer: step 1)
+     * Creates a pending transfer that requires recipient acceptance
+     */
+    async initiateTransfer(
+        role: Role,
+        assetId: string,
+        recipientMSP: string,
+        transferData?: Record<string, unknown>
+    ): Promise<TransactionResult> {
+        try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/initiate-transfer', { role, assetId, recipientMSP });
+            const response = await fetch('/api/fabric/gateway/initiate-transfer', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    role,
+                    assetId,
+                    recipientMSP,
+                    transferData: transferData || {},
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = (await response.json()) as { error?: string } | null;
+                return {
+                    success: false,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
+                };
+            }
+
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
+            console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                success: false,
+                error: message || 'Network error',
+            };
+        }
+    }
+
+    /**
+     * Accept a pending transfer (2-step transfer: step 2a)
+     * Recipient accepts the transfer and completes ownership change
+     */
+    async acceptTransfer(role: Role, transferId: string): Promise<TransactionResult> {
+        try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/accept-transfer', { role, transferId });
+            const response = await fetch('/api/fabric/gateway/accept-transfer', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    role,
+                    transferId,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = (await response.json()) as { error?: string } | null;
+                return {
+                    success: false,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
+                };
+            }
+
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
+            console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                success: false,
+                error: message || 'Network error',
+            };
+        }
+    }
+
+    /**
+     * Reject a pending transfer (2-step transfer: step 2b)
+     * Recipient rejects the transfer with a reason
+     */
+    async rejectTransfer(role: Role, transferId: string, reason: string): Promise<TransactionResult> {
+        try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/reject-transfer', { role, transferId, reason });
+            const response = await fetch('/api/fabric/gateway/reject-transfer', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    role,
+                    transferId,
+                    reason,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = (await response.json()) as { error?: string } | null;
+                return {
+                    success: false,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
+                };
+            }
+
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
+            console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                success: false,
+                error: message || 'Network error',
+            };
+        }
+    }
+
+    /**
+     * Get all pending transfers for the caller
+     * Returns both incoming and outgoing pending transfers
+     */
+    async getPendingTransfers(role: Role): Promise<TransactionResult> {
+        try {
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway/pending-transfers', { role });
+            const response = await fetch(
+                `/api/fabric/gateway/pending-transfers?role=${role}`,
+                {
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = (await response.json()) as { error?: string } | null;
+                return {
+                    success: false,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
+                };
+            }
+
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
+            console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                success: false,
+                error: message || 'Network error',
             };
         }
     }

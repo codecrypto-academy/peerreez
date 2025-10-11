@@ -2,26 +2,35 @@
 
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
-import { useAssetsByOwner, useSellProduct } from '@/hooks/useGatewayAssets';
+import { useAssetsByOwner } from '@/hooks/useGatewayAssets';
+import { useInitiateTransfer } from '@/hooks/usePendingTransfers';
 
 // Consumer identity - Single consumer in the system
 const CONSUMER_IDENTITY = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@consumer.supplychain.com::/C=US/ST=California/L=San Francisco/O=consumer.supplychain.com/CN=ca.consumer.supplychain.com';
 
 export default function DistributePage() {
     const { data: assets, isLoading, error } = useAssetsByOwner();
-    const sellMutation = useSellProduct();
+    // sellMutation is no longer used because Retailer->Consumer sales are now always 2-step
 
     const [selectedAsset, setSelectedAsset] = useState<string>('');
     const [quantityToSell, setQuantityToSell] = useState<number>(0);
     const [purchaseLocation, setPurchaseLocation] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('');
     const [notes, setNotes] = useState<string>('');
+    const [requireAcceptance, setRequireAcceptance] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-    // Filter only PRODUCT type assets with MANUFACTURED status (ready for sale)
+    // Filter assets that can be distributed to consumers:
+    // - PRODUCT assets that are MANUFACTURED or IN_TRANSIT
+    // - RAW_MATERIAL assets (e.g., bread batches) that are CREATED or MANUFACTURED
     const availableProducts = assets?.filter(
-        (asset: any) => asset.type === 'PRODUCT' && asset.status === 'MANUFACTURED'
+        (asset: any) => (
+            (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'IN_TRANSIT')) ||
+            (asset.type === 'RAW_MATERIAL' && (asset.status === 'CREATED' || asset.status === 'MANUFACTURED'))
+        )
     ) || [];
+
+    const initiateTransfer = useInitiateTransfer();
 
     const handleDistribute = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,12 +68,21 @@ export default function DistributePage() {
                 saleDate: new Date().toISOString(),
             };
 
-            await sellMutation.mutateAsync({
-                productId: selectedAsset,
-                newOwner: CONSUMER_IDENTITY,
-                quantityToSell: quantityToSell,
-                transferData: saleDetails,
+            // New behavior: All Retailer->Consumer sales are 2-step pending transfers.
+            // Create a pending transfer with the requested quantity; consumer must accept.
+            const transferPayload = {
+                ...saleDetails,
+                recipientIdentity: CONSUMER_IDENTITY,
+                quantityRequested: quantityToSell
+            };
+
+            await initiateTransfer.mutateAsync({
+                assetId: selectedAsset,
+                recipientMSP: 'ConsumerMSP',
+                transferData: transferPayload
             });
+
+            setNotification({ type: 'success', message: 'Transfer initiated. Waiting for consumer to accept or reject the transfer.' });
 
             // Reset form
             setSelectedAsset('');
@@ -73,18 +91,19 @@ export default function DistributePage() {
             setPaymentMethod('');
             setNotes('');
 
-            setNotification({ type: 'success', message: 'Product successfully sold to consumer!' });
             setTimeout(() => setNotification(null), 3000);
         } catch (err: any) {
             console.error('Distribution error:', err);
-            setNotification({ type: 'error', message: `Error distributing product: ${err.message}` });
+            // Prefer mutation error messages when available
+            const msg = err?.message || (initiateTransfer.error as any)?.message || 'Unknown error';
+            setNotification({ type: 'error', message: `Error distributing product: ${msg}` });
             setTimeout(() => setNotification(null), 5000);
         }
     };
 
     return (
         <Layout title="Distribute to Consumers" description="Sell products to final customers">
-            {/* Toast Notification */}
+            {/* Toast Notification (kept for backward compatibility) */}
             {notification && (
                 <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-2xl border-2 backdrop-blur-sm animate-slide-in-right ${notification.type === 'success'
                     ? 'bg-green-50/90 border-green-300 text-green-800'
@@ -186,7 +205,7 @@ export default function DistributePage() {
                                                             <p className="text-sm text-gray-600">ID: {asset.id}</p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                                            <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
                                                                 {asset.status}
                                                             </span>
                                                             {asset.category && (
@@ -288,6 +307,23 @@ export default function DistributePage() {
                                 );
                             })()}
 
+                            {/* Require acceptance option */}
+                            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded-lg">
+                                <label className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={requireAcceptance}
+                                        onChange={(e) => setRequireAcceptance(e.target.checked)}
+                                        disabled={quantityToSell > 0 && availableProducts.find((a: any) => a.id === selectedAsset)?.quantity !== quantityToSell}
+                                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                                    />
+                                    <span className="text-sm text-yellow-900 font-medium">Require consumer acceptance</span>
+                                </label>
+                                <p className="text-xs text-yellow-800 mt-2">
+                                    Sales for a partial quantity are processed immediately. To create a pending transfer that requires the consumer to accept, sell the full available quantity or uncheck this option.
+                                </p>
+                            </div>
+
                             {/* Sale Details */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
@@ -348,10 +384,10 @@ export default function DistributePage() {
                                 </a>
                                 <button
                                     type="submit"
-                                    disabled={!selectedAsset || quantityToSell <= 0 || sellMutation.isPending}
+                                    disabled={!selectedAsset || quantityToSell <= 0 || initiateTransfer.isPending}
                                     className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold rounded-xl hover:from-indigo-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center"
                                 >
-                                    {sellMutation.isPending ? (
+                                    {initiateTransfer.isPending ? (
                                         <>
                                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -364,7 +400,7 @@ export default function DistributePage() {
                                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                                             </svg>
-                                            Complete Sale
+                                            {requireAcceptance && quantityToSell >= (availableProducts.find(a => a.id === selectedAsset)?.quantity || 0) ? 'Initiate Pending Transfer' : 'Initiate Pending Transfer'}
                                         </>
                                     )}
                                 </button>

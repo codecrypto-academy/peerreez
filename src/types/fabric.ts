@@ -116,6 +116,74 @@ export interface Asset {
     currentOwner?: string;
     status?: string;
     rawMaterials?: string[];
-    transfers?: any[];
-    properties?: { [key: string]: any };
+    transfers?: AssetTransfer[];
+    properties?: Record<string, unknown>;
+}
+
+// Simple transfer record stored on assets
+export interface AssetTransfer {
+    from: string;
+    to: string;
+    timestamp: string;
+    location?: string;
+    transportMethod?: string;
+    temperature?: number;
+    notes?: string;
+}
+
+// Generic transfer data payload passed to initiate/accept/reject
+export interface TransferData {
+    reason?: string;
+    notes?: string;
+    location?: string;
+    transportMethod?: string;
+    temperature?: number;
+    recipientIdentity?: string;
+    quantityRequested?: number;
+    [key: string]: unknown;
+}
+
+// Pending Transfer Types
+export interface PendingTransfer {
+    id: string; // Format: TRANSFER-{assetId}-{timestamp}
+    assetId: string;
+    from: string; // Sender identity (full x509 DN)
+    to: string; // Recipient MSP (e.g., "FactoryMSP") - simplified in v4.0
+    fromMSP: string; // Sender MSP ID (e.g., "ProducerMSP")
+    toMSP: string; // Recipient MSP ID (e.g., "FactoryMSP")
+    initiatedAt: string; // ISO timestamp
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    transferData?: {
+        reason?: string;
+        notes?: string;
+        location?: string;
+        transportMethod?: string;
+        temperature?: number;
+        [key: string]: unknown;
+    };
+    rejectionReason?: string; // Only present if transfer was rejected
+    direction?: 'incoming' | 'outgoing'; // Added by GetPendingTransfers query
+}
+
+// Transfer Operation Parameters
+export interface InitiateTransferParams {
+    assetId: string;
+    recipientMSP: string; // Changed from recipientIdentity to recipientMSP in v4.0
+    transferData?: {
+        reason?: string;
+        notes?: string;
+        location?: string;
+        transportMethod?: string;
+        temperature?: number;
+        [key: string]: unknown;
+    };
+}
+
+export interface AcceptTransferParams {
+    transferId: string;
+}
+
+export interface RejectTransferParams {
+    transferId: string;
+    reason: string;
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAssetsByOwner, useTransferAsset } from '../../../hooks/useGatewayAssets';
+import { useAssetsByOwner, useInitiateTransfer } from '../../../hooks/useGatewayAssets';
 
 interface TransferForm {
     assetId: string;
@@ -23,10 +23,10 @@ export default function FactoryTransferPage() {
     });
 
     const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
-    const { mutate: transferAsset, isPending: loading, isError, error, isSuccess: success, reset } = useTransferAsset();
+    const { mutate: initiateTransfer, isPending: loading, isError, error, isSuccess: success, reset } = useInitiateTransfer();
 
-    // Filter only PRODUCT type assets (manufactured products)
-    const products = assets?.filter(asset => asset.type === 'PRODUCT' && asset.status === 'MANUFACTURED') || [];
+    // Filter only PRODUCT type assets (manufactured products or pending transfers should still be visible)
+    const products = assets?.filter(asset => asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'PENDING_TRANSFER')) || [];
 
     const handleInputChange = (field: string, value: any) => {
         setFormData(prev => ({
@@ -44,8 +44,8 @@ export default function FactoryTransferPage() {
             return;
         }
 
-        // Map retailer selection to full x509 identity
-        const retailerIdentity = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@retailer.supplychain.com::/C=US/ST=California/L=San Francisco/O=retailer.supplychain.com/CN=ca.retailer.supplychain.com';
+        // MSP destino para Retailer
+        const retailerMSP = 'RetailerMSP';
 
         const transferData = {
             destination: formData.retailerId,
@@ -56,10 +56,10 @@ export default function FactoryTransferPage() {
             transferType: 'factory-to-retailer' as const
         };
 
-        transferAsset(
+        initiateTransfer(
             {
                 assetId: formData.assetId,
-                newOwner: retailerIdentity,
+                recipientMSP: retailerMSP,
                 transferData
             },
             {

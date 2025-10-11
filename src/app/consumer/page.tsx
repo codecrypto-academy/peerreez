@@ -2,14 +2,23 @@
 
 import { useState } from 'react';
 import Layout from '../../components/layout/Layout';
-import { useAssetsByOwner } from '../../hooks/useGatewayAssets';
+import { useAssetsByOwner, Asset } from '../../hooks/useGatewayAssets';
+import { usePendingTransfers } from '../../hooks/usePendingTransfers';
+import { PendingTransfer } from '@/types/fabric';
+import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import Link from 'next/link';
 
 export default function ConsumerPage() {
     const { data: assets = [], isLoading } = useAssetsByOwner();
     const [showProductsList, setShowProductsList] = useState(false);
 
-    const myProducts = assets.filter(a => a.type === 'PRODUCT' && a.status === 'DELIVERED');
+    // Consider both DELIVERED and IN_TRANSIT as consumer-owned items that should appear
+    // when the consumer has accepted a transfer. Include items regardless of type so
+    // purchases that are RAW_MATERIAL (e.g., bread batches) also show up in the UI.
+    const myProducts = (assets as Asset[]).filter(a => (a.status === 'DELIVERED' || a.status === 'IN_TRANSIT'));
+    const { data: pendingTransfers = [], isLoading: pendingLoading, refetch: refetchPending } = usePendingTransfers();
+
+    const incomingPending = (pendingTransfers as PendingTransfer[]).filter((t) => t.direction === 'incoming').length;
 
     return (
         <Layout title="Consumer Dashboard" description="View and trace your purchased products">
@@ -97,10 +106,10 @@ export default function ConsumerPage() {
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3 text-right">
-                                                        <span className="text-sm text-gray-900">{product.quantity}</span>
+                                                        <span className="text-sm text-gray-900">{Number(product.quantity).toLocaleString()}</span>
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        <span className="text-sm text-gray-600">{product.location}</span>
+                                                        <span className="text-sm text-gray-600">{String(product.location)}</span>
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
                                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -115,6 +124,8 @@ export default function ConsumerPage() {
                             )}
                         </div>
                     )}
+
+
 
                     <div className="grid grid-cols-1 gap-8">
                         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300 group">
@@ -145,6 +156,27 @@ export default function ConsumerPage() {
                             </Link>
                         </div>
                     </div>
+
+                    {/* Pending Incoming Transfers (Consumer) - moved to bottom so it appears after main content */}
+                    {incomingPending > 0 && (
+                        <div className="mt-8 bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Pending Incoming Transfers ({incomingPending})
+                            </h3>
+                            {pendingLoading ? (
+                                <div className="text-center py-8">Loading pending transfers...</div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {(pendingTransfers as PendingTransfer[]).filter((t) => t.direction === 'incoming').map((transfer) => (
+                                        <PendingTransferCard key={transfer.id} transfer={transfer} onSuccess={() => refetchPending()} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </Layout>

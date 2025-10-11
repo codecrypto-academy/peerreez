@@ -4,11 +4,35 @@ import { useState } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
 
-interface TraceData {
-    asset: any;
-    history: any[];
-    rawMaterialsTrace: any[];
-}
+type TraceEvent = {
+    action?: string;
+    timestamp?: string;
+    actor?: string;
+    previousOwner?: string;
+    newOwner?: string;
+    data?: Record<string, unknown>;
+};
+
+type MaterialPercentage = {
+    materialId: string;
+    quantity: number;
+    percentage: string;
+};
+
+type RawTrace = {
+    asset: {
+        id?: string;
+        name?: string;
+        origin?: string;
+        category?: string;
+        quantity?: number;
+        unit?: string;
+        batchNumber?: string;
+        status?: string;
+        certifications?: string[];
+    };
+    history: TraceEvent[];
+};
 
 export default function TracePage() {
     const [assetId, setAssetId] = useState('');
@@ -93,18 +117,18 @@ export default function TracePage() {
         }
     };
 
-    const calculateSupplyChainMetrics = (history: any[]) => {
+    const calculateSupplyChainMetrics = (history: TraceEvent[]) => {
         if (!history || history.length === 0) return null;
 
         const firstEvent = new Date(history[0].timestamp);
         const lastEvent = new Date(history[history.length - 1].timestamp);
         const totalDays = Math.floor((lastEvent.getTime() - firstEvent.getTime()) / (1000 * 60 * 60 * 24));
 
-        const organizations = new Set();
+        const organizations = new Set<string>();
         history.forEach(event => {
-            organizations.add(extractOrgFromIdentity(event.actor));
-            if (event.previousOwner) organizations.add(extractOrgFromIdentity(event.previousOwner));
-            if (event.newOwner) organizations.add(extractOrgFromIdentity(event.newOwner));
+            if (event.actor && typeof event.actor === 'string') organizations.add(extractOrgFromIdentity(event.actor));
+            if (event.previousOwner && typeof event.previousOwner === 'string') organizations.add(extractOrgFromIdentity(event.previousOwner));
+            if (event.newOwner && typeof event.newOwner === 'string') organizations.add(extractOrgFromIdentity(event.newOwner));
         });
 
         const transfers = history.filter(e => e.action === 'TRANSFER' || e.action === 'CREATE').length;
@@ -117,10 +141,10 @@ export default function TracePage() {
         };
     };
 
-    const calculateRawMaterialPercentages = (rawMaterialsUsed: any, totalQuantity: number) => {
+    const calculateRawMaterialPercentages = (rawMaterialsUsed: Record<string, number> | undefined, totalQuantity: number) => {
         if (!rawMaterialsUsed) return [];
 
-        return Object.entries(rawMaterialsUsed).map(([materialId, quantity]: [string, any]) => ({
+        return Object.entries(rawMaterialsUsed).map(([materialId, quantity]) => ({
             materialId,
             quantity: Number(quantity),
             percentage: ((Number(quantity) / totalQuantity) * 100).toFixed(1)
@@ -282,7 +306,7 @@ export default function TracePage() {
                                                     <div>
                                                         <strong>Certifications:</strong>
                                                         <div className="flex flex-wrap gap-2 mt-2">
-                                                            {traceData.asset.certifications.map((cert: string, idx: number) => (
+                                                            {(traceData.asset.certifications as string[]).map((cert: string, idx: number) => (
                                                                 <span key={idx} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center">
                                                                     ✓ {cert}
                                                                 </span>
@@ -292,17 +316,16 @@ export default function TracePage() {
                                                 ) : (
                                                     <p className="text-gray-500">No certifications available</p>
                                                 )}
-                                                
+
                                                 {traceData.asset.expiryDate && (
                                                     <div className="mt-3">
                                                         <strong>Expiry Date:</strong>
-                                                        <div className={`mt-1 px-3 py-2 rounded-lg font-semibold ${
-                                                            isExpired(traceData.asset.expiryDate) 
-                                                                ? 'bg-red-100 text-red-800' 
+                                                        <div className={`mt-1 px-3 py-2 rounded-lg font-semibold ${isExpired(traceData.asset.expiryDate)
+                                                                ? 'bg-red-100 text-red-800'
                                                                 : isExpiringSoon(traceData.asset.expiryDate)
-                                                                ? 'bg-yellow-100 text-yellow-800'
-                                                                : 'bg-green-100 text-green-800'
-                                                        }`}>
+                                                                    ? 'bg-yellow-100 text-yellow-800'
+                                                                    : 'bg-green-100 text-green-800'
+                                                            }`}>
                                                             {isExpired(traceData.asset.expiryDate) && '⚠️ EXPIRED: '}
                                                             {isExpiringSoon(traceData.asset.expiryDate) && !isExpired(traceData.asset.expiryDate) && '⏰ EXPIRING SOON: '}
                                                             {!isExpired(traceData.asset.expiryDate) && !isExpiringSoon(traceData.asset.expiryDate) && '✓ FRESH: '}
@@ -327,14 +350,14 @@ export default function TracePage() {
                                     </h2>
 
                                     <div className="space-y-4">
-                                        {calculateRawMaterialPercentages(traceData.asset.rawMaterialsUsed, traceData.asset.quantity).map((material: any, idx: number) => (
+                                        {calculateRawMaterialPercentages(traceData.asset.rawMaterialsUsed, traceData.asset.quantity).map((material: MaterialPercentage, idx: number) => (
                                             <div key={idx} className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4">
                                                 <div className="flex justify-between items-center mb-2">
                                                     <span className="font-semibold text-gray-800">{material.materialId}</span>
                                                     <span className="text-sm font-bold text-orange-600">{material.percentage}%</span>
                                                 </div>
                                                 <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                                                    <div 
+                                                    <div
                                                         className="bg-gradient-to-r from-orange-500 to-amber-500 h-3 rounded-full transition-all duration-500"
                                                         style={{ width: `${material.percentage}%` }}
                                                     ></div>
@@ -358,8 +381,8 @@ export default function TracePage() {
                                 </h2>
 
                                 <div className="space-y-4">
-                                    {traceData.history.map((event: any, index: number) => (
-                                        <div key={index} className={`flex items-start space-x-4 p-5 bg-gradient-to-r ${getActionColor(event.action)} border rounded-xl transition-all hover:shadow-md`}>
+                                    {traceData.history.map((event: TraceEvent, index: number) => (
+                                        <div key={index} className={`flex items-start space-x-4 p-5 bg-gradient-to-r ${getActionColor(event.action || '')} border rounded-xl transition-all hover:shadow-md`}>
                                             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
                                                 {getActionIcon(event.action)}
                                             </div>
@@ -370,18 +393,17 @@ export default function TracePage() {
                                                         #{index + 1}
                                                     </span>
                                                 </div>
-                                                
+
                                                 <div className="space-y-1 text-sm">
                                                     <p className="text-gray-700">
-                                                        <strong>⏰ Time:</strong> {formatTimestamp(event.timestamp)}
-                                                    </p>
+                                                        <strong>⏰ Time:</strong> {event.timestamp ? formatTimestamp(event.timestamp) : 'Unknown'}</p>
                                                     <p className="text-gray-700">
-                                                        <strong>👤 Actor:</strong> <span className="px-2 py-0.5 bg-white/50 rounded text-xs font-semibold">{extractOrgFromIdentity(event.actor)}</span>
+                                                        <strong>👤 Actor:</strong> <span className="px-2 py-0.5 bg-white/50 rounded text-xs font-semibold">{event.actor ? extractOrgFromIdentity(String(event.actor)) : 'Unknown'}</span>
                                                     </p>
-                                                    
+
                                                     {event.previousOwner && event.newOwner && (
                                                         <p className="text-gray-700">
-                                                            <strong>🔄 Transfer:</strong> 
+                                                            <strong>🔄 Transfer:</strong>
                                                             <span className="px-2 py-0.5 bg-blue-100 rounded text-xs font-semibold ml-1">{extractOrgFromIdentity(event.previousOwner)}</span>
                                                             <span className="mx-1">→</span>
                                                             <span className="px-2 py-0.5 bg-green-100 rounded text-xs font-semibold">{extractOrgFromIdentity(event.newOwner)}</span>
@@ -392,11 +414,11 @@ export default function TracePage() {
                                                         <div className="mt-2 p-3 bg-white/50 rounded-lg">
                                                             <strong className="text-gray-700">📝 Additional Details:</strong>
                                                             <div className="mt-1 space-y-1">
-                                                                {event.data.location && <p className="text-gray-600">📍 Location: {event.data.location}</p>}
-                                                                {event.data.transportMethod && <p className="text-gray-600">🚛 Transport: {event.data.transportMethod}</p>}
-                                                                {event.data.temperature && <p className="text-gray-600">🌡️ Temperature: {event.data.temperature}°C</p>}
-                                                                {event.data.notes && <p className="text-gray-600">💬 Notes: {event.data.notes}</p>}
-                                                                {event.data.quantityTransferred && <p className="text-gray-600">📦 Quantity: {event.data.quantityTransferred}</p>}
+                                                                {typeof event.data.location === 'string' && <p className="text-gray-600">📍 Location: {event.data.location}</p>}
+                                                                {typeof event.data.transportMethod === 'string' && <p className="text-gray-600">🚛 Transport: {event.data.transportMethod}</p>}
+                                                                {typeof event.data.temperature !== 'undefined' && <p className="text-gray-600">🌡️ Temperature: {String(event.data.temperature)}°C</p>}
+                                                                {typeof event.data.notes === 'string' && <p className="text-gray-600">💬 Notes: {event.data.notes}</p>}
+                                                                {typeof event.data.quantityTransferred !== 'undefined' && <p className="text-gray-600">📦 Quantity: {String(event.data.quantityTransferred)}</p>}
                                                             </div>
                                                         </div>
                                                     )}
@@ -417,7 +439,7 @@ export default function TracePage() {
                                         Raw Materials History
                                     </h2>
 
-                                    {traceData.rawMaterialsTrace.map((rawTrace: any, index: number) => (
+                                    {(traceData.rawMaterialsTrace as RawTrace[]).map((rawTrace: RawTrace, index: number) => (
                                         <div key={index} className="mb-6 last:mb-0 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
                                             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                                 <span className="mr-2">🌱</span>
@@ -449,7 +471,7 @@ export default function TracePage() {
                                                     <span className="mr-2">📅</span>
                                                     Timeline:
                                                 </h4>
-                                                {rawTrace.history.map((event: any, eventIndex: number) => (
+                                                {rawTrace.history.map((event: TraceEvent, eventIndex: number) => (
                                                     <div key={eventIndex} className="flex items-center space-x-3 text-sm bg-white/50 rounded-lg p-3">
                                                         <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
                                                             {eventIndex + 1}

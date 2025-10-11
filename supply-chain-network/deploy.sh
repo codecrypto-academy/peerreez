@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Configuración
 CHANNEL_NAME="supply-chain-channel"
 CHAINCODE_NAME="supply-chain-chaincode"
-CHAINCODE_VERSION="3.0"
+CHAINCODE_VERSION="4.0"
 CHAINCODE_SEQUENCE=1
 
 print_step() {

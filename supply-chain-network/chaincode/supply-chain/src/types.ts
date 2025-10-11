@@ -8,7 +8,7 @@ export interface Asset {
     description?: string;
     type: 'RAW_MATERIAL' | 'PRODUCT';
     category?: string;
-    status: 'CREATED' | 'IN_TRANSIT' | 'MANUFACTURED' | 'CONSUMED' | 'DELIVERED';
+    status: 'CREATED' | 'PENDING_TRANSFER' | 'IN_TRANSIT' | 'MANUFACTURED' | 'CONSUMED' | 'DELIVERED';
     currentOwner: string;
     createdBy: string;
     createdAt: string;
@@ -47,7 +47,7 @@ export interface AssetTransfer {
 
 export interface AssetHistory {
     assetId: string;
-    action: 'CREATE' | 'UPDATE' | 'TRANSFER' | 'TRANSFORM' | 'DELETE';
+    action: 'CREATE' | 'UPDATE' | 'TRANSFER' | 'INITIATE_TRANSFER' | 'ACCEPT_TRANSFER' | 'REJECT_TRANSFER' | 'TRANSFORM' | 'DELETE';
     timestamp: string;
     actor: string;
     previousOwner: string;
@@ -71,4 +71,23 @@ export interface HistoryQueryResult {
     Value: AssetHistory;
     Timestamp: string;
     IsDelete: string;
+}
+
+export interface PendingTransfer {
+    id: string;                    // Unique transfer ID (e.g., "TRANSFER-WHEAT001-1696876543")
+    assetId: string;               // ID of the asset to transfer
+    from: string;                  // Complete X.509 identity of sender
+    fromMSP: string;               // MSP ID of sender (e.g., "ProducerMSP")
+    to: string;                    // Can be MSP ID or complete X.509 identity of recipient
+    toMSP: string;                 // MSP ID of recipient (e.g., "FactoryMSP")
+    initiatedAt: string;           // ISO timestamp when transfer was initiated
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    transferData: any;             // Additional transfer information (location, transport, etc.)
+    previousStatus?: Asset['status'];       // Preserve asset status before initiating transfer
+    // Optional: the explicit recipient identity (full x509) when known. If present, AcceptTransfer
+    // will set the asset owner to this identity instead of deriving an identity from MSP.
+    toIdentity?: string;
+    // Optional: quantity requested by the initiator (for partial transfers)
+    quantityRequested?: number;
+    rejectionReason?: string;      // Only present if status is 'REJECTED'
 }

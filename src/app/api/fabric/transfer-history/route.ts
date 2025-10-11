@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[API] Raw chaincode response:', JSON.stringify(result.data).substring(0, 200));
 
-    const assets = result.data || [];
+    const assets: any[] = Array.isArray(result.data) ? result.data : [];
 
     console.log(`[API] Transfer history retrieved: ${assets.length} assets`);
 
@@ -50,13 +50,15 @@ export async function GET(request: NextRequest) {
       organization: orgParam
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[API] Transfer History Error:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    const details = error instanceof Error && error.stack ? error.stack : undefined;
 
     return NextResponse.json(
       {
-        error: error.message || 'Failed to fetch transfer history',
-        details: error.stack
+        error: message || 'Failed to fetch transfer history',
+        details,
       },
       { status: 500 }
     );

@@ -1,5 +1,51 @@
 'use client';
 
+/**
+ * Hook para iniciar una transferencia pendiente (Factory → Retailer)
+ */
+export function useInitiateTransfer() {
+    const user = useCurrentUser();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({
+            assetId,
+            recipientMSP,
+            transferData,
+        }: {
+            assetId: string;
+            recipientMSP: string;
+            transferData?: Record<string, unknown>;
+        }) => {
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            const result = await gatewayHttpService.initiateTransfer(
+                toGatewayRole(user.role),
+                assetId,
+                recipientMSP,
+                transferData
+            );
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to initiate transfer');
+            }
+
+            return result;
+        },
+        onSuccess: (_, variables) => {
+            // Invalidate queries para refrescar assets y transferencias
+            if (user) {
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
+                queryClient.invalidateQueries({ queryKey: assetKeys.history(variables.assetId) });
+            }
+        },
+    });
+}
+
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser, UserRole } from '@/components/auth/RoleGuard';
 import { gatewayHttpService } from '@/lib/fabric/gateway/gateway-http-service';
@@ -18,7 +64,7 @@ export interface Asset {
     updatedAt?: string;
     createdBy?: string;
     currentOwner?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /**
@@ -90,6 +136,8 @@ export function useAsset(assetId: string | null) {
 
             if (!result.success) {
                 throw new Error(result.error || 'Failed to read asset');
+                "use client";
+
             }
 
             return result.data as Asset;
@@ -147,7 +195,7 @@ export function useCreateAsset() {
             assetType: string;
             quantity: number;
             unit: string;
-            metadata: Record<string, any>;
+            metadata: Record<string, unknown>;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -192,7 +240,7 @@ export function useTransferAsset() {
         }: {
             assetId: string;
             newOwner: string;
-            transferData?: Record<string, any>;
+            transferData?: Record<string, unknown>;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -239,7 +287,7 @@ export function useSellProduct() {
             productId: string;
             newOwner: string;
             quantityToSell: number;
-            transferData?: Record<string, any>;
+            transferData?: Record<string, unknown>;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -283,7 +331,7 @@ export function useUpdateAssetMetadata() {
             metadata,
         }: {
             assetId: string;
-            metadata: Record<string, any>;
+            metadata: Record<string, unknown>;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');

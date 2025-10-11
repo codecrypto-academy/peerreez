@@ -1,29 +1,34 @@
 'use client';
 
 import { useState } from 'react';
-import { useAssetsByOwner, useTransferAsset } from '../../../hooks/useGatewayAssets';
+import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
+import { useInitiateTransfer, usePendingTransfers } from '../../../hooks/usePendingTransfers';
+import { PendingTransferCard } from '../../../components/transfers/PendingTransferCard';
 
 interface TransferForm {
   assetId: string;
-  factoryId: string;
+  recipientMSP: string;
   pickupLocation: string;
   transportMethod: string;
   temperature?: number;
   notes?: string;
+  reason?: string;
 }
 
 export default function TransferAssetPage() {
   const [formData, setFormData] = useState<TransferForm>({
     assetId: '',
-    factoryId: '',
+    recipientMSP: '',
     pickupLocation: '',
     transportMethod: '',
     temperature: undefined,
-    notes: ''
+    notes: '',
+    reason: ''
   });
 
   const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
-  const { mutate: transferAsset, isPending: loading, isError, error, isSuccess: success, reset } = useTransferAsset();
+  const { data: pendingTransfers = [], isLoading: transfersLoading } = usePendingTransfers();
+  const { mutateAsync: initiateTransfer, isPending: loading, isError, error, isSuccess: success, reset } = useInitiateTransfer();
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -37,42 +42,39 @@ export default function TransferAssetPage() {
     reset();
 
     // Validation
-    if (!formData.assetId || !formData.factoryId || !formData.pickupLocation || !formData.transportMethod) {
+    if (!formData.assetId || !formData.recipientMSP || !formData.pickupLocation || !formData.transportMethod) {
+      alert('Please fill in all required fields');
       return;
     }
 
-    // Map factory selection to full x509 identity
-    const factoryIdentity = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@factory.supplychain.com::/C=US/ST=California/L=San Francisco/O=factory.supplychain.com/CN=ca.factory.supplychain.com';
-
     const transferData = {
-      destination: formData.factoryId,
+      reason: formData.reason || 'Transfer to next stage of supply chain',
+      location: formData.pickupLocation,
       transportMethod: formData.transportMethod,
-      pickupLocation: formData.pickupLocation,
       temperature: formData.temperature,
       notes: formData.notes,
-      transferType: 'producer-to-factory' as const
     };
 
-    transferAsset(
-      {
+    try {
+      await initiateTransfer({
         assetId: formData.assetId,
-        newOwner: factoryIdentity,
+        recipientMSP: formData.recipientMSP,
         transferData
-      },
-      {
-        onSuccess: () => {
-          // Reset form on success
-          setFormData({
-            assetId: '',
-            factoryId: '',
-            pickupLocation: '',
-            transportMethod: '',
-            temperature: undefined,
-            notes: ''
-          });
-        }
-      }
-    );
+      });
+
+      // Reset form on success
+      setFormData({
+        assetId: '',
+        recipientMSP: '',
+        pickupLocation: '',
+        transportMethod: '',
+        temperature: undefined,
+        notes: '',
+        reason: ''
+      });
+    } catch (err: any) {
+      console.error('Transfer initiation failed:', err);
+    }
   };
 
   return (
@@ -87,8 +89,8 @@ export default function TransferAssetPage() {
               </svg>
             </a>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900">Transfer to Factory</h1>
-              <p className="text-lg text-gray-600 mt-2">Send your raw materials to manufacturing facilities</p>
+              <h1 className="text-4xl font-bold text-gray-900">Initiate Transfer Request</h1>
+              <p className="text-lg text-gray-600 mt-2">Send transfer requests to recipients for approval (2-step transfer)</p>
             </div>
           </div>
 
@@ -175,23 +177,23 @@ export default function TransferAssetPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="factoryId" className="block text-sm font-semibold text-gray-800 mb-3">
-                      Destination Factory *
+                    <label htmlFor="recipientMSP" className="block text-sm font-semibold text-gray-800 mb-3">
+                      Recipient Organization *
                     </label>
                     <select
-                      id="factoryId"
-                      name="factoryId"
+                      id="recipientMSP"
+                      name="recipientMSP"
                       required
-                      value={formData.factoryId}
-                      onChange={(e) => handleInputChange('factoryId', e.target.value)}
+                      value={formData.recipientMSP}
+                      onChange={(e) => handleInputChange('recipientMSP', e.target.value)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     >
-                      <option value="">Select manufacturing facility...</option>
-                      <option value="factory1">🏭 Acme Food Processing Ltd.</option>
-                      <option value="factory2">🌱 Green Valley Manufacturing</option>
-                      <option value="factory3">♻️ Sustainable Foods Inc.</option>
-                      <option value="factory4">🥫 Premium Processing Corp.</option>
+                      <option value="">Select recipient...</option>
+                      <option value="FactoryMSP">🏭 Factory (Manufacturing)</option>
+                      <option value="RetailerMSP">� Retailer (Distribution)</option>
+                      <option value="ConsumerMSP">👤 Consumer (End User)</option>
                     </select>
+                    <p className="text-xs text-gray-500 mt-2">⚠️ Producer can only transfer to Factory</p>
                   </div>
 
                   <div>
@@ -259,19 +261,36 @@ export default function TransferAssetPage() {
                   Additional Information
                 </h2>
 
-                <div>
-                  <label htmlFor="notes" className="block text-sm font-semibold text-gray-800 mb-3">
-                    Transfer Notes & Instructions
-                  </label>
-                  <textarea
-                    id="notes"
-                    name="notes"
-                    rows={4}
-                    value={formData.notes}
-                    onChange={(e) => handleInputChange('notes', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
-                    placeholder="Special handling instructions, quality requirements, delivery timeframes, contact information for coordination, etc..."
-                  />
+                <div className="space-y-6">
+                  <div>
+                    <label htmlFor="reason" className="block text-sm font-semibold text-gray-800 mb-3">
+                      Transfer Reason
+                    </label>
+                    <input
+                      type="text"
+                      id="reason"
+                      name="reason"
+                      value={formData.reason}
+                      onChange={(e) => handleInputChange('reason', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                      placeholder="e.g., Purchase Order #12345, Contract fulfillment..."
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="notes" className="block text-sm font-semibold text-gray-800 mb-3">
+                      Transfer Notes & Instructions
+                    </label>
+                    <textarea
+                      id="notes"
+                      name="notes"
+                      rows={4}
+                      value={formData.notes}
+                      onChange={(e) => handleInputChange('notes', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 resize-none"
+                      placeholder="Special handling instructions, quality requirements, delivery timeframes, contact information for coordination, etc..."
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -284,23 +303,23 @@ export default function TransferAssetPage() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-blue-900 mb-3">Blockchain Transfer Preview</h3>
+                    <h3 className="text-xl font-semibold text-blue-900 mb-3">2-Step Transfer Process</h3>
                     <div className="space-y-2 text-blue-800">
                       <p className="flex items-center">
                         <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                        Ownership will transfer from <strong>Producer</strong> to <strong>Factory</strong>
+                        <strong>Step 1:</strong> You initiate the transfer request (asset is locked)
                       </p>
                       <p className="flex items-center">
                         <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                        Transaction will be recorded on Hyperledger Fabric blockchain
+                        <strong>Step 2:</strong> Recipient must Accept or Reject the transfer
                       </p>
                       <p className="flex items-center">
                         <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                        Complete audit trail will be maintained for traceability
+                        Ownership changes <strong>only if accepted</strong> by recipient
                       </p>
                       <p className="flex items-center">
                         <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                        Supply chain rules will be enforced automatically
+                        All actions are recorded immutably on the blockchain
                       </p>
                     </div>
                   </div>
@@ -311,7 +330,7 @@ export default function TransferAssetPage() {
               <div className="flex gap-4 pt-6">
                 <button
                   type="submit"
-                  disabled={loading || !formData.assetId || !formData.factoryId || !formData.pickupLocation || !formData.transportMethod}
+                  disabled={loading || !formData.assetId || !formData.recipientMSP || !formData.pickupLocation || !formData.transportMethod}
                   className={`flex-1 px-8 py-4 rounded-xl font-semibold text-lg flex items-center justify-center transition-all duration-200 shadow-lg hover:shadow-xl ${loading
                     ? 'bg-gray-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transform hover:scale-[1.02]'
@@ -323,14 +342,14 @@ export default function TransferAssetPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing Transfer...
+                      Initiating Transfer...
                     </>
                   ) : (
                     <>
                       <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4" />
                       </svg>
-                      Initiate Blockchain Transfer
+                      Initiate Transfer Request
                     </>
                   )}
                 </button>
@@ -345,6 +364,45 @@ export default function TransferAssetPage() {
                 </a>
               </div>
             </form>
+          </div>
+
+          {/* Pending Transfers Section */}
+          <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
+              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              Pending Outgoing Transfers
+            </h2>
+
+            {transfersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+            ) : pendingTransfers.filter(t => t.direction === 'outgoing').length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No pending transfers</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Transfers you initiate will appear here waiting for recipient approval.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {pendingTransfers
+                  .filter(t => t.direction === 'outgoing')
+                  .map(transfer => (
+                    <PendingTransferCard key={transfer.id} transfer={transfer} />
+                  ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

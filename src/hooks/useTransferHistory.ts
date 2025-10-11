@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Asset } from '../types';
 
-interface TransferHistoryAsset extends Asset {
+export interface TransferHistoryAsset extends Asset {
   transferHistory?: Array<{
     assetId: string;
     action: string;
@@ -11,7 +11,7 @@ interface TransferHistoryAsset extends Asset {
     actor: string;
     previousOwner: string;
     newOwner: string;
-    data?: any;
+    data?: Record<string, unknown>;
   }>;
 }
 

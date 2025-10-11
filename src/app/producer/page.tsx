@@ -1,8 +1,9 @@
 'use client';
 
 import Layout from '../../components/layout/Layout';
-import { useAssetsByOwner, useTransferAsset, useRefetchAssets } from '../../hooks/useGatewayAssets';
-import { useTransferHistory } from '../../hooks/useTransferHistory';
+import { useAssetsByOwner, useRefetchAssets, Asset } from '../../hooks/useGatewayAssets';
+import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransferHistory';
+import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { useEffect, useState } from 'react';
 
 export default function ProducerPage() {
@@ -13,22 +14,32 @@ export default function ProducerPage() {
   // Using new Gateway hooks with React Query
   const { data: assets = [], isLoading: assetsLoading, refetch: refetchAssets } = useAssetsByOwner();
   const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('producer');
-  const transferMutation = useTransferAsset();
+  const initiateMutation = useInitiateTransfer();
+  const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers();
   const refreshAssets = useRefetchAssets();
 
-  const transferLoading = transferMutation.isPending;
-  const transferError = transferMutation.error?.message || null;
-  const transferSuccess = transferMutation.isSuccess;
+  const transferLoading = initiateMutation.isPending;
+  const transferError = initiateMutation.error?.message || null;
+  const transferSuccess = initiateMutation.isSuccess;
 
   // Calcular estadísticas reales basadas en assets cargados
   // IMPORTANTE: useAssetsByOwner() solo devuelve assets que aún pertenecen al Producer
   // Los assets transferidos ya no aparecen aquí (owner cambió a Factory)
 
-  const rawMaterials = assets?.filter(asset => asset.type === 'RAW_MATERIAL') || [];
+  const rawMaterials = assets?.filter((asset: Asset) => asset.type === 'RAW_MATERIAL') || [];
+
+  // Build a set of assetIds that have outgoing pending transfers so we can
+  // render a visible "Pending" badge on the producer's assets list without
+  // changing ledger-side asset.status (we keep stock visible).
+  const pendingOutgoingIds = new Set(
+    (pendingTransfers || [])
+      .filter((t) => t.direction === 'outgoing' && t.status && t.assetId)
+      .map((t) => t.assetId)
+  );
 
   const realStats = {
     totalAssets: rawMaterials.length || 0, // Total materias primas en poder del Producer
-    transferHistory: transferHistory.length || 0, // Assets transferidos a Factory
+    transferHistory: (transferHistory as TransferHistoryAsset[]).length || 0, // Assets transferidos a Factory
     loading: assetsLoading || historyLoading,
     error: null
   };
@@ -36,22 +47,38 @@ export default function ProducerPage() {
   // Siempre usar stats reales para mostrar datos actualizados
   const displayStats = realStats;
 
-  // Handle quick transfer to factory
+  // Helper to safely read 'quality' which may be a string or an object with a 'grade'
+  function getQuality(a: Asset | TransferHistoryAsset) {
+    const q = (a as Record<string, unknown>)['quality'];
+    if (typeof q === 'string') return q;
+    if (q && typeof q === 'object') {
+      const grade = (q as Record<string, unknown>)['grade'];
+      if (typeof grade === 'string') return grade;
+      if (typeof grade === 'number') return String(grade);
+    }
+    return 'N/A';
+  }
+
+  // Handle quick transfer request to factory (2-step process)
   const handleQuickTransfer = async (assetId: string) => {
     setTransferringAssetId(assetId);
-    transferMutation.reset(); // Clear previous state
-
-    const newOwner = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@factory.supplychain.com::/C=US/ST=California/L=San Francisco/O=factory.supplychain.com/CN=ca.factory.supplychain.com';
+    initiateMutation.reset(); // Clear previous state
 
     try {
-      await transferMutation.mutateAsync({
+      await initiateMutation.mutateAsync({
         assetId,
-        newOwner,
+        recipientMSP: 'FactoryMSP',
+        transferData: {
+          pickupLocation: 'Producer Facility',
+          transportMethod: 'Standard Truck',
+          reason: 'Quick transfer to Factory',
+          notes: 'Initiated from dashboard quick action'
+        }
       });
-      console.log(`Transfer of ${assetId} completed successfully`);
+      console.log(`Transfer request for ${assetId} initiated successfully - waiting for Factory approval`);
       // React Query will automatically invalidate and refetch
     } catch (error) {
-      console.error('Transfer failed:', error);
+      console.error('Transfer initiation failed:', error);
     } finally {
       setTransferringAssetId(null);
     }
@@ -86,8 +113,11 @@ export default function ProducerPage() {
                 <svg className="w-5 h-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                <p className="text-green-700 font-medium">Asset transferred to factory successfully!</p>
-                <button onClick={() => transferMutation.reset()} className="ml-auto text-green-600 hover:text-green-800">
+                <div className="flex-1">
+                  <p className="text-green-700 font-medium">Transfer request sent to Factory successfully!</p>
+                  <p className="text-green-600 text-sm mt-1">⏳ Waiting for Factory to accept the transfer request</p>
+                </div>
+                <button onClick={() => initiateMutation.reset()} className="ml-auto text-green-600 hover:text-green-800">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -103,7 +133,7 @@ export default function ProducerPage() {
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
                 <p className="text-red-700">{transferError}</p>
-                <button onClick={() => transferMutation.reset()} className="ml-auto text-red-600 hover:text-red-800">
+                <button onClick={() => initiateMutation.reset()} className="ml-auto text-red-600 hover:text-red-800">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -282,7 +312,7 @@ export default function ProducerPage() {
                     </div>
                   </div>
                 ) : assets && assets.length > 0 ? (
-                  assets.filter(asset => asset.type === 'RAW_MATERIAL').map((asset) => (
+                  assets.filter((asset: Asset) => asset.type === 'RAW_MATERIAL').map((asset: Asset) => (
                     <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-200">
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -295,19 +325,26 @@ export default function ProducerPage() {
                         <div>
                           <h3 className="font-semibold text-gray-900">{asset.name}</h3>
                           <p className="text-sm text-gray-600">ID: {asset.id}</p>
-                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {typeof asset.quality === 'string' ? asset.quality : asset.quality?.grade || 'N/A'}</p>
+                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {getQuality(asset)}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-4">
                         <div className="text-right">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${asset.status === 'CREATED' ? 'bg-green-100 text-green-800' :
-                            asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' :
-                              asset.status === 'CONSUMED' ? 'bg-purple-100 text-purple-800' :
-                                'bg-gray-100 text-gray-800'
-                            }`}>
-                            {asset.status}
-                          </span>
+                          {/* If there's an outgoing pending transfer for this asset, show a pending badge */}
+                          {pendingOutgoingIds.has(asset.id) ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                              PENDING
+                            </span>
+                          ) : (
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${asset.status === 'CREATED' ? 'bg-green-100 text-green-800' :
+                              asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' :
+                                asset.status === 'CONSUMED' ? 'bg-purple-100 text-purple-800' :
+                                  'bg-gray-100 text-gray-800'
+                              }`}>
+                              {asset.status}
+                            </span>
+                          )}
                           <p className="text-xs text-gray-500 mt-1">
                             Created: {new Date(asset.createdAt).toLocaleDateString()}
                           </p>
@@ -338,7 +375,7 @@ export default function ProducerPage() {
                                     <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4" />
                                     </svg>
-                                    Quick Transfer
+                                    Request Transfer
                                   </>
                                 )}
                               </button>
@@ -450,7 +487,7 @@ export default function ProducerPage() {
                     </div>
                   </div>
                 ) : transferHistory.length > 0 ? (
-                  transferHistory.map((asset: any) => (
+                  transferHistory.map((asset: TransferHistoryAsset) => (
                     <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-emerald-200 hover:shadow-lg transition-all duration-200">
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -463,7 +500,7 @@ export default function ProducerPage() {
                         <div>
                           <h3 className="font-semibold text-gray-900">{asset.name}</h3>
                           <p className="text-sm text-gray-600">ID: {asset.id}</p>
-                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {typeof asset.quality === 'string' ? asset.quality : asset.quality?.grade || 'N/A'}</p>
+                          <p className="text-sm text-gray-500">Category: {asset.category} • Quality: {getQuality(asset)}</p>
                         </div>
                       </div>
 

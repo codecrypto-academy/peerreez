@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
-import { useAssetsByOwner, useDeleteAsset } from '@/hooks/useGatewayAssets';
+import { useAssetsByOwner, useDeleteAsset, Asset } from '@/hooks/useGatewayAssets';
 
 export default function InventoryManagementPage() {
     const { data: assets = [], isLoading, refetch } = useAssetsByOwner();
@@ -14,16 +14,21 @@ export default function InventoryManagementPage() {
     const [quantityToDelete, setQuantityToDelete] = useState<number>(0);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-    // Filter only PRODUCT type assets
-    const allProducts = assets.filter(
-        (asset: any) => asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'DELIVERED')
+    // Filter assets that should be considered inventory:
+    // - PRODUCT assets that are MANUFACTURED, DELIVERED or IN_TRANSIT
+    // - RAW_MATERIAL assets (e.g., bread batches) that are CREATED or MANUFACTURED
+    const allProducts = (assets as Asset[]).filter(
+        (asset: Asset) => (
+            (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'DELIVERED' || asset.status === 'IN_TRANSIT')) ||
+            (asset.type === 'RAW_MATERIAL' && (asset.status === 'CREATED' || asset.status === 'MANUFACTURED'))
+        )
     ) || [];
 
     // Get unique categories
-    const categories = ['all', ...new Set(allProducts.map((p: any) => p.category || 'uncategorized'))];
+    const categories = ['all', ...new Set(allProducts.map((p: Asset) => p.category || 'uncategorized'))];
 
     // Apply filters
-    const filteredProducts = allProducts.filter((product: any) => {
+    const filteredProducts = allProducts.filter((product: Asset) => {
         const matchesSearch = !searchTerm ||
             product.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             product.id?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -35,7 +40,7 @@ export default function InventoryManagementPage() {
 
     // Calculate statistics
     const totalProducts = allProducts.length;
-    const totalQuantity = allProducts.reduce((sum: number, p: any) => sum + (p.quantity || 0), 0);
+    const totalQuantity = allProducts.reduce((sum: number, p: Asset) => sum + (typeof p.quantity === 'number' ? p.quantity : Number(p.quantity || 0)), 0);
 
     const handleDelete = async (assetId: string, availableQuantity: number, unit: string) => {
         // Validate quantity
@@ -60,15 +65,15 @@ export default function InventoryManagementPage() {
             // Parse the result data to show appropriate message
             const resultData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
 
-            if (resultData.type === 'complete') {
+            if (resultData && (resultData as any).type === 'complete') {
                 setNotification({
                     type: 'success',
-                    message: `✅ Product completely removed: ${resultData.quantityDeleted || availableQuantity} ${unit}`
+                    message: `✅ Product completely removed: ${(resultData as any).quantityDeleted || availableQuantity} ${unit}`
                 });
             } else {
                 setNotification({
                     type: 'success',
-                    message: `✅ ${resultData.quantityDeleted} ${unit} removed. ${resultData.remainingQuantity} ${unit} remaining in stock.`
+                    message: `✅ ${(resultData as any).quantityDeleted || 0} ${unit} removed. ${(resultData as any).remainingQuantity || 0} ${unit} remaining in stock.`
                 });
             }
 
@@ -76,9 +81,10 @@ export default function InventoryManagementPage() {
             setQuantityToDelete(0);
             setTimeout(() => setNotification(null), 5000);
             refetch();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Delete error:', err);
-            setNotification({ type: 'error', message: `❌ Error: ${err.message}` });
+            const message = err instanceof Error ? err.message : String(err);
+            setNotification({ type: 'error', message: `❌ Error: ${message}` });
             setTimeout(() => setNotification(null), 5000);
         }
     };
@@ -287,7 +293,9 @@ export default function InventoryManagementPage() {
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${product.status === 'MANUFACTURED'
                                                         ? 'bg-green-100 text-green-800'
-                                                        : 'bg-gray-100 text-gray-800'
+                                                        : product.status === 'IN_TRANSIT'
+                                                            ? 'bg-blue-100 text-blue-800'
+                                                            : 'bg-gray-100 text-gray-800'
                                                         }`}>
                                                         {product.status || 'UNKNOWN'}
                                                     </span>
