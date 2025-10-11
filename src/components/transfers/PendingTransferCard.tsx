@@ -56,7 +56,7 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
     const isOutgoing = transfer.direction === 'outgoing';
 
     return (
-        <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+        <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
             {/* Header con dirección */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -83,17 +83,17 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
             <div className="space-y-2">
                 <div>
                     <span className="text-sm font-semibold text-gray-700">Asset ID:</span>
-                    <span className="ml-2 text-sm text-gray-900 font-mono">{transfer.assetId}</span>
+                    <span className="ml-2 text-sm text-black font-mono">{transfer.assetId}</span>
                 </div>
 
                 <div>
                     <span className="text-sm font-semibold text-gray-700">From:</span>
-                    <span className="ml-2 text-sm text-gray-900">{transfer.fromMSP}</span>
+                    <span className="ml-2 text-sm text-black">{transfer.fromMSP}</span>
                 </div>
 
                 <div>
                     <span className="text-sm font-semibold text-gray-700">To:</span>
-                    <span className="ml-2 text-sm text-gray-900">{transfer.toMSP}</span>
+                    <span className="ml-2 text-sm text-black">{transfer.toMSP}</span>
                 </div>
 
                 {transfer.transferData?.reason && (
@@ -148,7 +148,7 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
                         value={rejectReason}
                         onChange={(e) => setRejectReason(e.target.value)}
                         placeholder="Explain why you're rejecting this transfer..."
-                        className="w-full px-3 py-2 border border-red-300 rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-red-300 rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
                         rows={3}
                     />
                     <div className="mt-3 flex gap-2">

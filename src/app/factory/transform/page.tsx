@@ -99,9 +99,12 @@ export default function TransformAssetPage() {
 
             // Validar que no exceda la cantidad disponible
             const material = assets?.find(a => a.id === materialId);
-            if (material && quantity > (material.quantity || 0)) {
-                alert(`Insufficient quantity for ${material.name}. Available: ${material.quantity}, Requested: ${quantity}`);
-                return;
+            if (material) {
+                const matQty = typeof material.quantity === 'number' ? material.quantity : Number(material.quantity) || 0;
+                if (quantity > matQty) {
+                    alert(`Insufficient quantity for ${material.name}. Available: ${matQty}, Requested: ${quantity}`);
+                    return;
+                }
             }
         }
 
@@ -187,8 +190,8 @@ export default function TransformAssetPage() {
                         </div>
                     )}
 
-                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                        <form onSubmit={handleSubmit} className="space-y-8">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 text-black">
+                        <form onSubmit={handleSubmit} className="space-y-8 text-black">
                             {/* Raw Materials Selection */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -201,7 +204,7 @@ export default function TransformAssetPage() {
                                 </h2>
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-800 mb-3">
+                                    <label className="block text-sm font-semibold text-black mb-3">
                                         Choose Raw Materials to Transform *
                                     </label>
                                     {assetsLoading ? (
@@ -210,8 +213,8 @@ export default function TransformAssetPage() {
                                         <div className="space-y-3">
                                             {assets?.filter(asset => asset.type === 'RAW_MATERIAL' && asset.status !== 'CONSUMED').map((asset) => {
                                                 const isSelected = form.rawMaterialIds.includes(asset.id);
-                                                const availableQty = asset.quantity || 0;
-                                                const selectedQty = form.quantities[asset.id] || 0;
+                                                const availableQty = typeof asset.quantity === 'number' ? asset.quantity : Number(asset.quantity) || 0;
+                                                const selectedQty = typeof form.quantities[asset.id] === 'number' ? form.quantities[asset.id] : Number(form.quantities[asset.id]) || 0;
 
                                                 return (
                                                     <div key={asset.id} className={`p-4 bg-white/70 border-2 rounded-xl transition-colors ${isSelected ? 'border-orange-500 bg-orange-50/50' : 'border-gray-200 hover:border-orange-300'}`}>
@@ -224,13 +227,13 @@ export default function TransformAssetPage() {
                                                                 className="mt-1 w-5 h-5 text-orange-600 rounded"
                                                             />
                                                             <div className="flex-1">
-                                                                <label htmlFor={asset.id} className="cursor-pointer block mb-2">
-                                                                    <p className="font-semibold text-gray-900">{asset.name}</p>
-                                                                    <p className="text-sm text-gray-600">
+                                                                <label htmlFor={asset.id} className="cursor-pointer block mb-2 text-black">
+                                                                    <p className="font-semibold text-black">{asset.name}</p>
+                                                                    <p className="text-sm text-black">
                                                                         ID: {asset.id} • Category: {asset.category}
                                                                     </p>
                                                                     <p className="text-sm font-medium text-green-600 mt-1">
-                                                                        Available: {availableQty} {asset.unit || 'kg'}
+                                                                        Available: {availableQty} {(asset.unit as string) || 'kg'}
                                                                     </p>
                                                                 </label>
 
@@ -247,10 +250,10 @@ export default function TransformAssetPage() {
                                                                             step="0.1"
                                                                             value={selectedQty}
                                                                             onChange={(e) => handleQuantityChange(asset.id, parseFloat(e.target.value) || 0)}
-                                                                            className="flex-1 px-3 py-2 border-2 border-orange-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                                                                            className="flex-1 px-3 py-2 border-2 border-orange-300 rounded-lg focus:border-orange-500 focus:outline-none text-black"
                                                                             placeholder={`Max: ${availableQty}`}
                                                                         />
-                                                                        <span className="text-sm text-gray-600 min-w-[50px]">{asset.unit || 'kg'}</span>
+                                                                        <span className="text-sm text-gray-600 min-w-[50px]">{(asset.unit as string) || 'kg'}</span>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -276,7 +279,7 @@ export default function TransformAssetPage() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label htmlFor="newAssetId" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="newAssetId" className="block text-sm font-semibold text-black mb-2">
                                             Product ID *
                                         </label>
                                         <input
@@ -284,9 +287,9 @@ export default function TransformAssetPage() {
                                             id="newAssetId"
                                             value={form.newAssetId}
                                             onChange={(e) => setForm(prev => ({ ...prev, newAssetId: e.target.value }))}
-                                            className={`w-full p-4 border-2 rounded-xl focus:outline-none transition-colors ${form.rawMaterialIds.includes(form.newAssetId)
-                                                    ? 'border-red-500 bg-red-50 focus:border-red-600'
-                                                    : 'border-gray-200 focus:border-blue-500'
+                                            className={`w-full p-4 border-2 rounded-xl focus:outline-none transition-colors text-black ${form.rawMaterialIds.includes(form.newAssetId)
+                                                ? 'border-red-500 bg-red-50 focus:border-red-600'
+                                                : 'border-gray-200 focus:border-blue-500'
                                                 }`}
                                             placeholder="PROD_001"
                                             required
@@ -305,7 +308,7 @@ export default function TransformAssetPage() {
                                     </div>
 
                                     <div>
-                                        <label htmlFor="name" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="name" className="block text-sm font-semibold text-black mb-2">
                                             Product Name *
                                         </label>
                                         <input
@@ -316,14 +319,14 @@ export default function TransformAssetPage() {
                                                 ...prev,
                                                 productData: { ...prev.productData, name: e.target.value }
                                             }))}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                             placeholder="Premium Flour"
                                             required
                                         />
                                     </div>
 
                                     <div>
-                                        <label htmlFor="category" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="category" className="block text-sm font-semibold text-black mb-2">
                                             Category *
                                         </label>
                                         <input
@@ -334,14 +337,14 @@ export default function TransformAssetPage() {
                                                 ...prev,
                                                 productData: { ...prev.productData, category: e.target.value }
                                             }))}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                             placeholder="food"
                                             required
                                         />
                                     </div>
 
                                     <div>
-                                        <label htmlFor="transformationProcess" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="transformationProcess" className="block text-sm font-semibold text-black mb-2">
                                             Transformation Process *
                                         </label>
                                         <input
@@ -352,14 +355,14 @@ export default function TransformAssetPage() {
                                                 ...prev,
                                                 productData: { ...prev.productData, transformationProcess: e.target.value }
                                             }))}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                             placeholder="Milling and Processing"
                                             required
                                         />
                                     </div>
 
                                     <div className="md:col-span-2">
-                                        <label htmlFor="description" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="description" className="block text-sm font-semibold text-black mb-2">
                                             Description
                                         </label>
                                         <textarea
@@ -369,7 +372,7 @@ export default function TransformAssetPage() {
                                                 ...prev,
                                                 productData: { ...prev.productData, description: e.target.value }
                                             }))}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                             placeholder="Detailed description of the finished product..."
                                             rows={4}
                                         />

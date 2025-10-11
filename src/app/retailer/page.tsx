@@ -16,6 +16,7 @@ export default function RetailerPage() {
     // Estados para controlar dropdowns
     const [showInventoryList, setShowInventoryList] = useState(false);
     const [showSoldList, setShowSoldList] = useState(false);
+    const [showOutgoingList, setShowOutgoingList] = useState(false);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
     // Calcular estadísticas reales desde los datos del blockchain
@@ -86,8 +87,8 @@ export default function RetailerPage() {
 
                         // ...existing code...
 
-                        {/* Grid principal: Stats (sin Pending Transfers) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        {/* Grid principal: Stats (including Pending Transfers card) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             {/* Products in Stock Card */}
                             <div
                                 onClick={() => setShowInventoryList(!showInventoryList)}
@@ -136,6 +137,38 @@ export default function RetailerPage() {
                                             </svg>
                                         </div>
                                         <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showSoldList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            {/* Outgoing to Consumers Card */}
+                            <div
+                                onClick={() => {
+                                    const next = !showOutgoingList;
+                                    setShowOutgoingList(next);
+                                    if (next) {
+                                        // wait a tick for the section to render then scroll
+                                        setTimeout(() => {
+                                            const el = document.getElementById('outgoingTransfersSection');
+                                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        }, 120);
+                                    }
+                                }}
+                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group flex flex-col justify-between"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-500 group-hover:text-amber-600 transition-colors">Pending → Consumers</p>
+                                        <p className="text-3xl font-bold text-amber-600">{((pendingTransfers || []) as PendingTransfer[]).filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('consumer')).length}</p>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                            <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showOutgoingList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
                                     </div>
@@ -395,6 +428,48 @@ export default function RetailerPage() {
                                             ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Outgoing Pending Transfers to Consumers */}
+                        {showOutgoingList && ((pendingTransfers || []) as PendingTransfer[]).some((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('consumer')) && (
+                            <div id="outgoingTransfersSection" className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+                                <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
+                                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center mr-3">
+                                        <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    Outgoing Transfers to Consumers
+                                    <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                        {((pendingTransfers || []) as PendingTransfer[]).filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('consumer')).length}
+                                    </span>
+                                    <button
+                                        onClick={() => {
+                                            // trigger a full refetch by reloading assets and pending transfers indirectly
+                                            refetchAll();
+                                        }}
+                                        className="ml-auto px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg text-sm hover:bg-gray-100"
+                                    >
+                                        Refresh
+                                    </button>
+                                </h2>
+
+                                <div className="grid grid-cols-1 gap-4">
+                                    {((pendingTransfers || []) as PendingTransfer[])
+                                        .filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('consumer'))
+                                        .map((transfer: PendingTransfer) => (
+                                            <PendingTransferCard
+                                                key={transfer.id}
+                                                transfer={transfer}
+                                                onSuccess={() => {
+                                                    refetchAll();
+                                                    setNotification({ type: 'success', message: 'Transfer updated.' });
+                                                    setTimeout(() => setNotification(null), 3000);
+                                                }}
+                                            />
+                                        ))}
+                                </div>
                             </div>
                         )}
                     </div>

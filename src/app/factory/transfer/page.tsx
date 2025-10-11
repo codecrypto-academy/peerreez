@@ -125,8 +125,8 @@ export default function FactoryTransferPage() {
                 </div>
 
                 <div className="max-w-4xl mx-auto">
-                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                        <form onSubmit={handleSubmit} className="space-y-8">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 text-black">
+                        <form onSubmit={handleSubmit} className="space-y-8 text-black">
                             {/* Product Selection */}
                             <div className="border-b border-gray-200 pb-8">
                                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -139,7 +139,7 @@ export default function FactoryTransferPage() {
                                 </h2>
 
                                 <div>
-                                    <label htmlFor="assetId" className="block text-sm font-semibold text-gray-800 mb-3">
+                                    <label htmlFor="assetId" className="block text-sm font-semibold text-gray-800 mb-3 text-black">
                                         Choose Product to Ship *
                                     </label>
                                     {assetsLoading ? (
@@ -150,7 +150,7 @@ export default function FactoryTransferPage() {
                                             value={formData.assetId}
                                             onChange={(e) => handleInputChange('assetId', e.target.value)}
                                             required
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors text-black"
                                         >
                                             <option value="">Select a product...</option>
                                             {products.map((asset) => (
@@ -188,7 +188,7 @@ export default function FactoryTransferPage() {
                                 </h2>
 
                                 <div>
-                                    <label htmlFor="retailerId" className="block text-sm font-semibold text-gray-800 mb-3">
+                                    <label htmlFor="retailerId" className="block text-sm font-semibold text-gray-800 mb-3 text-black">
                                         Retailer Partner *
                                     </label>
                                     <select
@@ -196,7 +196,7 @@ export default function FactoryTransferPage() {
                                         value={formData.retailerId}
                                         onChange={(e) => handleInputChange('retailerId', e.target.value)}
                                         required
-                                        className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:outline-none transition-colors"
+                                        className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:outline-none transition-colors text-black"
                                     >
                                         <option value="">Select retailer...</option>
                                         <option value="retailer">Main Retailer Network</option>
@@ -217,7 +217,7 @@ export default function FactoryTransferPage() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div>
-                                        <label htmlFor="shipmentLocation" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="shipmentLocation" className="block text-sm font-semibold text-gray-800 mb-2 text-black">
                                             Shipment Origin *
                                         </label>
                                         <input
@@ -227,12 +227,12 @@ export default function FactoryTransferPage() {
                                             onChange={(e) => handleInputChange('shipmentLocation', e.target.value)}
                                             placeholder="Factory Address, City"
                                             required
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                         />
                                     </div>
 
                                     <div>
-                                        <label htmlFor="transportMethod" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="transportMethod" className="block text-sm font-semibold text-gray-800 mb-2 text-black">
                                             Transport Method *
                                         </label>
                                         <select
@@ -240,7 +240,7 @@ export default function FactoryTransferPage() {
                                             value={formData.transportMethod}
                                             onChange={(e) => handleInputChange('transportMethod', e.target.value)}
                                             required
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                         >
                                             <option value="">Select method...</option>
                                             <option value="Truck">Truck</option>
@@ -251,7 +251,7 @@ export default function FactoryTransferPage() {
                                     </div>
 
                                     <div>
-                                        <label htmlFor="temperature" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="temperature" className="block text-sm font-semibold text-gray-800 mb-2 text-black">
                                             Storage Temperature (°C)
                                         </label>
                                         <input
@@ -260,12 +260,12 @@ export default function FactoryTransferPage() {
                                             value={formData.temperature || ''}
                                             onChange={(e) => handleInputChange('temperature', e.target.value ? parseFloat(e.target.value) : undefined)}
                                             placeholder="e.g., 4"
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                         />
                                     </div>
 
                                     <div className="md:col-span-2">
-                                        <label htmlFor="notes" className="block text-sm font-semibold text-gray-800 mb-2">
+                                        <label htmlFor="notes" className="block text-sm font-semibold text-gray-800 mb-2 text-black">
                                             Shipment Notes
                                         </label>
                                         <textarea
@@ -274,7 +274,7 @@ export default function FactoryTransferPage() {
                                             onChange={(e) => handleInputChange('notes', e.target.value)}
                                             placeholder="Special handling instructions, quality checks, etc."
                                             rows={4}
-                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                         />
                                     </div>
                                 </div>

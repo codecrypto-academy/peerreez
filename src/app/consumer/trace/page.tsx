@@ -152,7 +152,7 @@ export default function TracePage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50">
+        <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 text-black">
             <div className="container mx-auto px-6 py-8">
                 {/* Header */}
                 <div className="mb-8">
@@ -171,14 +171,14 @@ export default function TracePage() {
 
                 <div className="max-w-7xl mx-auto">
                     {/* Search Form */}
-                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 mb-8">
-                        <form onSubmit={handleTrace} className="flex gap-4">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 mb-8 text-black">
+                        <form onSubmit={handleTrace} className="flex gap-4 text-black">
                             <div className="flex-1">
                                 <input
                                     type="text"
                                     value={assetId}
                                     onChange={(e) => setAssetId(e.target.value)}
-                                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors"
+                                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-colors text-black"
                                     placeholder="Enter Product ID (e.g., FLOUR_PROD_001)"
                                     required
                                 />
@@ -321,10 +321,10 @@ export default function TracePage() {
                                                     <div className="mt-3">
                                                         <strong>Expiry Date:</strong>
                                                         <div className={`mt-1 px-3 py-2 rounded-lg font-semibold ${isExpired(traceData.asset.expiryDate)
-                                                                ? 'bg-red-100 text-red-800'
-                                                                : isExpiringSoon(traceData.asset.expiryDate)
-                                                                    ? 'bg-yellow-100 text-yellow-800'
-                                                                    : 'bg-green-100 text-green-800'
+                                                            ? 'bg-red-100 text-red-800'
+                                                            : isExpiringSoon(traceData.asset.expiryDate)
+                                                                ? 'bg-yellow-100 text-yellow-800'
+                                                                : 'bg-green-100 text-green-800'
                                                             }`}>
                                                             {isExpired(traceData.asset.expiryDate) && '⚠️ EXPIRED: '}
                                                             {isExpiringSoon(traceData.asset.expiryDate) && !isExpired(traceData.asset.expiryDate) && '⏰ EXPIRING SOON: '}

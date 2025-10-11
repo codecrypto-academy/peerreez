@@ -30,6 +30,11 @@ export default function DistributePage() {
         )
     ) || [];
 
+    // Values for the currently selected product (render scope)
+    const selectedProductInView = availableProducts.find((asset: any) => asset.id === selectedAsset);
+    const selectedProductQtyInView = selectedProductInView ? (typeof selectedProductInView.quantity === 'number' ? selectedProductInView.quantity : Number(selectedProductInView.quantity) || 0) : 0;
+    const selectedProductUnitInView = selectedProductInView ? ((selectedProductInView.unit as string) || 'units') : 'units';
+
     const initiateTransfer = useInitiateTransfer();
 
     const handleDistribute = async (e: React.FormEvent) => {
@@ -49,10 +54,11 @@ export default function DistributePage() {
 
         // Get selected product to validate quantity
         const selectedProduct = availableProducts.find((asset: any) => asset.id === selectedAsset);
-        if (selectedProduct && quantityToSell > (selectedProduct.quantity || 0)) {
+        const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
+        if (selectedProduct && quantityToSell > selectedProductQty) {
             setNotification({
                 type: 'error',
-                message: `Insufficient quantity. Available: ${selectedProduct.quantity} ${selectedProduct.unit || 'units'}, Requested: ${quantityToSell}`
+                message: `Insufficient quantity. Available: ${selectedProductQty} ${selectedProduct ? ((selectedProduct.unit as string) || 'units') : 'units'}, Requested: ${quantityToSell}`
             });
             setTimeout(() => setNotification(null), 5000);
             return;
@@ -159,11 +165,11 @@ export default function DistributePage() {
                     </div>
 
                     {/* Main Card */}
-                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                        <form onSubmit={handleDistribute} className="space-y-6">
+                    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 text-black">
+                        <form onSubmit={handleDistribute} className="space-y-6 text-black">
                             {/* Product Selection */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2 text-black">
                                     Select Product to Sell
                                 </label>
                                 {isLoading ? (
@@ -201,8 +207,8 @@ export default function DistributePage() {
                                                 <div className="ml-4 flex-1">
                                                     <div className="flex items-center justify-between">
                                                         <div>
-                                                            <p className="font-semibold text-gray-900">{asset.name}</p>
-                                                            <p className="text-sm text-gray-600">ID: {asset.id}</p>
+                                                            <p className="font-semibold text-black">{asset.name}</p>
+                                                            <p className="text-sm text-black">ID: {asset.id}</p>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
@@ -214,7 +220,7 @@ export default function DistributePage() {
                                                         </div>
                                                     </div>
                                                     {asset.quantity !== undefined && (
-                                                        <p className="text-sm text-gray-600 mt-2">
+                                                        <p className="text-sm text-black mt-2">
                                                             Quantity: {asset.quantity} {asset.unit || 'units'}
                                                         </p>
                                                     )}
@@ -248,8 +254,8 @@ export default function DistributePage() {
                             {/* Quantity to Sell */}
                             {selectedAsset && (() => {
                                 const product = availableProducts.find((asset: any) => asset.id === selectedAsset);
-                                const availableQuantity = product?.quantity || 0;
-                                const unit = product?.unit || 'units';
+                                const availableQuantity = product ? (typeof product.quantity === 'number' ? product.quantity : Number(product.quantity) || 0) : 0;
+                                const unit = product ? ((product.unit as string) || 'units') : 'units';
 
                                 return (
                                     <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6">
@@ -260,7 +266,7 @@ export default function DistributePage() {
                                                 </svg>
                                             </div>
                                             <div className="flex-1">
-                                                <label htmlFor="quantity" className="block text-sm font-semibold text-indigo-900 mb-2">
+                                                <label htmlFor="quantity" className="block text-sm font-semibold text-black mb-2">
                                                     Quantity to Sell
                                                 </label>
                                                 <p className="text-sm text-indigo-700 mb-3">
@@ -273,19 +279,19 @@ export default function DistributePage() {
                                                         value={quantityToSell || ''}
                                                         onChange={(e) => {
                                                             const value = parseFloat(e.target.value) || 0;
-                                                            setQuantityToSell(Math.min(value, availableQuantity));
+                                                            setQuantityToSell(Math.min(value, Number(availableQuantity)));
                                                         }}
                                                         min="0"
                                                         max={availableQuantity}
                                                         step="0.01"
                                                         placeholder="Enter quantity"
-                                                        className="flex-1 px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-indigo-900"
+                                                        className="flex-1 px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-black"
                                                         required
                                                     />
                                                     <span className="text-sm font-medium text-indigo-700 min-w-[60px]">{unit}</span>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setQuantityToSell(availableQuantity)}
+                                                        onClick={() => setQuantityToSell(Number(availableQuantity))}
                                                         className="px-4 py-3 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-600 transition-colors whitespace-nowrap"
                                                     >
                                                         Use All
@@ -314,7 +320,7 @@ export default function DistributePage() {
                                         type="checkbox"
                                         checked={requireAcceptance}
                                         onChange={(e) => setRequireAcceptance(e.target.checked)}
-                                        disabled={quantityToSell > 0 && availableProducts.find((a: any) => a.id === selectedAsset)?.quantity !== quantityToSell}
+                                        disabled={quantityToSell > 0 && selectedProductQtyInView !== quantityToSell}
                                         className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
                                     />
                                     <span className="text-sm text-yellow-900 font-medium">Require consumer acceptance</span>
@@ -327,7 +333,7 @@ export default function DistributePage() {
                             {/* Sale Details */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label htmlFor="purchaseLocation" className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label htmlFor="purchaseLocation" className="block text-sm font-medium text-gray-700 mb-2 text-black">
                                         Purchase Location
                                     </label>
                                     <input
@@ -336,19 +342,19 @@ export default function DistributePage() {
                                         value={purchaseLocation}
                                         onChange={(e) => setPurchaseLocation(e.target.value)}
                                         placeholder="e.g., Retail Store Downtown"
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
                                     />
                                 </div>
 
                                 <div>
-                                    <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2">
+                                    <label htmlFor="paymentMethod" className="block text-sm font-medium text-gray-700 mb-2 text-black">
                                         Payment Method
                                     </label>
                                     <select
                                         id="paymentMethod"
                                         value={paymentMethod}
                                         onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-black"
                                     >
                                         <option value="">Select payment method...</option>
                                         <option value="cash">Cash</option>
@@ -361,7 +367,7 @@ export default function DistributePage() {
 
                             {/* Additional Notes */}
                             <div>
-                                <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
+                                <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2 text-black">
                                     Additional Notes
                                 </label>
                                 <textarea
@@ -370,7 +376,7 @@ export default function DistributePage() {
                                     onChange={(e) => setNotes(e.target.value)}
                                     rows={3}
                                     placeholder="Any special notes about this sale..."
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
                                 />
                             </div>
 
@@ -400,7 +406,7 @@ export default function DistributePage() {
                                             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                                             </svg>
-                                            {requireAcceptance && quantityToSell >= (availableProducts.find(a => a.id === selectedAsset)?.quantity || 0) ? 'Initiate Pending Transfer' : 'Initiate Pending Transfer'}
+                                            {requireAcceptance && quantityToSell >= selectedProductQtyInView ? 'Initiate Pending Transfer' : 'Initiate Pending Transfer'}
                                         </>
                                     )}
                                 </button>

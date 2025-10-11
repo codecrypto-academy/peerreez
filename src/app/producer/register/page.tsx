@@ -137,7 +137,7 @@ export default function RegisterAssetPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+            <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 text-black">
 
               {/* Basic Information */}
               <div className="mb-8">
@@ -145,7 +145,7 @@ export default function RegisterAssetPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Asset ID (optional)
                     </label>
                     <input
@@ -153,13 +153,13 @@ export default function RegisterAssetPage() {
                       value={formData.id}
                       onChange={(e) => handleInputChange('id', e.target.value)}
                       placeholder="Auto-generated if empty"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     />
                     <p className="mt-1 text-xs text-gray-500">Leave empty to auto-generate a unique ID</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Product Name *
                     </label>
                     <input
@@ -168,19 +168,19 @@ export default function RegisterAssetPage() {
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
                       placeholder="e.g., Premium Organic Wheat"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Category *
                     </label>
                     <select
                       required
                       value={formData.category}
                       onChange={(e) => handleInputChange('category', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     >
                       {categories.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -189,7 +189,7 @@ export default function RegisterAssetPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Quantity *
                     </label>
                     <input
@@ -199,12 +199,12 @@ export default function RegisterAssetPage() {
                       value={formData.quantity}
                       onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 0)}
                       placeholder="e.g., 500"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Description *
                     </label>
                     <textarea
@@ -213,12 +213,12 @@ export default function RegisterAssetPage() {
                       value={formData.description}
                       onChange={(e) => handleInputChange('description', e.target.value)}
                       placeholder="Detailed description of the raw material..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-black mb-2">
                       Origin Location *
                     </label>
                     <input
@@ -227,7 +227,7 @@ export default function RegisterAssetPage() {
                       value={formData.location}
                       onChange={(e) => handleInputChange('location', e.target.value)}
                       placeholder="e.g., Farm Valley, Oregon, USA"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black"
                     />
                   </div>
                 </div>
@@ -243,9 +243,9 @@ export default function RegisterAssetPage() {
                         type="checkbox"
                         checked={formData.certifications.includes(cert)}
                         onChange={() => handleArrayToggle('certifications', cert)}
-                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        className="rounded border-gray-300 text-green-600 focus:ring-green-500 text-black"
                       />
-                      <span className="ml-2 text-sm text-gray-700">{cert}</span>
+                      <span className="ml-2 text-sm text-black">{cert}</span>
                     </label>
                   ))}
                 </div>

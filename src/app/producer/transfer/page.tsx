@@ -119,8 +119,8 @@ export default function TransferAssetPage() {
         </div>
 
         <div className="max-w-4xl mx-auto">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-            <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 text-black">
+            <form onSubmit={handleSubmit} className="space-y-8 text-black">
               {/* Asset Selection Section */}
               <div className="border-b border-gray-200 pb-8">
                 <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -133,7 +133,7 @@ export default function TransferAssetPage() {
                 </h2>
 
                 <div>
-                  <label htmlFor="assetId" className="block text-sm font-semibold text-gray-800 mb-3">
+                  <label htmlFor="assetId" className="block text-sm font-semibold text-black mb-3">
                     Choose Asset to Transfer *
                   </label>
                   {assetsLoading ? (
@@ -145,7 +145,7 @@ export default function TransferAssetPage() {
                       required
                       value={formData.assetId}
                       onChange={(e) => handleInputChange('assetId', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-black"
                     >
                       <option value="">Choose from your available assets...</option>
                       {assets.length > 0 ? (
@@ -197,7 +197,7 @@ export default function TransferAssetPage() {
                   </div>
 
                   <div>
-                    <label htmlFor="pickupLocation" className="block text-sm font-semibold text-gray-800 mb-3">
+                    <label htmlFor="pickupLocation" className="block text-sm font-semibold text-black mb-3">
                       Pickup Location *
                     </label>
                     <input
@@ -207,7 +207,7 @@ export default function TransferAssetPage() {
                       required
                       value={formData.pickupLocation}
                       onChange={(e) => handleInputChange('pickupLocation', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
+                      className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400 text-black"
                       placeholder="Farm address or GPS coordinates"
                     />
                   </div>
