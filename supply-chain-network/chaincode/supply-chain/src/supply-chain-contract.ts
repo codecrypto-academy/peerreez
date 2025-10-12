@@ -1319,6 +1319,35 @@ export class SupplyChainContract extends Contract {
             history = JSON.parse(existingHistoryBytes.toString());
         }
 
+        // Enrich entry with transaction metadata for auditability
+        try {
+            const txId = ctx.stub.getTxID();
+            // getTxTimestamp returns a protobuf Timestamp - convert to JS ISO string if available
+            let txTimestampIso = '';
+            try {
+                const txTimestamp: any = ctx.stub.getTxTimestamp();
+                // txTimestamp has { seconds, nanos } depending on the stub implementation
+                if (txTimestamp && (txTimestamp.seconds || txTimestamp.seconds === 0)) {
+                    const seconds = typeof txTimestamp.seconds === 'object' ? Number(txTimestamp.seconds.low || txTimestamp.seconds) : Number(txTimestamp.seconds);
+                    txTimestampIso = new Date(seconds * 1000).toISOString();
+                }
+            } catch (err) {
+                // ignore timestamp conversion errors
+            }
+
+            entry.txId = txId;
+            if (txTimestampIso) entry.txTimestamp = txTimestampIso;
+        } catch (err) {
+            // ignore if stub methods not available in certain test environments
+        }
+
+        // Add the explicit submitter identity when available
+        try {
+            entry.submittedBy = ctx.clientIdentity ? ctx.clientIdentity.getID() : undefined;
+        } catch (err) {
+            // ignore
+        }
+
         history.push(entry);
         await ctx.stub.putState(historyKey, Buffer.from(JSON.stringify(history)));
     }

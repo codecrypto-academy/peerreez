@@ -53,6 +53,10 @@ export interface AssetHistory {
     previousOwner: string;
     newOwner: string;
     data: any;
+    // Optional transaction metadata for auditability
+    txId?: string;
+    txTimestamp?: string;
+    submittedBy?: string; // explicit identity that submitted the tx
 }
 
 export interface SupplyChainTrace {

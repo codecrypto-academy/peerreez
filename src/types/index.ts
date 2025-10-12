@@ -53,6 +53,9 @@ export interface AssetHistory {
   previousOwner: string;
   newOwner: string;
   data: Record<string, unknown>;
+  txId?: string;
+  txTimestamp?: string;
+  submittedBy?: string;
 }
 
 // Frontend specific types

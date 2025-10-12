@@ -1,22 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
+import TimelineItem from '../../../components/transfers/TimelineItem';
+import { extractOrgFromIdentity } from '../../../lib/traceHelpers';
 
 type TraceEvent = {
     action?: string;
     timestamp?: string;
+    txId?: string;
+    txTimestamp?: string;
     actor?: string;
+    submittedBy?: string;
     previousOwner?: string;
     newOwner?: string;
     data?: Record<string, unknown>;
+    // optional origin marker added by UI merging: 'raw' | 'parent' | 'asset'
+    origin?: 'raw' | 'parent' | 'asset';
 };
 
 type MaterialPercentage = {
     materialId: string;
     quantity: number;
-    percentage: string;
+    percentageOfInputs?: string;
+    percentageOfFinal?: string;
 };
 
 type RawTrace = {
@@ -37,13 +45,238 @@ type RawTrace = {
 export default function TracePage() {
     const [assetId, setAssetId] = useState('');
     const [searchId, setSearchId] = useState('');
+    const [parentTraces, setParentTraces] = useState<any[]>([]);
+    const [collapsedParents, setCollapsedParents] = useState<Record<string, boolean>>({});
 
     const { data: traceData, isLoading: loading, error, refetch } = useAssetHistory(searchId);
+
+    // Prepare a merged history (chronological) that includes:
+    //  - raw materials histories (producer events)
+    //  - any fetched parent/ancestor histories (splits)
+    //  - the current asset's own history
+    const getMergedHistory = () => {
+        const events: TraceEvent[] = [];
+
+        // raw materials histories (producer -> factory)
+        if (traceData && Array.isArray(traceData.rawMaterialsTrace)) {
+            for (const r of traceData.rawMaterialsTrace) {
+                if (Array.isArray((r as any).history)) {
+                    for (const ev of (r as any).history as TraceEvent[]) {
+                        events.push({ ...ev, origin: 'raw' });
+                    }
+                }
+            }
+        }
+
+        // parent traces fetched by ancestor search
+        if (Array.isArray(parentTraces) && parentTraces.length > 0) {
+            for (const pt of parentTraces) {
+                if (Array.isArray(pt.history)) {
+                    for (const ev of pt.history as TraceEvent[]) events.push({ ...ev, origin: 'parent' });
+                }
+            }
+        }
+
+        // the current asset history
+        if (traceData && Array.isArray(traceData.history)) {
+            for (const ev of traceData.history as TraceEvent[]) events.push({ ...ev, origin: 'asset' });
+        }
+
+        // sort chronologically using txTimestamp if present
+        return events.sort((a: TraceEvent, b: TraceEvent) => {
+            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+            return ta - tb;
+        });
+    };
+
+    // When we receive traceData, detect parent IDs (split origin or originalProductId)
+    // and fetch their traces recursively up to a depth limit, avoiding cycles.
+    useEffect(() => {
+        let mounted = true;
+        const MAX_DEPTH = 6;
+
+        const findParentIds = (data: any) => {
+            const parents = new Set<string>();
+            if (!data) return parents;
+
+            const origin: string | undefined = data.asset?.origin;
+            if (origin && typeof origin === 'string') {
+                const m = origin.match(/Split from\s+([\w-]+)/i);
+                if (m && m[1]) parents.add(m[1]);
+            }
+
+            if (Array.isArray(data.history)) {
+                for (const h of data.history) {
+                    try {
+                        const d: any = h.data || {};
+                        if (d.originalProductId && typeof d.originalProductId === 'string') {
+                            parents.add(d.originalProductId);
+                        }
+                    } catch (err) {
+                        // ignore
+                    }
+                }
+            }
+
+            return parents;
+        };
+
+        async function fetchAncestors() {
+            setParentTraces([]);
+            if (!traceData || !traceData.asset) return;
+
+            const results: any[] = [];
+            const visited = new Set<string>();
+            const queue: Array<{ id: string; depth: number }> = [];
+
+            // seed initial parents
+            const initial = findParentIds(traceData);
+            for (const id of initial) queue.push({ id, depth: 1 });
+
+            while (queue.length > 0) {
+                const { id, depth } = queue.shift()!;
+                if (!id || visited.has(id)) continue;
+                visited.add(id);
+
+                try {
+                    const res = await fetch(`/api/fabric/gateway?operation=getTrace&role=Consumer&assetId=${encodeURIComponent(id)}`);
+                    const json = await res.json();
+                    if (json && json.success && json.data) {
+                        results.push(json.data);
+
+                        if (depth < MAX_DEPTH) {
+                            const more = findParentIds(json.data);
+                            for (const mid of more) {
+                                if (!visited.has(mid)) queue.push({ id: mid, depth: depth + 1 });
+                            }
+                        }
+                    }
+                } catch (err) {
+                    // ignore per-node errors
+                }
+
+                if (!mounted) break;
+            }
+
+            if (mounted) setParentTraces(results);
+        }
+
+        fetchAncestors();
+        return () => { mounted = false; };
+    }, [traceData]);
 
     const handleTrace = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!assetId) return;
         setSearchId(assetId);
+    };
+
+    const toggleParentCollapse = (id: string) => {
+        setCollapsedParents(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const detectProducerFromTrace = (pt: any) => {
+        try {
+            if (!pt) return null;
+
+            // 1) Look through history for the earliest event that has a submittedBy/actor
+            if (Array.isArray(pt.history) && pt.history.length > 0) {
+                const sorted = [...pt.history].sort((a: TraceEvent, b: TraceEvent) => {
+                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+                    return ta - tb;
+                });
+
+                for (const ev of sorted) {
+                    const actor = ev.submittedBy || ev.actor || ev.previousOwner || ev.newOwner;
+                    if (actor && typeof actor === 'string') return extractOrgFromIdentity(actor);
+                }
+            }
+
+            // 2) If not found, inspect rawMaterialsTrace for producer identities
+            if (Array.isArray(pt.rawMaterialsTrace) && pt.rawMaterialsTrace.length > 0) {
+                const producers = new Set<string>();
+                for (const r of pt.rawMaterialsTrace) {
+                    if (r?.asset?.createdBy) producers.add(extractOrgFromIdentity(r.asset.createdBy));
+                    // also check first history entry of the raw material
+                    if (Array.isArray(r.history) && r.history.length > 0) {
+                        const sortedRaw = [...r.history].sort((a: TraceEvent, b: TraceEvent) => {
+                            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+                            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+                            return ta - tb;
+                        });
+                        const firstRaw = sortedRaw[0];
+                        const actor = firstRaw.submittedBy || firstRaw.actor || firstRaw.previousOwner || firstRaw.newOwner;
+                        if (actor && typeof actor === 'string') producers.add(extractOrgFromIdentity(actor));
+                    }
+                }
+
+                if (producers.size > 0) return Array.from(producers).join(', ');
+            }
+        } catch (err) {
+            // ignore
+        }
+
+        // fallback to asset.createdBy
+        if (pt?.asset?.createdBy) return extractOrgFromIdentity(pt.asset.createdBy);
+        return null;
+    };
+
+    const getOrgChain = (pt: any) => {
+        try {
+            if (!pt) return null;
+            const orgs: string[] = [];
+
+            // 1) Collect producers from rawMaterialsTrace first (so they appear at the start)
+            if (Array.isArray(pt.rawMaterialsTrace) && pt.rawMaterialsTrace.length > 0) {
+                for (const r of pt.rawMaterialsTrace) {
+                    if (r?.asset?.createdBy) {
+                        const org = extractOrgFromIdentity(r.asset.createdBy);
+                        if (org && !orgs.includes(org)) orgs.push(org);
+                    } else if (Array.isArray(r.history) && r.history.length > 0) {
+                        const sortedRaw = [...r.history].sort((a: TraceEvent, b: TraceEvent) => {
+                            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+                            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+                            return ta - tb;
+                        });
+                        const firstRaw = sortedRaw[0];
+                        const actor = firstRaw.submittedBy || firstRaw.actor || firstRaw.previousOwner || firstRaw.newOwner;
+                        if (actor && typeof actor === 'string') {
+                            const org = extractOrgFromIdentity(actor);
+                            if (org && !orgs.includes(org)) orgs.push(org);
+                        }
+                    }
+                }
+            }
+
+            // 2) Add asset.createdBy (e.g., Factory) if present and not already included
+            if (pt?.asset?.createdBy) {
+                const org = extractOrgFromIdentity(pt.asset.createdBy);
+                if (org && !orgs.includes(org)) orgs.push(org);
+            }
+
+            // 3) Append organizations found in the parent history (chronological)
+            if (Array.isArray(pt.history) && pt.history.length > 0) {
+                const sorted = [...pt.history].sort((a: TraceEvent, b: TraceEvent) => {
+                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+                    return ta - tb;
+                });
+
+                for (const ev of sorted) {
+                    const actor = ev.submittedBy || ev.actor || ev.previousOwner || ev.newOwner;
+                    if (actor && typeof actor === 'string') {
+                        const org = extractOrgFromIdentity(actor);
+                        if (org && !orgs.includes(org)) orgs.push(org);
+                    }
+                }
+            }
+
+            return orgs.length > 0 ? orgs : null;
+        } catch (err) {
+            return null;
+        }
     };
 
     // Helper functions
@@ -65,10 +298,7 @@ export default function TracePage() {
         });
     };
 
-    const extractOrgFromIdentity = (identity: string) => {
-        const match = identity.match(/CN=Admin@(\w+)\.supplychain\.com/);
-        return match ? match[1].charAt(0).toUpperCase() + match[1].slice(1) : 'Unknown';
-    };
+    // use helper from lib/traceHelpers — more robust parsing
 
     const isExpiringSoon = (expiryDate: string) => {
         if (!expiryDate) return false;
@@ -119,19 +349,22 @@ export default function TracePage() {
 
     const calculateSupplyChainMetrics = (history: TraceEvent[]) => {
         if (!history || history.length === 0) return null;
-
-        const firstEvent = new Date(history[0].timestamp);
-        const lastEvent = new Date(history[history.length - 1].timestamp);
+        // Use txTimestamp if present, otherwise fallback to timestamp
+        const firstEvent = new Date(history[0].txTimestamp || history[0].timestamp || Date.now());
+        const lastEvent = new Date(history[history.length - 1].txTimestamp || history[history.length - 1].timestamp || Date.now());
         const totalDays = Math.floor((lastEvent.getTime() - firstEvent.getTime()) / (1000 * 60 * 60 * 24));
 
         const organizations = new Set<string>();
         history.forEach(event => {
-            if (event.actor && typeof event.actor === 'string') organizations.add(extractOrgFromIdentity(event.actor));
+            // prefer submittedBy when available
+            const actorId = event.submittedBy || event.actor || '';
+            if (actorId && typeof actorId === 'string') organizations.add(extractOrgFromIdentity(actorId));
             if (event.previousOwner && typeof event.previousOwner === 'string') organizations.add(extractOrgFromIdentity(event.previousOwner));
             if (event.newOwner && typeof event.newOwner === 'string') organizations.add(extractOrgFromIdentity(event.newOwner));
         });
 
-        const transfers = history.filter(e => e.action === 'TRANSFER' || e.action === 'CREATE').length;
+        // Count transfers as TRANSFER actions and also CREATE entries that represent consumer receives (previousOwner !== newOwner)
+        const transfers = history.filter(e => e.action === 'TRANSFER' || e.action === 'ACCEPT_TRANSFER' || (e.action === 'CREATE' && e.previousOwner && e.previousOwner !== e.newOwner)).length;
 
         return {
             totalDays,
@@ -141,15 +374,27 @@ export default function TracePage() {
         };
     };
 
-    const calculateRawMaterialPercentages = (rawMaterialsUsed: Record<string, number> | undefined, totalQuantity: number) => {
+    const calculateRawMaterialPercentages = (rawMaterialsUsed: Record<string, number> | undefined, finalProductQuantity: number) => {
         if (!rawMaterialsUsed) return [];
+        // Sum of all raw materials used (absolute)
+        const sumInputs = Object.values(rawMaterialsUsed).reduce((s, v) => s + (Number(v) || 0), 0);
+        const finalQty = Number(finalProductQuantity) || 0;
 
-        return Object.entries(rawMaterialsUsed).map(([materialId, quantity]) => ({
-            materialId,
-            quantity: Number(quantity),
-            percentage: ((Number(quantity) / totalQuantity) * 100).toFixed(1)
-        }));
+        return Object.entries(rawMaterialsUsed).map(([materialId, quantity]) => {
+            const q = Number(quantity) || 0;
+            const pctOfInputs = sumInputs > 0 ? ((q / sumInputs) * 100) : 0; // percent of total inputs (sums to ~100%)
+            const pctOfFinal = finalQty > 0 ? ((q / finalQty) * 100) : 0; // percent relative to final product
+            return {
+                materialId,
+                quantity: q,
+                percentageOfInputs: pctOfInputs.toFixed(1),
+                percentageOfFinal: pctOfFinal.toFixed(1)
+            };
+        });
     };
+
+    // merged history used by metrics and timeline
+    const mergedHistory = getMergedHistory();
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 text-black">
@@ -205,7 +450,7 @@ export default function TracePage() {
                         <div className="space-y-6">
                             {/* Supply Chain Metrics */}
                             {(() => {
-                                const metrics = calculateSupplyChainMetrics(traceData.history);
+                                const metrics = calculateSupplyChainMetrics(mergedHistory);
                                 return metrics ? (
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div className="bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl shadow-lg p-6 text-white">
@@ -228,143 +473,79 @@ export default function TracePage() {
                                 ) : null;
                             })()}
 
-                            {/* Product Information */}
-                            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mr-3">
-                                        📦
-                                    </div>
-                                    Product Information
-                                </h2>
-
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    {/* Left Column */}
-                                    <div className="space-y-4">
-                                        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-4">
-                                            <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
-                                                <span className="text-xl mr-2">📋</span>
-                                                Basic Details
-                                            </h3>
-                                            <div className="space-y-2 text-sm">
-                                                <p><strong>Product ID:</strong> <span className="font-mono text-blue-600">{traceData.asset.id}</span></p>
-                                                <p><strong>Name:</strong> {traceData.asset.name}</p>
-                                                <p><strong>Type:</strong> <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">{traceData.asset.type}</span></p>
-                                                <p><strong>Category:</strong> <span className="px-2 py-1 bg-cyan-100 text-cyan-800 rounded-full text-xs font-semibold">{traceData.asset.category}</span></p>
-                                                <p><strong>Status:</strong> <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">{traceData.asset.status}</span></p>
-                                                {traceData.asset.description && (
-                                                    <p><strong>Description:</strong> {traceData.asset.description}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4">
-                                            <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
-                                                <span className="text-xl mr-2">📊</span>
-                                                Quantity & Location
-                                            </h3>
-                                            <div className="space-y-2 text-sm">
-                                                <p><strong>Quantity:</strong> <span className="text-2xl font-bold text-purple-600">{traceData.asset.quantity}</span> {traceData.asset.unit || 'units'}</p>
-                                                {traceData.asset.origin && (
-                                                    <p><strong>Origin:</strong> {traceData.asset.origin}</p>
-                                                )}
-                                                {traceData.asset.location && (
-                                                    <p><strong>Current Location:</strong> {traceData.asset.location}</p>
-                                                )}
-                                                {traceData.asset.batchNumber && (
-                                                    <p><strong>Batch Number:</strong> <span className="font-mono">{traceData.asset.batchNumber}</span></p>
-                                                )}
-                                            </div>
-                                        </div>
+                            {/* Product Information - new, cleaner hero card */}
+                            <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 p-6 md:p-8">
+                                <div className="flex flex-col md:flex-row gap-6 items-start md:items-center">
+                                    <div className="w-full md:w-1/3 bg-gradient-to-br from-white to-slate-50 rounded-2xl p-4 flex items-center justify-center">
+                                        <div className="w-36 h-36 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-2xl flex items-center justify-center text-4xl font-bold text-blue-700">📦</div>
                                     </div>
 
-                                    {/* Right Column */}
-                                    <div className="space-y-4">
-                                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4">
-                                            <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
-                                                <span className="text-xl mr-2">🏭</span>
-                                                Manufacturing Details
-                                            </h3>
-                                            <div className="space-y-2 text-sm">
-                                                <p><strong>Created:</strong> {formatTimestamp(traceData.asset.createdAt)}</p>
-                                                <p><strong>Manufacturer:</strong> <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">{extractOrgFromIdentity(traceData.asset.createdBy)}</span></p>
-                                                <p><strong>Current Owner:</strong> <span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">{extractOrgFromIdentity(traceData.asset.currentOwner)}</span></p>
-                                                {traceData.asset.transformationProcess && (
-                                                    <p><strong>Process:</strong> {traceData.asset.transformationProcess}</p>
-                                                )}
-                                                <p><strong>Last Updated:</strong> {formatTimestamp(traceData.asset.updatedAt)}</p>
+                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50">
+                                            <h3 className="text-lg font-semibold mb-3">{traceData.asset.name} <span className="text-sm text-gray-500 ml-2">ID: <span className="font-mono">{traceData.asset.id}</span></span></h3>
+                                            <p className="text-sm text-gray-700 mb-2">{traceData.asset.description || 'No description provided.'}</p>
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">{traceData.asset.type}</span>
+                                                <span className="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-xs font-semibold">{traceData.asset.category}</span>
+                                                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">{traceData.asset.status}</span>
                                             </div>
                                         </div>
 
-                                        {/* Certifications & Quality */}
-                                        <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-4">
-                                            <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
-                                                <span className="text-xl mr-2">��</span>
-                                                Certifications & Quality
-                                            </h3>
-                                            <div className="space-y-3 text-sm">
-                                                {traceData.asset.certifications && traceData.asset.certifications.length > 0 ? (
-                                                    <div>
-                                                        <strong>Certifications:</strong>
-                                                        <div className="flex flex-wrap gap-2 mt-2">
-                                                            {(traceData.asset.certifications as string[]).map((cert: string, idx: number) => (
-                                                                <span key={idx} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold flex items-center">
-                                                                    ✓ {cert}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-gray-500">No certifications available</p>
-                                                )}
-
-                                                {traceData.asset.expiryDate && (
-                                                    <div className="mt-3">
-                                                        <strong>Expiry Date:</strong>
-                                                        <div className={`mt-1 px-3 py-2 rounded-lg font-semibold ${isExpired(traceData.asset.expiryDate)
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : isExpiringSoon(traceData.asset.expiryDate)
-                                                                ? 'bg-yellow-100 text-yellow-800'
-                                                                : 'bg-green-100 text-green-800'
-                                                            }`}>
-                                                            {isExpired(traceData.asset.expiryDate) && '⚠️ EXPIRED: '}
-                                                            {isExpiringSoon(traceData.asset.expiryDate) && !isExpired(traceData.asset.expiryDate) && '⏰ EXPIRING SOON: '}
-                                                            {!isExpired(traceData.asset.expiryDate) && !isExpiringSoon(traceData.asset.expiryDate) && '✓ FRESH: '}
-                                                            {formatDate(traceData.asset.expiryDate)}
-                                                        </div>
-                                                    </div>
-                                                )}
+                                        <div className="p-4 rounded-2xl bg-gradient-to-br from-white to-emerald-50">
+                                            <h4 className="text-sm text-gray-600">Quantity</h4>
+                                            <div className="flex items-baseline gap-3">
+                                                <div className="text-3xl font-bold text-purple-700">{traceData.asset.quantity}</div>
+                                                <div className="text-sm text-gray-500">{traceData.asset.unit || 'units'}</div>
+                                            </div>
+                                            <div className="mt-3 text-sm text-gray-600">
+                                                {traceData.asset.origin && <div><strong>Origin:</strong> {traceData.asset.origin}</div>}
+                                                {traceData.asset.location && <div><strong>Location:</strong> {traceData.asset.location}</div>}
+                                                {traceData.asset.batchNumber && <div><strong>Batch:</strong> <span className="font-mono">{traceData.asset.batchNumber}</span></div>}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
+                                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white">
+                                        <div className="text-xs">Manufacturer</div>
+                                        <div className="font-bold mt-1">{extractOrgFromIdentity(traceData.asset.createdBy)}</div>
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white">
+                                        <div className="text-xs">Current Owner</div>
+                                        <div className="font-bold mt-1">{extractOrgFromIdentity(traceData.asset.currentOwner)}</div>
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-400 text-white">
+                                        <div className="text-xs">Last Updated</div>
+                                        <div className="font-bold mt-1">{formatTimestamp(traceData.asset.updatedAt)}</div>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Raw Materials Composition */}
+                            {/* Raw Materials Composition - improved cards */}
                             {traceData.asset.rawMaterialsUsed && Object.keys(traceData.asset.rawMaterialsUsed).length > 0 && (
-                                <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                                    <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mr-3">
-                                            🧪
-                                        </div>
-                                        Raw Materials Composition
+                                <div className="bg-white/90 backdrop-blur-md rounded-3xl p-6 shadow-lg border border-white/20">
+                                    <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">🧪</div>
+                                        Raw Materials
                                     </h2>
 
-                                    <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {calculateRawMaterialPercentages(traceData.asset.rawMaterialsUsed, traceData.asset.quantity).map((material: MaterialPercentage, idx: number) => (
-                                            <div key={idx} className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl p-4">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="font-semibold text-gray-800">{material.materialId}</span>
-                                                    <span className="text-sm font-bold text-orange-600">{material.percentage}%</span>
+                                            <div key={idx} className="p-4 rounded-2xl bg-gradient-to-br from-white to-orange-50 border border-orange-100">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <div className="text-sm font-semibold text-gray-800">{material.materialId}</div>
+                                                        <div className="text-xs text-gray-500">Qty: <strong>{material.quantity}</strong> {traceData.asset.unit || 'units'}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-lg font-bold text-orange-600">{material.percentageOfInputs}%</div>
+                                                        <div className="text-xs text-gray-500">of inputs</div>
+                                                    </div>
                                                 </div>
-                                                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                                                    <div
-                                                        className="bg-gradient-to-r from-orange-500 to-amber-500 h-3 rounded-full transition-all duration-500"
-                                                        style={{ width: `${material.percentage}%` }}
-                                                    ></div>
+                                                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden mt-3">
+                                                    <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-3 rounded-full" style={{ width: `${material.percentageOfInputs}%` }} />
                                                 </div>
-                                                <div className="mt-2 text-sm text-gray-600">
-                                                    Quantity used: <strong>{material.quantity}</strong> {traceData.asset.unit || 'units'}
-                                                </div>
+                                                <div className="mt-2 text-xs text-gray-500">{material.percentageOfFinal}% of final product</div>
                                             </div>
                                         ))}
                                     </div>
@@ -372,60 +553,22 @@ export default function TracePage() {
                             )}
 
                             {/* Supply Chain Timeline */}
-                            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
-                                <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                                    <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center mr-3">
-                                        📊
-                                    </div>
+                            {/* Supply Chain Timeline - vertical */}
+                            <div className="bg-white/90 backdrop-blur-md rounded-3xl p-6 shadow-lg border border-white/20">
+                                <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">📊</div>
                                     Supply Chain Timeline
                                 </h2>
 
-                                <div className="space-y-4">
-                                    {traceData.history.map((event: TraceEvent, index: number) => (
-                                        <div key={index} className={`flex items-start space-x-4 p-5 bg-gradient-to-r ${getActionColor(event.action || '')} border rounded-xl transition-all hover:shadow-md`}>
-                                            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
-                                                {getActionIcon(event.action)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-3 mb-2">
-                                                    <h4 className="font-bold text-gray-900 text-lg">{event.action}</h4>
-                                                    <span className="px-2 py-1 bg-white/50 rounded-full text-xs font-semibold text-gray-700">
-                                                        #{index + 1}
-                                                    </span>
-                                                </div>
+                                <div className="relative pl-8">
+                                    {/* vertical line */}
+                                    <div className="absolute left-4 top-6 bottom-6 w-0.5 bg-gray-200" />
 
-                                                <div className="space-y-1 text-sm">
-                                                    <p className="text-gray-700">
-                                                        <strong>⏰ Time:</strong> {event.timestamp ? formatTimestamp(event.timestamp) : 'Unknown'}</p>
-                                                    <p className="text-gray-700">
-                                                        <strong>👤 Actor:</strong> <span className="px-2 py-0.5 bg-white/50 rounded text-xs font-semibold">{event.actor ? extractOrgFromIdentity(String(event.actor)) : 'Unknown'}</span>
-                                                    </p>
-
-                                                    {event.previousOwner && event.newOwner && (
-                                                        <p className="text-gray-700">
-                                                            <strong>🔄 Transfer:</strong>
-                                                            <span className="px-2 py-0.5 bg-blue-100 rounded text-xs font-semibold ml-1">{extractOrgFromIdentity(event.previousOwner)}</span>
-                                                            <span className="mx-1">→</span>
-                                                            <span className="px-2 py-0.5 bg-green-100 rounded text-xs font-semibold">{extractOrgFromIdentity(event.newOwner)}</span>
-                                                        </p>
-                                                    )}
-
-                                                    {event.data && typeof event.data === 'object' && (
-                                                        <div className="mt-2 p-3 bg-white/50 rounded-lg">
-                                                            <strong className="text-gray-700">📝 Additional Details:</strong>
-                                                            <div className="mt-1 space-y-1">
-                                                                {typeof event.data.location === 'string' && <p className="text-gray-600">📍 Location: {event.data.location}</p>}
-                                                                {typeof event.data.transportMethod === 'string' && <p className="text-gray-600">🚛 Transport: {event.data.transportMethod}</p>}
-                                                                {typeof event.data.temperature !== 'undefined' && <p className="text-gray-600">🌡️ Temperature: {String(event.data.temperature)}°C</p>}
-                                                                {typeof event.data.notes === 'string' && <p className="text-gray-600">💬 Notes: {event.data.notes}</p>}
-                                                                {typeof event.data.quantityTransferred !== 'undefined' && <p className="text-gray-600">📦 Quantity: {String(event.data.quantityTransferred)}</p>}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                    <div className="space-y-6">
+                                        {mergedHistory.map((event: TraceEvent, index: number) => (
+                                            <TimelineItem key={index} event={event} index={index} total={mergedHistory.length} />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
@@ -471,15 +614,19 @@ export default function TracePage() {
                                                     <span className="mr-2">📅</span>
                                                     Timeline:
                                                 </h4>
-                                                {rawTrace.history.map((event: TraceEvent, eventIndex: number) => (
+                                                {([...rawTrace.history].sort((a: TraceEvent, b: TraceEvent) => {
+                                                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
+                                                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+                                                    return ta - tb;
+                                                })).map((event: TraceEvent, eventIndex: number) => (
                                                     <div key={eventIndex} className="flex items-center space-x-3 text-sm bg-white/50 rounded-lg p-3">
                                                         <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
                                                             {eventIndex + 1}
                                                         </div>
                                                         <div className="flex-1">
                                                             <span className="font-semibold">{getActionIcon(event.action)} {event.action}</span>
-                                                            <span className="text-gray-600"> - {formatTimestamp(event.timestamp)}</span>
-                                                            <span className="text-gray-600"> by <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">{extractOrgFromIdentity(event.actor)}</span></span>
+                                                            <span className="text-gray-600"> - {formatTimestamp(event.txTimestamp || event.timestamp || '')}</span>
+                                                            <span className="text-gray-600"> by <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded text-xs font-semibold">{extractOrgFromIdentity(event.submittedBy || event.actor || '')}</span></span>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -488,6 +635,8 @@ export default function TracePage() {
                                     ))}
                                 </div>
                             )}
+
+                            {/* Ancestor UI removed per request */}
                         </div>
                     )}
                 </div>
