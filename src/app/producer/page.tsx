@@ -4,6 +4,7 @@ import Layout from '../../components/layout/Layout';
 import { useAssetsByOwner, useRefetchAssets, Asset } from '../../hooks/useGatewayAssets';
 import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransferHistory';
 import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
+import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import { useEffect, useState } from 'react';
 
 export default function ProducerPage() {
@@ -313,10 +314,15 @@ export default function ProducerPage() {
                 {((pendingTransfers || []) as any)
                   .filter((t: any) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory'))
                   .map((transfer: any) => (
-                    <div key={transfer.id} className="p-4 bg-white rounded-lg border border-amber-100">
-                      <p className="font-medium text-gray-900">Asset: {transfer.assetId}</p>
-                      <p className="text-sm text-gray-600">To: {transfer.toMSP} • Status: {transfer.status}</p>
-                      <p className="text-sm text-gray-500 mt-2">Initiated: {new Date(transfer.initiatedAt).toLocaleString()}</p>
+                    <div key={transfer.id} className="p-0">
+                      {/* Use PendingTransferCard so initiator can Cancel inline */}
+                      <PendingTransferCard
+                        transfer={transfer}
+                        onSuccess={() => {
+                          // Trigger a lightweight refetch of assets and pending transfers
+                          refetchAssets();
+                        }}
+                      />
                     </div>
                   ))}
               </div>

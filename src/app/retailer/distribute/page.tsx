@@ -313,22 +313,7 @@ export default function DistributePage() {
                                 );
                             })()}
 
-                            {/* Require acceptance option */}
-                            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded-lg">
-                                <label className="flex items-center gap-3">
-                                    <input
-                                        type="checkbox"
-                                        checked={requireAcceptance}
-                                        onChange={(e) => setRequireAcceptance(e.target.checked)}
-                                        disabled={quantityToSell > 0 && selectedProductQtyInView !== quantityToSell}
-                                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
-                                    />
-                                    <span className="text-sm text-yellow-900 font-medium">Require consumer acceptance</span>
-                                </label>
-                                <p className="text-xs text-yellow-800 mt-2">
-                                    Sales for a partial quantity are processed immediately. To create a pending transfer that requires the consumer to accept, sell the full available quantity or uncheck this option.
-                                </p>
-                            </div>
+                            {/* Require acceptance option removed per request */}
 
                             {/* Sale Details */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

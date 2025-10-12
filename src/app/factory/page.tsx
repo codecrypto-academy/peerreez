@@ -447,10 +447,15 @@ export default function FactoryPage() {
                                 {((pendingTransfers || []) as PendingTransfer[])
                                     .filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('retailer'))
                                     .map((transfer: PendingTransfer) => (
-                                        <div key={transfer.id} className="p-4 bg-white rounded-lg border border-amber-100">
-                                            <p className="font-medium text-gray-900">Asset: {transfer.assetId}</p>
-                                            <p className="text-sm text-gray-600">To: {transfer.toMSP} • Status: {transfer.status}</p>
-                                            <p className="text-sm text-gray-500 mt-2">Initiated: {new Date(transfer.initiatedAt).toLocaleString()}</p>
+                                        <div key={transfer.id} className="p-0">
+                                            {/* Use PendingTransferCard so initiator can Cancel inline */}
+                                            <PendingTransferCard
+                                                transfer={transfer}
+                                                onSuccess={() => {
+                                                    // Refresh assets and history after cancel
+                                                    refetch();
+                                                }}
+                                            />
                                         </div>
                                     ))}
                             </div>
