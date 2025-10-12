@@ -427,6 +427,20 @@ export class GatewayService {
     }
 
     /**
+     * Cancel a pending transfer (initiator or admin)
+     * Caller must be the initiator (fromMSP) or an admin role
+     */
+    public async cancelTransfer(
+        role: Role,
+        transferId: string,
+        reason?: string
+    ): Promise<TransactionResult> {
+        // Chaincode expects CancelPendingTransfer(transferId, reason)
+        const args = reason ? [transferId, reason] : [transferId];
+        return this.submitTransaction(role, 'CancelPendingTransfer', ...args);
+    }
+
+    /**
      * Get all pending transfers for the caller
      * Returns both incoming and outgoing pending transfers
      */

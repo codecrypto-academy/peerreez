@@ -84,6 +84,26 @@ export function useInitiateTransfer() {
                 throw new Error('User not authenticated');
             }
 
+            // Pre-check: if this is a full-asset transfer (no quantityRequested)
+            // ensure there is no existing pending transfer for the same asset.
+            const qtyRequested = transferData && typeof transferData.quantityRequested === 'number'
+                ? transferData.quantityRequested
+                : undefined;
+
+            if (qtyRequested === undefined) {
+                // Full transfer - check pending transfers to avoid endorsement failure
+                const pendingRes = await gatewayHttpService.getPendingTransfers(toGatewayRole(user.role));
+                if (!pendingRes.success) {
+                    throw new Error(pendingRes.error || 'Failed to check existing pending transfers');
+                }
+
+                const pendingList: any[] = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
+                const conflict = pendingList.find((t: any) => t.assetId === assetId && t.status === 'PENDING');
+                if (conflict) {
+                    throw new Error(`Asset ${assetId} already has a pending transfer: ${conflict.id}`);
+                }
+            }
+
             const result = await gatewayHttpService.initiateTransfer(
                 toGatewayRole(user.role),
                 assetId,
@@ -196,6 +216,44 @@ export function useRejectTransfer() {
                 }
             }
         },
+    });
+}
+
+/**
+ * Hook to cancel a pending transfer (initiator/admin)
+ */
+export function useCancelTransfer() {
+    const user = useCurrentUser();
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ transferId, reason, assetId }: { transferId: string; reason?: string; assetId?: string; }) => {
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            const result = await gatewayHttpService.cancelTransfer(
+                toGatewayRole(user.role),
+                transferId,
+                reason
+            );
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to cancel transfer');
+            }
+
+            return result;
+        },
+        onSuccess: (_, variables) => {
+            if (user) {
+                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                if (variables.assetId) {
+                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
+                    queryClient.invalidateQueries({ queryKey: assetKeys.history(variables.assetId) });
+                }
+            }
+        }
     });
 }
 

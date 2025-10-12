@@ -47,7 +47,7 @@ export interface AssetTransfer {
 
 export interface AssetHistory {
     assetId: string;
-    action: 'CREATE' | 'UPDATE' | 'TRANSFER' | 'INITIATE_TRANSFER' | 'ACCEPT_TRANSFER' | 'REJECT_TRANSFER' | 'TRANSFORM' | 'DELETE';
+    action: 'CREATE' | 'UPDATE' | 'TRANSFER' | 'INITIATE_TRANSFER' | 'ACCEPT_TRANSFER' | 'REJECT_TRANSFER' | 'CANCEL_TRANSFER' | 'TRANSFORM' | 'DELETE';
     timestamp: string;
     actor: string;
     previousOwner: string;
@@ -81,7 +81,7 @@ export interface PendingTransfer {
     to: string;                    // Can be MSP ID or complete X.509 identity of recipient
     toMSP: string;                 // MSP ID of recipient (e.g., "FactoryMSP")
     initiatedAt: string;           // ISO timestamp when transfer was initiated
-    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
     transferData: any;             // Additional transfer information (location, transport, etc.)
     previousStatus?: Asset['status'];       // Preserve asset status before initiating transfer
     // Optional: the explicit recipient identity (full x509) when known. If present, AcceptTransfer
@@ -90,4 +90,8 @@ export interface PendingTransfer {
     // Optional: quantity requested by the initiator (for partial transfers)
     quantityRequested?: number;
     rejectionReason?: string;      // Only present if status is 'REJECTED'
+    // Cancellation metadata
+    cancellationReason?: string;
+    cancelledAt?: string;
+    cancelledBy?: string;
 }

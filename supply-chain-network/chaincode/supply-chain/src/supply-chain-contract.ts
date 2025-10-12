@@ -1148,6 +1148,78 @@ export class SupplyChainContract extends Contract {
         console.info(`============= END : RejectTransfer ===========`);
     }
 
+    // Cancel a pending transfer (initiator or admin)
+    @Transaction()
+    public async CancelPendingTransfer(ctx: Context, transferId: string, reason: string = ''): Promise<void> {
+        console.info(`============= START : CancelPendingTransfer for ${transferId} ===========`);
+
+        // 1. Read PendingTransfer
+        const transferBytes = await ctx.stub.getState(transferId);
+        if (!transferBytes || transferBytes.length === 0) {
+            throw new Error(`Pending transfer ${transferId} does not exist`);
+        }
+
+        const pendingTransfer: PendingTransfer = JSON.parse(transferBytes.toString());
+
+        // 2. Verify transfer is still pending
+        if (pendingTransfer.status !== 'PENDING') {
+            throw new Error(`Transfer ${transferId} has already been ${pendingTransfer.status.toLowerCase()}`);
+        }
+
+        // 3. Authorization: only initiator (fromMSP) or admin can cancel
+        const clientId = this.getClientIdentity(ctx);
+        const clientMSP = this.getClientMSP(ctx);
+
+        const isAdmin = this.isAdmin(ctx);
+        if (!isAdmin && pendingTransfer.fromMSP !== clientMSP) {
+            throw new Error(`Only the initiator (${pendingTransfer.fromMSP}) or an admin can cancel this transfer`);
+        }
+
+        // 4. Optionally, restore asset status if needed (contract currently leaves asset untouched at initiation)
+        try {
+            const assetString = await this.ReadAsset(ctx, pendingTransfer.assetId);
+            const asset: Asset = JSON.parse(assetString);
+
+            // If the pending transfer stored a previousStatus, ensure asset.status is at least restored
+            if (pendingTransfer.previousStatus && asset.status !== pendingTransfer.previousStatus) {
+                asset.status = pendingTransfer.previousStatus;
+                asset.updatedAt = new Date().toISOString();
+                await ctx.stub.putState(asset.id, Buffer.from(JSON.stringify(asset)));
+            }
+        } catch (err) {
+            // If asset read fails, continue — cancellation should still proceed; log for debug
+            console.debug(`Warning: could not read asset ${pendingTransfer.assetId} while cancelling transfer ${transferId}: ${err}`);
+        }
+
+        // 5. Update PendingTransfer status to CANCELLED and add cancellation metadata
+        pendingTransfer.status = 'CANCELLED';
+        pendingTransfer.cancellationReason = reason;
+        pendingTransfer.cancelledAt = new Date().toISOString();
+        pendingTransfer.cancelledBy = clientId;
+
+        await ctx.stub.putState(transferId, Buffer.from(JSON.stringify(pendingTransfer)));
+
+        // 6. Record history entry
+        const historyEntry: AssetHistory = {
+            assetId: pendingTransfer.assetId,
+            action: 'CANCEL_TRANSFER',
+            timestamp: pendingTransfer.cancelledAt!,
+            actor: clientId,
+            previousOwner: pendingTransfer.from,
+            newOwner: pendingTransfer.from,
+            data: {
+                transferId,
+                reason,
+                cancelledBy: clientId
+            }
+        };
+
+        await this.recordHistory(ctx, pendingTransfer.assetId, historyEntry);
+
+        console.info(`Transfer ${transferId} cancelled by ${clientMSP} (${clientId}). Reason: ${reason}`);
+        console.info(`============= END : CancelPendingTransfer ===========`);
+    }
+
     // Get pending transfers for current user
     @Transaction(false)
     @Returns('string')

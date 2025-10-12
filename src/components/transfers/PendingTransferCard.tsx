@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { PendingTransfer } from '@/types/fabric';
-import { useAcceptTransfer, useRejectTransfer } from '@/hooks/usePendingTransfers';
+import { useAcceptTransfer, useRejectTransfer, useCancelTransfer } from '@/hooks/usePendingTransfers';
+import { useCurrentUser } from '@/components/auth/RoleGuard';
 
 interface PendingTransferCardProps {
     transfer: PendingTransfer;
@@ -12,9 +13,13 @@ interface PendingTransferCardProps {
 export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCardProps) {
     const [showRejectDialog, setShowRejectDialog] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [showCancelCard, setShowCancelCard] = useState(false);
+    const [cancelReason, setCancelReason] = useState<string | undefined>(undefined);
 
     const acceptTransfer = useAcceptTransfer();
     const rejectTransfer = useRejectTransfer();
+    const cancelTransfer = useCancelTransfer();
+    const currentUser = useCurrentUser();
 
     const handleAccept = async () => {
         try {
@@ -54,6 +59,7 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
 
     const isIncoming = transfer.direction === 'incoming';
     const isOutgoing = transfer.direction === 'outgoing';
+    const isInitiator = currentUser ? currentUser.mspId === transfer.fromMSP : false;
 
     return (
         <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow text-black">
@@ -179,6 +185,60 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
                     <p className="text-sm text-blue-900">
                         ℹ️ Waiting for <strong>{transfer.toMSP}</strong> to accept or reject this transfer.
                     </p>
+                    {/* If current user initiated this outgoing transfer, show Cancel button */}
+                    {isInitiator && transfer.status === 'PENDING' && (
+                        <div className="mt-3">
+                            {!showCancelCard ? (
+                                <button
+                                    onClick={() => setShowCancelCard(true)}
+                                    className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                                >
+                                    🛑 Cancel Transfer
+                                </button>
+                            ) : (
+                                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                    <label className="block text-sm font-medium text-red-900 mb-2">Cancelar transferencia (opcional)</label>
+                                    <textarea
+                                        value={cancelReason ?? ''}
+                                        onChange={(e) => setCancelReason(e.target.value || undefined)}
+                                        placeholder="Motivo opcional de cancelación"
+                                        className="w-full px-3 py-2 border border-red-300 rounded-md text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent text-black"
+                                        rows={3}
+                                    />
+                                    <div className="mt-3 flex gap-2">
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    await cancelTransfer.mutateAsync({ transferId: transfer.id, reason: cancelReason, assetId: transfer.assetId });
+                                                    setShowCancelCard(false);
+                                                    setCancelReason(undefined);
+                                                    onSuccess?.();
+                                                } catch (error: unknown) {
+                                                    console.error('[PendingTransferCard] Error cancelling transfer:', error);
+                                                    const message = error instanceof Error ? error.message : String(error);
+                                                    alert('Failed to cancel transfer: ' + (message || 'Unknown error'));
+                                                }
+                                            }}
+                                            disabled={cancelTransfer.isPending}
+                                            className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+                                        >
+                                            {cancelTransfer.isPending ? '⏳ Cancelling...' : 'Confirm Cancel'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowCancelCard(false);
+                                                setCancelReason(undefined);
+                                            }}
+                                            disabled={cancelTransfer.isPending}
+                                            className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                                        >
+                                            Abort
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 

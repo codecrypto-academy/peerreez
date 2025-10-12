@@ -549,6 +549,40 @@ class GatewayHttpService {
             };
         }
     }
+
+    /**
+     * Cancel a pending transfer (initiator/admin)
+     */
+    async cancelTransfer(role: Role, transferId: string, reason?: string): Promise<TransactionResult> {
+        try {
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/cancel-transfer', { role, transferId });
+            const response = await fetch('/api/fabric/gateway/cancel-transfer', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ role, transferId, reason }),
+            });
+
+            if (!response.ok) {
+                const errorData = (await response.json()) as { error?: string } | null;
+                return {
+                    success: false,
+                    error: (errorData && errorData.error) || `HTTP error! status: ${response.status}`,
+                };
+            }
+
+            return (await response.json()) as TransactionResult;
+        } catch (error: unknown) {
+            console.error('Gateway HTTP error:', error);
+            const message = error instanceof Error ? error.message : String(error);
+            return {
+                success: false,
+                error: message || 'Network error',
+            };
+        }
+    }
 }
 
 // Export singleton instance

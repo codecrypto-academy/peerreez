@@ -60,6 +60,25 @@ export async function POST(request: NextRequest) {
 
         console.log(`[API] Initiating transfer: ${assetId} → ${recipientMSP} (by ${role}) [cookie]`);
 
+        // Server-side pre-check: if this is a full-asset transfer (no quantityRequested),
+        // ensure there is no existing pending transfer for the same asset to avoid endorsement failure.
+        const qtyRequested = transferData && typeof transferData.quantityRequested === 'number'
+            ? transferData.quantityRequested
+            : undefined;
+
+        if (qtyRequested === undefined) {
+            const pendingRes = await gatewayService.getPendingTransfers(role as Role);
+            if (!pendingRes.success) {
+                return NextResponse.json({ success: false, error: pendingRes.error || 'Failed to check pending transfers' }, { status: 500 });
+            }
+
+            const pendingList: any[] = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
+            const conflict = pendingList.find((t: any) => t.assetId === assetId && t.status === 'PENDING');
+            if (conflict) {
+                return NextResponse.json({ success: false, error: `Asset ${assetId} already has a pending transfer: ${conflict.id}` }, { status: 409 });
+            }
+        }
+
         // Call gateway service
         const result = await gatewayService.initiateTransfer(
             role as Role,

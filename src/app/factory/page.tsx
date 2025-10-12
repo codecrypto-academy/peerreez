@@ -13,6 +13,7 @@ export default function FactoryPage() {
     const [showRawMaterialsList, setShowRawMaterialsList] = useState(false);
     const [showProductsList, setShowProductsList] = useState(false);
     const [showHistoryList, setShowHistoryList] = useState(false);
+    const [showOutgoingList, setShowOutgoingList] = useState(false);
     const [transferringProductId, setTransferringProductId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -201,7 +202,7 @@ export default function FactoryPage() {
                     )}
 
                     {/* Stats Cards CON DATOS REALES */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                         <div
                             onClick={() => setShowRawMaterialsList(!showRawMaterialsList)}
                             className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
@@ -283,6 +284,32 @@ export default function FactoryPage() {
                                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
                                     <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Outgoing to Retailer Card */}
+                        <div
+                            onClick={() => {
+                                const next = !showOutgoingList;
+                                setShowOutgoingList(next);
+                                if (next) setTimeout(() => { const el = document.getElementById('factoryOutgoingSection'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
+                            }}
+                            className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Pending → Retailer</p>
+                                    <p className="text-3xl font-bold text-amber-600">{((pendingTransfers || []) as PendingTransfer[]).filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('retailer')).length}</p>
+                                </div>
+                                <div className="flex flex-col items-center gap-2">
+                                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showOutgoingList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
                             </div>
@@ -392,6 +419,41 @@ export default function FactoryPage() {
                                         ))}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Outgoing Pending Transfers to Retailer (collapsible) */}
+                    {showOutgoingList && ((pendingTransfers || []) as PendingTransfer[]).some((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('retailer')) && (
+                        <div id="factoryOutgoingSection" className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
+                            <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
+                                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center mr-3">
+                                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                Outgoing Transfers to Retailer
+                                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                    {((pendingTransfers || []) as PendingTransfer[]).filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('retailer')).length}
+                                </span>
+                                <button
+                                    onClick={() => { refetch(); }}
+                                    className="ml-auto px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg text-sm hover:bg-gray-100"
+                                >
+                                    Refresh
+                                </button>
+                            </h2>
+
+                            <div className="grid grid-cols-1 gap-4">
+                                {((pendingTransfers || []) as PendingTransfer[])
+                                    .filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('retailer'))
+                                    .map((transfer: PendingTransfer) => (
+                                        <div key={transfer.id} className="p-4 bg-white rounded-lg border border-amber-100">
+                                            <p className="font-medium text-gray-900">Asset: {transfer.assetId}</p>
+                                            <p className="text-sm text-gray-600">To: {transfer.toMSP} • Status: {transfer.status}</p>
+                                            <p className="text-sm text-gray-500 mt-2">Initiated: {new Date(transfer.initiatedAt).toLocaleString()}</p>
+                                        </div>
+                                    ))}
+                            </div>
                         </div>
                     )}
 
