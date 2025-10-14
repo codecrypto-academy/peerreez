@@ -1,4 +1,5 @@
 import Header from './Header';
+import ClientBodyToggle from './ClientBodyToggle';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -40,6 +41,11 @@ export default function Layout({ children, title, description }: LayoutProps) {
             <main className="flex-1">
                 {children}
             </main>
+
+            {/* Toggle body attribute to disable clicks on buttons/links when Producer is viewing non-producer pages */}
+            {/* This runs on client only; keep minimal to avoid SSR issues */}
+            {/* eslint-disable-next-line react-hooks/rules-of-hooks */}
+            <ClientBodyToggle />
 
             {/* Footer */}
             <footer className="bg-white border-t border-gray-200 mt-16">

@@ -507,7 +507,7 @@ export default function TracePage() {
                                 </div>
                                 <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white">
-                                        <div className="text-xs">Manufacturer</div>
+                                        <div className="text-xs">Factory</div>
                                         <div className="font-bold mt-1">{extractOrgFromIdentity(traceData.asset.createdBy)}</div>
                                     </div>
                                     <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white">

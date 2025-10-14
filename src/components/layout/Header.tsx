@@ -1,10 +1,46 @@
+"use client";
+
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRef } from 'react';
+import { createPortal } from 'react-dom';
+import LoginForm from '@/components/auth/LoginForm';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function Header() {
+    const [showLogin, setShowLogin] = useState(false);
+    const { user } = useAuth();
+
+    const portalRoot = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        portalRoot.current = document.body;
+    }, []);
+
+    useEffect(() => {
+        if (showLogin) {
+            // lock scroll
+            const original = document.body.style.overflow;
+            document.body.style.overflow = 'hidden';
+
+            const onKey = (e: KeyboardEvent) => {
+                if (e.key === 'Escape') setShowLogin(false);
+            };
+            window.addEventListener('keydown', onKey);
+
+            return () => {
+                document.body.style.overflow = original;
+                window.removeEventListener('keydown', onKey);
+            };
+        }
+        return;
+    }, [showLogin]);
+
     return (
         <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
             <div className="container mx-auto px-6">
-                <div className="flex items-center justify-between h-16">
+                <div className="flex items-center justify-between h-16 relative">
                     {/* Logo */}
                     <div className="flex items-center">
                         <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
@@ -63,16 +99,53 @@ export default function Header() {
                         </Link>
                     </nav>
 
-                    {/* Blockchain Status */}
-                    <div className="hidden lg:flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <span className="text-sm text-gray-600">Fabric Connected</span>
+                    {/* Right area: user badge + login popover */}
+                    <div className="flex items-center space-x-4">
+                        <div className="hidden lg:block">
+                            <div className="px-3 py-1 bg-gray-100 rounded-lg">
+                                <span className="text-xs text-gray-600">Network: supply-chain</span>
+                            </div>
                         </div>
 
-                        {/* Network Info */}
-                        <div className="px-3 py-1 bg-gray-100 rounded-lg">
-                            <span className="text-xs text-gray-600">Network: supply-chain</span>
+                        <div className="relative">
+                            {/* Trigger button to open modal and change role */}
+                            {/* Trigger button to open modal and change role (styled) */}
+                            <div className="flex items-center gap-3">
+                                <div className="px-2 py-1 bg-gray-100 rounded-full text-sm text-gray-800">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Guest'}</div>
+                                <button
+                                    onClick={() => setShowLogin((s) => !s)}
+                                    aria-expanded={showLogin}
+                                    aria-haspopup="dialog"
+                                    className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-black bg-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                >
+                                    <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m0-4a4 4 0 100-8 4 4 0 000 8z" />
+                                    </svg>
+                                    <span>Cambiar rol</span>
+                                </button>
+                            </div>
+
+                            {showLogin && portalRoot.current && createPortal(
+                                <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+                                    {/* Backdrop: click to close */}
+                                    <div
+                                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                                        onClick={() => setShowLogin(false)}
+                                    />
+
+                                    {/* Modal container */}
+                                    <div
+                                        role="dialog"
+                                        aria-modal="true"
+                                        className="relative z-[10000] w-full max-w-lg px-4 allow-interaction"
+                                    >
+                                        <div className="transform transition-all duration-150 scale-100">
+                                            <LoginForm onClose={() => setShowLogin(false)} />
+                                        </div>
+                                    </div>
+                                </div>,
+                                portalRoot.current,
+                            )}
                         </div>
                     </div>
 
