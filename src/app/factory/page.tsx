@@ -5,6 +5,7 @@ import { useAssetsByOwner } from '../../hooks/useGatewayAssets';
 import { useTransferHistory } from '../../hooks/useTransferHistory';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
+import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import { useState } from 'react';
 import { PendingTransfer } from '@/types/fabric';
 import { Asset } from '../../hooks/useGatewayAssets';
@@ -14,6 +15,7 @@ export default function FactoryPage() {
     const [showProductsList, setShowProductsList] = useState(false);
     const [showHistoryList, setShowHistoryList] = useState(false);
     const [showOutgoingList, setShowOutgoingList] = useState(false);
+    const [showContainerLogs, setShowContainerLogs] = useState(false);
     const [transferringProductId, setTransferringProductId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -202,7 +204,7 @@ export default function FactoryPage() {
                     )}
 
                     {/* Stats Cards CON DATOS REALES */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
                         <div
                             onClick={() => setShowRawMaterialsList(!showRawMaterialsList)}
                             className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
@@ -310,6 +312,29 @@ export default function FactoryPage() {
                                     </div>
                                     <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showOutgoingList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Container Logs Card Expandible */}
+                        <div
+                            onClick={() => setShowContainerLogs((prev) => !prev)}
+                            className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <div className="flex items-center">
+                                        <p className="text-sm font-medium text-gray-500">Container Logs</p>
+                                        <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showContainerLogs ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-3xl font-bold text-gray-600 group-hover:text-gray-700 transition-colors">--</p>
+                                    <p className="text-xs text-gray-400 mt-1">View container logs</p>
+                                </div>
+                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                                    <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                     </svg>
                                 </div>
                             </div>
@@ -794,6 +819,13 @@ export default function FactoryPage() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    )}
+
+                    {/* Container Logs Expandible Content */}
+                    {showContainerLogs && (
+                        <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 animate-in slide-in-from-top-2 duration-300">
+                            <ContainerLogsCard containerName="peer0.factory.supplychain.com" />
                         </div>
                     )}
 

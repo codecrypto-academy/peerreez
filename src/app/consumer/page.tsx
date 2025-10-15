@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 import Layout from '../../components/layout/Layout';
@@ -6,18 +6,17 @@ import { useAssetsByOwner, Asset } from '../../hooks/useGatewayAssets';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransfer } from '@/types/fabric';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
+import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import Link from 'next/link';
 
 export default function ConsumerPage() {
     const { data: assets = [], isLoading } = useAssetsByOwner();
     const [showProductsList, setShowProductsList] = useState(false);
+    const [showContainerLogs, setShowContainerLogs] = useState(false);
 
-    // Consider both DELIVERED and IN_TRANSIT as consumer-owned items that should appear
-    // when the consumer has accepted a transfer. Include items regardless of type so
-    // purchases that are RAW_MATERIAL (e.g., bread batches) also show up in the UI.
-    const myProducts = (assets as Asset[]).filter(a => (a.status === 'DELIVERED' || a.status === 'IN_TRANSIT'));
+    // show only delivered or in-transit items
+    const myProducts = (assets as Asset[]).filter((a) => a.status === 'DELIVERED' || a.status === 'IN_TRANSIT');
     const { data: pendingTransfers = [], isLoading: pendingLoading, refetch: refetchPending } = usePendingTransfers();
-
     const incomingPending = (pendingTransfers as PendingTransfer[]).filter((t) => t.direction === 'incoming').length;
 
     return (
@@ -29,34 +28,54 @@ export default function ConsumerPage() {
                         <p className="text-lg text-gray-600">View and trace your purchased products</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-6 mb-8">
+                    {/* Header: only two cards per request */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        {/* My Products */}
                         <div
-                            onClick={() => setShowProductsList(!showProductsList)}
-                            className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group"
+                            onClick={() => setShowProductsList((s) => !s)}
+                            className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
                         >
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-500 group-hover:text-cyan-600 transition-colors">My Products</p>
+                                    <div className="flex items-center">
+                                        <p className="text-sm font-medium text-gray-500">My Products</p>
+                                    </div>
                                     {isLoading ? (
                                         <div className="w-12 h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
                                     ) : (
-                                        <p className="text-3xl font-bold text-cyan-600">{myProducts.length}</p>
+                                        <p className="text-3xl font-bold text-cyan-600 group-hover:text-cyan-700 transition-colors">{myProducts.length}</p>
                                     )}
+                                    <p className="text-xs text-gray-400 mt-1">Items in your possession</p>
                                 </div>
-                                <div className="flex flex-col items-center gap-2">
-                                    <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                                        </svg>
-                                    </div>
-                                    <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showProductsList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center group-hover:bg-cyan-200 transition-colors">
+                                    <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Container Logs Card */}
+                        <div
+                            onClick={() => setShowContainerLogs((s) => !s)}
+                            className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">Container Logs</p>
+                                    <p className="text-3xl font-bold text-gray-600 group-hover:text-gray-700 transition-colors">--</p>
+                                    <p className="text-xs text-gray-400 mt-1">View container logs</p>
+                                </div>
+                                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                                    <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                     </svg>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    {/* Collapsible products list */}
                     {showProductsList && (
                         <div className="mb-8 bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6">
                             <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
@@ -125,20 +144,10 @@ export default function ConsumerPage() {
                         </div>
                     )}
 
-
-
+                    {/* Main info card */}
                     <div className="grid grid-cols-1 gap-8">
                         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl transition-all duration-300 group">
                             <div className="flex items-center mb-6">
-                                <div className="w-14 h-14 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center mr-4 group-hover:scale-110 transition-transform duration-300">
-                                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-900">Product Traceability</h2>
-                                    <p className="text-gray-600 mt-1">Full supply chain transparency</p>
-                                </div>
                             </div>
 
                             <p className="text-gray-600 mb-6 leading-relaxed">
@@ -149,21 +158,15 @@ export default function ConsumerPage() {
                                 href="/consumer/trace"
                                 className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold rounded-xl hover:from-cyan-600 hover:to-blue-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
                             >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
                                 View Traceability
                             </Link>
                         </div>
                     </div>
 
-                    {/* Pending Incoming Transfers (Consumer) - moved to bottom so it appears after main content */}
+                    {/* Pending Incoming Transfers (moved down) */}
                     {incomingPending > 0 && (
                         <div className="mt-8 bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6">
                             <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                                <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
                                 Pending Incoming Transfers ({incomingPending})
                             </h3>
                             {pendingLoading ? (
@@ -175,6 +178,13 @@ export default function ConsumerPage() {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Container Logs Expandible Content */}
+                    {showContainerLogs && (
+                        <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 animate-in slide-in-from-top-2 duration-300">
+                            <ContainerLogsCard containerName="peer0.consumer.supplychain.com" />
                         </div>
                     )}
                 </div>

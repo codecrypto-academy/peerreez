@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Layout from '../../components/layout/Layout';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
+import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import { PendingTransfer, Asset } from '@/types/fabric';
 import { useAssetsByOwner } from '../../hooks/useGatewayAssets';
 import { useTransferHistory } from '../../hooks/useTransferHistory';
@@ -17,6 +18,7 @@ export default function RetailerPage() {
     const [showInventoryList, setShowInventoryList] = useState(false);
     const [showSoldList, setShowSoldList] = useState(false);
     const [showOutgoingList, setShowOutgoingList] = useState(false);
+    const [showContainerLogs, setShowContainerLogs] = useState(false);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
     // Calcular estadísticas reales desde los datos del blockchain
@@ -88,29 +90,30 @@ export default function RetailerPage() {
                         // ...existing code...
 
                         {/* Grid principal: Stats (including Pending Transfers card) */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                             {/* Products in Stock Card */}
                             <div
                                 onClick={() => setShowInventoryList(!showInventoryList)}
-                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group flex flex-col justify-between"
+                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500 group-hover:text-indigo-600 transition-colors">Products in Stock</p>
+                                        <div className="flex items-center">
+                                            <p className="text-sm font-medium text-gray-500">Products in Stock</p>
+                                            <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showInventoryList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
                                         {loading ? (
                                             <div className="w-16 h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
                                         ) : (
-                                            <p className="text-3xl font-bold text-indigo-600">{stats.inventory}</p>
+                                            <p className="text-3xl font-bold text-indigo-600 group-hover:text-indigo-700 transition-colors">{stats.inventory}</p>
                                         )}
+                                        <p className="text-xs text-gray-400 mt-1">Available to distribute</p>
                                     </div>
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                            </svg>
-                                        </div>
-                                        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showInventoryList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                         </svg>
                                     </div>
                                 </div>
@@ -119,47 +122,48 @@ export default function RetailerPage() {
                             {/* Products Sold Card */}
                             <div
                                 onClick={() => setShowSoldList(!showSoldList)}
-                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group flex flex-col justify-between"
+                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500 group-hover:text-green-600 transition-colors">Products Sold</p>
+                                        <div className="flex items-center">
+                                            <p className="text-sm font-medium text-gray-500">Products Sold</p>
+                                            <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showSoldList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
                                         {loading ? (
                                             <div className="w-12 h-8 bg-gray-200 animate-pulse rounded mt-1"></div>
                                         ) : (
-                                            <p className="text-3xl font-bold text-green-600">{stats.sold}</p>
+                                            <p className="text-3xl font-bold text-green-600 group-hover:text-green-700 transition-colors">{stats.sold}</p>
                                         )}
+                                        <p className="text-xs text-gray-400 mt-1">Sold to consumers</p>
                                     </div>
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </div>
-                                        <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showSoldList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                     </div>
                                 </div>
                             </div>
-                            {/* Outgoing to Consumers Card */}
+
+                            {/* Pending → Consumers Card */}
                             <div
                                 onClick={() => {
                                     const next = !showOutgoingList;
                                     setShowOutgoingList(next);
                                     if (next) {
-                                        // wait a tick for the section to render then scroll
                                         setTimeout(() => {
                                             const el = document.getElementById('outgoingTransfersSection');
                                             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                         }, 120);
                                     }
                                 }}
-                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group flex flex-col justify-between"
+                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500 group-hover:text-amber-600 transition-colors">Pending → Consumers</p>
+                                        <p className="text-sm font-medium text-gray-500">Pending → Consumers</p>
                                         <p className="text-3xl font-bold text-amber-600">{((pendingTransfers || []) as PendingTransfer[]).filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('consumer')).length}</p>
                                     </div>
                                     <div className="flex flex-col items-center gap-2">
@@ -170,6 +174,30 @@ export default function RetailerPage() {
                                         </div>
                                         <svg className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${showOutgoingList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Container Logs Card Expandible */}
+                            <div
+                                onClick={() => setShowContainerLogs((prev) => !prev)}
+                                className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-200 group"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="flex items-center">
+                                            <p className="text-sm font-medium text-gray-500">Container Logs</p>
+                                            <svg className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${showContainerLogs ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-3xl font-bold text-gray-600 group-hover:text-gray-700 transition-colors">--</p>
+                                        <p className="text-xs text-gray-400 mt-1">View container logs</p>
+                                    </div>
+                                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                                        <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                         </svg>
                                     </div>
                                 </div>
@@ -470,6 +498,12 @@ export default function RetailerPage() {
                                             />
                                         ))}
                                 </div>
+                            </div>
+                        )}
+                        {/* Container Logs Expandible Content */}
+                        {showContainerLogs && (
+                            <div className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 animate-in slide-in-from-top-2 duration-300">
+                                <ContainerLogsCard containerName="peer0.retailer.supplychain.com" />
                             </div>
                         )}
                     </div>
