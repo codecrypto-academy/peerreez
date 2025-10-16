@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GatewayService } from '@/lib/fabric/gateway/gateway-service';
+import { Asset } from '@/types/fabric';
 
 /**
  * API Route: Get Transfer History
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[API] Raw chaincode response:', JSON.stringify(result.data).substring(0, 200));
 
-    const assets: any[] = Array.isArray(result.data) ? result.data : [];
+  const assets: Asset[] = Array.isArray(result.data) ? (result.data as Asset[]) : [];
 
     console.log(`[API] Transfer history retrieved: ${assets.length} assets`);
 

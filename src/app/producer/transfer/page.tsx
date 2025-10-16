@@ -29,7 +29,7 @@ export default function TransferAssetPage() {
   // pending transfers UI removed from this route per request
   const { mutateAsync: initiateTransfer, isPending: loading, isError, error, isSuccess: success, reset } = useInitiateTransfer();
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof TransferForm, value: TransferForm[keyof TransferForm]) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -71,8 +71,8 @@ export default function TransferAssetPage() {
         notes: '',
         reason: ''
       });
-    } catch (err: any) {
-      console.error('Transfer initiation failed:', err);
+    } catch (err: unknown) {
+      console.error('Transfer initiation failed:', err instanceof Error ? err.message : String(err));
     }
   };
 

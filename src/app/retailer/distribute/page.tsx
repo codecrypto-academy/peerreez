@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
-import { useAssetsByOwner } from '@/hooks/useGatewayAssets';
+import { useAssetsByOwner, Asset } from '@/hooks/useGatewayAssets';
 import { useInitiateTransfer } from '@/hooks/usePendingTransfers';
 
 // Consumer identity - Single consumer in the system
@@ -17,23 +17,23 @@ export default function DistributePage() {
     const [purchaseLocation, setPurchaseLocation] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('');
     const [notes, setNotes] = useState<string>('');
-    const [requireAcceptance, setRequireAcceptance] = useState<boolean>(false);
+    // requireAcceptance state retained for historical reasons but not used; keep as a constant
+    const [requireAcceptance] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
     // Filter assets that can be distributed to consumers:
     // - PRODUCT assets that are MANUFACTURED or IN_TRANSIT
     // - RAW_MATERIAL assets (e.g., bread batches) that are CREATED or MANUFACTURED
     const availableProducts = assets?.filter(
-        (asset: any) => (
+        (asset: Asset) => (
             (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'IN_TRANSIT')) ||
             (asset.type === 'RAW_MATERIAL' && (asset.status === 'CREATED' || asset.status === 'MANUFACTURED'))
         )
     ) || [];
 
     // Values for the currently selected product (render scope)
-    const selectedProductInView = availableProducts.find((asset: any) => asset.id === selectedAsset);
+    const selectedProductInView = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
     const selectedProductQtyInView = selectedProductInView ? (typeof selectedProductInView.quantity === 'number' ? selectedProductInView.quantity : Number(selectedProductInView.quantity) || 0) : 0;
-    const selectedProductUnitInView = selectedProductInView ? ((selectedProductInView.unit as string) || 'units') : 'units';
 
     const initiateTransfer = useInitiateTransfer();
 
@@ -53,8 +53,8 @@ export default function DistributePage() {
         }
 
         // Get selected product to validate quantity
-        const selectedProduct = availableProducts.find((asset: any) => asset.id === selectedAsset);
-        const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
+    const selectedProduct = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
+    const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
         if (selectedProduct && quantityToSell > selectedProductQty) {
             setNotification({
                 type: 'error',
@@ -98,10 +98,10 @@ export default function DistributePage() {
             setNotes('');
 
             setTimeout(() => setNotification(null), 3000);
-        } catch (err: any) {
-            console.error('Distribution error:', err);
+        } catch (err: unknown) {
+            console.error('Distribution error:', err instanceof Error ? err.message : String(err));
             // Prefer mutation error messages when available
-            const msg = err?.message || (initiateTransfer.error as any)?.message || 'Unknown error';
+            const msg = err instanceof Error ? err.message : (initiateTransfer.error as unknown as { message?: string })?.message || 'Unknown error';
             setNotification({ type: 'error', message: `Error distributing product: ${msg}` });
             setTimeout(() => setNotification(null), 5000);
         }
@@ -188,7 +188,8 @@ export default function DistributePage() {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 gap-3">
-                                        {availableProducts.map((asset: any) => (
+                                        {availableProducts.map((asset: Asset) => {
+                                            return (
                                             <label
                                                 key={asset.id}
                                                 className={`relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedAsset === asset.id
@@ -219,14 +220,15 @@ export default function DistributePage() {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    {asset.quantity !== undefined && (
-                                                        <p className="text-sm text-black mt-2">
-                                                            Quantity: {asset.quantity} {asset.unit || 'units'}
-                                                        </p>
-                                                    )}
+                                                                {asset.quantity !== undefined && (
+                                                                    <p className="text-sm text-black mt-2">
+                                                                        Quantity: {typeof asset.quantity === 'number' ? asset.quantity : Number(asset.quantity || 0)} {typeof asset.unit === 'string' ? asset.unit : 'units'}
+                                                                    </p>
+                                                                )}
                                                 </div>
                                             </label>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -253,7 +255,7 @@ export default function DistributePage() {
 
                             {/* Quantity to Sell */}
                             {selectedAsset && (() => {
-                                const product = availableProducts.find((asset: any) => asset.id === selectedAsset);
+                                const product = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
                                 const availableQuantity = product ? (typeof product.quantity === 'number' ? product.quantity : Number(product.quantity) || 0) : 0;
                                 const unit = product ? ((product.unit as string) || 'units') : 'units';
 

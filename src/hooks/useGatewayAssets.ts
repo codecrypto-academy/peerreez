@@ -136,8 +136,6 @@ export function useAsset(assetId: string | null) {
 
             if (!result.success) {
                 throw new Error(result.error || 'Failed to read asset');
-                "use client";
-
             }
 
             return result.data as Asset;

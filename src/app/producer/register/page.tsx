@@ -26,7 +26,7 @@ export default function RegisterAssetPage() {
   const categories = ['Grains', 'Fruits', 'Vegetables', 'Dairy', 'Meat', 'Other'];
   const certificationOptions = ['Organic', 'Non-GMO', 'Fair Trade', 'Sustainable', 'Kosher', 'Halal'];
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: string, value: unknown) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -34,10 +34,9 @@ export default function RegisterAssetPage() {
   };
 
   const handleArrayToggle = (field: string, value: string) => {
-    const currentArray = (formData as any)[field];
-    const newArray = currentArray.includes(value)
-      ? currentArray.filter((item: string) => item !== value)
-      : [...currentArray, value];
+    const currentArray = (formData as Record<string, unknown>)[field] as string[] | undefined;
+    const arr = Array.isArray(currentArray) ? currentArray : [];
+    const newArray = arr.includes(value) ? arr.filter(item => item !== value) : [...arr, value];
 
     handleInputChange(field, newArray);
   };

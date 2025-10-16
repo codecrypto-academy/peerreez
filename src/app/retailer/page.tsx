@@ -87,7 +87,7 @@ export default function RetailerPage() {
                             </div>
                         )}
 
-                        // ...existing code...
+                        {/* existing code continues below */}
 
                         {/* Grid principal: Stats (including Pending Transfers card) */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -371,7 +371,7 @@ export default function RetailerPage() {
                                             <span className="text-gray-600 ml-3">Loading sold products...</span>
                                         </div>
                                     ) : productsSold.length > 0 ? (
-                                        productsSold.map((asset: any) => (
+                                        productsSold.map((asset: Asset) => (
                                             <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-green-200 hover:shadow-lg transition-all duration-200">
                                                 <div className="flex items-center space-x-4">
                                                     <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -390,9 +390,16 @@ export default function RetailerPage() {
                                                         SOLD
                                                     </span>
                                                     <p className="text-xs text-gray-500 mt-1">
-                                                        {asset.transferHistory && asset.transferHistory.length > 0
-                                                            ? `Sold: ${new Date(asset.transferHistory[asset.transferHistory.length - 1].timestamp).toLocaleDateString()}`
-                                                            : `Created: ${new Date(asset.createdAt).toLocaleDateString()}`}
+                                                        {(() => {
+                                                            const th = ((asset as unknown) as Record<string, unknown>)['transferHistory'] as Array<Record<string, unknown>> | undefined;
+                                                            if (th && th.length > 0) {
+                                                                const last = th[th.length - 1];
+                                                                const ts = last && last['timestamp'];
+                                                                if (typeof ts === 'string') return `Sold: ${new Date(ts).toLocaleDateString()}`;
+                                                                return 'Sold: Unknown';
+                                                            }
+                                                            return `Created: ${new Date(asset.createdAt).toLocaleDateString()}`;
+                                                        })()}
                                                     </p>
                                                     <p className="text-xs text-gray-400 mt-1">
                                                         To: {asset.currentOwner?.includes('consumer') ? '👤 Consumer' : 'Unknown'}
@@ -408,7 +415,7 @@ export default function RetailerPage() {
                                                 </svg>
                                             </div>
                                             <h3 className="text-lg font-medium text-gray-900 mb-2">No Products Sold</h3>
-                                            <p className="text-gray-500">You haven't sold any products to Consumers yet.</p>
+                                            <p className="text-gray-500">You haven&apos;t sold any products to Consumers yet.</p>
                                         </div>
                                     )}
                                 </div>

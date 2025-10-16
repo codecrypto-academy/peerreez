@@ -31,6 +31,8 @@ type RawTrace = {
     asset: {
         id?: string;
         name?: string;
+        type?: string;
+        description?: string;
         origin?: string;
         category?: string;
         quantity?: number;
@@ -38,17 +40,49 @@ type RawTrace = {
         batchNumber?: string;
         status?: string;
         certifications?: string[];
+        createdBy?: string;
+        currentOwner?: string;
+        updatedAt?: string;
+        location?: string;
     };
     history: TraceEvent[];
+};
+
+type TraceData = {
+    asset: {
+        type?: string;
+        id?: string;
+        name?: string;
+        description?: string;
+        origin?: string;
+        category?: string;
+        quantity?: number;
+        unit?: string;
+        batchNumber?: string;
+        status?: string;
+        certifications?: string[];
+        createdBy?: string;
+        currentOwner?: string;
+        updatedAt?: string;
+        location?: string;
+        rawMaterialsUsed?: Record<string, number>;
+    };
+    history?: TraceEvent[];
+    rawMaterialsTrace?: RawTrace[];
 };
 
 export default function TracePage() {
     const [assetId, setAssetId] = useState('');
     const [searchId, setSearchId] = useState('');
-    const [parentTraces, setParentTraces] = useState<any[]>([]);
-    const [collapsedParents, setCollapsedParents] = useState<Record<string, boolean>>({});
+    const [parentTraces, setParentTraces] = useState<TraceData[]>([]);
 
-    const { data: traceData, isLoading: loading, error, refetch } = useAssetHistory(searchId);
+    // Use the hook and coerce result data to TraceData when present
+    const { data: rawTraceData, isLoading: loading, error } = useAssetHistory(searchId) as {
+        data?: unknown;
+        isLoading: boolean;
+        error?: unknown;
+    };
+    const traceData = rawTraceData as TraceData | undefined;
 
     // Prepare a merged history (chronological) that includes:
     //  - raw materials histories (producer events)
@@ -60,8 +94,8 @@ export default function TracePage() {
         // raw materials histories (producer -> factory)
         if (traceData && Array.isArray(traceData.rawMaterialsTrace)) {
             for (const r of traceData.rawMaterialsTrace) {
-                if (Array.isArray((r as any).history)) {
-                    for (const ev of (r as any).history as TraceEvent[]) {
+                if (Array.isArray(r.history)) {
+                    for (const ev of r.history as TraceEvent[]) {
                         events.push({ ...ev, origin: 'raw' });
                     }
                 }
@@ -96,7 +130,7 @@ export default function TracePage() {
         let mounted = true;
         const MAX_DEPTH = 6;
 
-        const findParentIds = (data: any) => {
+            const findParentIds = (data: TraceData | undefined) => {
             const parents = new Set<string>();
             if (!data) return parents;
 
@@ -108,14 +142,14 @@ export default function TracePage() {
 
             if (Array.isArray(data.history)) {
                 for (const h of data.history) {
-                    try {
-                        const d: any = h.data || {};
-                        if (d.originalProductId && typeof d.originalProductId === 'string') {
-                            parents.add(d.originalProductId);
+                        try {
+                            const d = (h.data || {}) as Record<string, unknown>;
+                            if (d.originalProductId && typeof d.originalProductId === 'string') {
+                                parents.add(String(d.originalProductId));
+                            }
+                        } catch {
+                            // ignore
                         }
-                    } catch (err) {
-                        // ignore
-                    }
                 }
             }
 
@@ -126,7 +160,7 @@ export default function TracePage() {
             setParentTraces([]);
             if (!traceData || !traceData.asset) return;
 
-            const results: any[] = [];
+            const results: TraceData[] = [];
             const visited = new Set<string>();
             const queue: Array<{ id: string; depth: number }> = [];
 
@@ -143,7 +177,7 @@ export default function TracePage() {
                     const res = await fetch(`/api/fabric/gateway?operation=getTrace&role=Consumer&assetId=${encodeURIComponent(id)}`);
                     const json = await res.json();
                     if (json && json.success && json.data) {
-                        results.push(json.data);
+                        results.push(json.data as TraceData);
 
                         if (depth < MAX_DEPTH) {
                             const more = findParentIds(json.data);
@@ -152,7 +186,7 @@ export default function TracePage() {
                             }
                         }
                     }
-                } catch (err) {
+                } catch {
                     // ignore per-node errors
                 }
 
@@ -172,112 +206,8 @@ export default function TracePage() {
         setSearchId(assetId);
     };
 
-    const toggleParentCollapse = (id: string) => {
-        setCollapsedParents(prev => ({ ...prev, [id]: !prev[id] }));
-    };
-
-    const detectProducerFromTrace = (pt: any) => {
-        try {
-            if (!pt) return null;
-
-            // 1) Look through history for the earliest event that has a submittedBy/actor
-            if (Array.isArray(pt.history) && pt.history.length > 0) {
-                const sorted = [...pt.history].sort((a: TraceEvent, b: TraceEvent) => {
-                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
-                    return ta - tb;
-                });
-
-                for (const ev of sorted) {
-                    const actor = ev.submittedBy || ev.actor || ev.previousOwner || ev.newOwner;
-                    if (actor && typeof actor === 'string') return extractOrgFromIdentity(actor);
-                }
-            }
-
-            // 2) If not found, inspect rawMaterialsTrace for producer identities
-            if (Array.isArray(pt.rawMaterialsTrace) && pt.rawMaterialsTrace.length > 0) {
-                const producers = new Set<string>();
-                for (const r of pt.rawMaterialsTrace) {
-                    if (r?.asset?.createdBy) producers.add(extractOrgFromIdentity(r.asset.createdBy));
-                    // also check first history entry of the raw material
-                    if (Array.isArray(r.history) && r.history.length > 0) {
-                        const sortedRaw = [...r.history].sort((a: TraceEvent, b: TraceEvent) => {
-                            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-                            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
-                            return ta - tb;
-                        });
-                        const firstRaw = sortedRaw[0];
-                        const actor = firstRaw.submittedBy || firstRaw.actor || firstRaw.previousOwner || firstRaw.newOwner;
-                        if (actor && typeof actor === 'string') producers.add(extractOrgFromIdentity(actor));
-                    }
-                }
-
-                if (producers.size > 0) return Array.from(producers).join(', ');
-            }
-        } catch (err) {
-            // ignore
-        }
-
-        // fallback to asset.createdBy
-        if (pt?.asset?.createdBy) return extractOrgFromIdentity(pt.asset.createdBy);
-        return null;
-    };
-
-    const getOrgChain = (pt: any) => {
-        try {
-            if (!pt) return null;
-            const orgs: string[] = [];
-
-            // 1) Collect producers from rawMaterialsTrace first (so they appear at the start)
-            if (Array.isArray(pt.rawMaterialsTrace) && pt.rawMaterialsTrace.length > 0) {
-                for (const r of pt.rawMaterialsTrace) {
-                    if (r?.asset?.createdBy) {
-                        const org = extractOrgFromIdentity(r.asset.createdBy);
-                        if (org && !orgs.includes(org)) orgs.push(org);
-                    } else if (Array.isArray(r.history) && r.history.length > 0) {
-                        const sortedRaw = [...r.history].sort((a: TraceEvent, b: TraceEvent) => {
-                            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-                            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
-                            return ta - tb;
-                        });
-                        const firstRaw = sortedRaw[0];
-                        const actor = firstRaw.submittedBy || firstRaw.actor || firstRaw.previousOwner || firstRaw.newOwner;
-                        if (actor && typeof actor === 'string') {
-                            const org = extractOrgFromIdentity(actor);
-                            if (org && !orgs.includes(org)) orgs.push(org);
-                        }
-                    }
-                }
-            }
-
-            // 2) Add asset.createdBy (e.g., Factory) if present and not already included
-            if (pt?.asset?.createdBy) {
-                const org = extractOrgFromIdentity(pt.asset.createdBy);
-                if (org && !orgs.includes(org)) orgs.push(org);
-            }
-
-            // 3) Append organizations found in the parent history (chronological)
-            if (Array.isArray(pt.history) && pt.history.length > 0) {
-                const sorted = [...pt.history].sort((a: TraceEvent, b: TraceEvent) => {
-                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
-                    return ta - tb;
-                });
-
-                for (const ev of sorted) {
-                    const actor = ev.submittedBy || ev.actor || ev.previousOwner || ev.newOwner;
-                    if (actor && typeof actor === 'string') {
-                        const org = extractOrgFromIdentity(actor);
-                        if (org && !orgs.includes(org)) orgs.push(org);
-                    }
-                }
-            }
-
-            return orgs.length > 0 ? orgs : null;
-        } catch (err) {
-            return null;
-        }
-    };
+    // NOTE: helper functions for ancestor inspection / org chains were removed because they were
+    // defined but not referenced in the UI. They can be restored if needed later.
 
     // Helper functions
     const formatTimestamp = (timestamp: string) => {
@@ -290,28 +220,7 @@ export default function TracePage() {
         });
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-    };
-
     // use helper from lib/traceHelpers — more robust parsing
-
-    const isExpiringSoon = (expiryDate: string) => {
-        if (!expiryDate) return false;
-        const expiry = new Date(expiryDate);
-        const today = new Date();
-        const daysUntilExpiry = Math.floor((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
-    };
-
-    const isExpired = (expiryDate: string) => {
-        if (!expiryDate) return false;
-        return new Date(expiryDate) < new Date();
-    };
 
     const getActionIcon = (action: string) => {
         switch (action) {
@@ -327,23 +236,6 @@ export default function TracePage() {
                 return '🗑️';
             default:
                 return '📦';
-        }
-    };
-
-    const getActionColor = (action: string) => {
-        switch (action) {
-            case 'CREATE':
-                return 'from-green-50 to-emerald-50 border-green-200';
-            case 'TRANSFER':
-                return 'from-blue-50 to-cyan-50 border-blue-200';
-            case 'TRANSFORM':
-                return 'from-purple-50 to-indigo-50 border-purple-200';
-            case 'UPDATE':
-                return 'from-yellow-50 to-amber-50 border-yellow-200';
-            case 'DELETE':
-                return 'from-red-50 to-pink-50 border-red-200';
-            default:
-                return 'from-gray-50 to-slate-50 border-gray-200';
         }
     };
 

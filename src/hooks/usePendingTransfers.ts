@@ -7,6 +7,14 @@ import { Role } from '@/lib/fabric/identity/identity-manager';
 import { PendingTransfer, InitiateTransferParams } from '@/types/fabric';
 import { assetKeys } from './useGatewayAssets';
 
+// Small runtime-safe helper to read assetId from unknown mutation variables
+function getAssetIdFromVariables(vars: unknown): string | undefined {
+    if (!vars || typeof vars !== 'object') return undefined;
+    const maybe = vars as Record<string, unknown>;
+    const id = maybe['assetId'];
+    return typeof id === 'string' ? id : undefined;
+}
+
 /**
  * Convert UserRole (lowercase) to Gateway Role (capitalized)
  */
@@ -97,8 +105,8 @@ export function useInitiateTransfer() {
                     throw new Error(pendingRes.error || 'Failed to check existing pending transfers');
                 }
 
-                const pendingList: any[] = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
-                const conflict = pendingList.find((t: any) => t.assetId === assetId && t.status === 'PENDING');
+                const pendingList = (typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || [])) as PendingTransfer[];
+                const conflict = pendingList.find((t: PendingTransfer) => t.assetId === assetId && t.status === 'PENDING');
                 if (conflict) {
                     throw new Error(`Asset ${assetId} already has a pending transfer: ${conflict.id}`);
                 }
@@ -122,7 +130,8 @@ export function useInitiateTransfer() {
             if (user) {
                 queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
                 queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
-                queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
+                const _assetId = getAssetIdFromVariables(variables);
+                if (_assetId) queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
             }
         },
     });
@@ -138,7 +147,6 @@ export function useAcceptTransfer() {
     return useMutation({
         mutationFn: async ({
             transferId,
-            assetId, // Optional: for invalidating asset queries
         }: {
             transferId: string;
             assetId?: string;
@@ -163,9 +171,10 @@ export function useAcceptTransfer() {
             if (user) {
                 queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
                 queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
-                if (variables.assetId) {
-                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
-                    queryClient.invalidateQueries({ queryKey: assetKeys.history(variables.assetId) });
+                const _assetId = getAssetIdFromVariables(variables);
+                if (_assetId) {
+                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
+                    queryClient.invalidateQueries({ queryKey: assetKeys.history(_assetId) });
                 }
             }
         },
@@ -183,7 +192,6 @@ export function useRejectTransfer() {
         mutationFn: async ({
             transferId,
             reason,
-            assetId, // Optional: for invalidating asset queries
         }: {
             transferId: string;
             reason: string;
@@ -210,9 +218,10 @@ export function useRejectTransfer() {
             if (user) {
                 queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
                 queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
-                if (variables.assetId) {
-                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
-                    queryClient.invalidateQueries({ queryKey: assetKeys.history(variables.assetId) });
+                const _assetId = getAssetIdFromVariables(variables);
+                if (_assetId) {
+                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
+                    queryClient.invalidateQueries({ queryKey: assetKeys.history(_assetId) });
                 }
             }
         },
@@ -227,7 +236,7 @@ export function useCancelTransfer() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ transferId, reason, assetId }: { transferId: string; reason?: string; assetId?: string; }) => {
+    mutationFn: async ({ transferId, reason }: { transferId: string; reason?: string; assetId?: string; }) => {
             if (!user) {
                 throw new Error('User not authenticated');
             }
@@ -248,9 +257,10 @@ export function useCancelTransfer() {
             if (user) {
                 queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
                 queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
-                if (variables.assetId) {
-                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
-                    queryClient.invalidateQueries({ queryKey: assetKeys.history(variables.assetId) });
+                const _assetId = getAssetIdFromVariables(variables);
+                if (_assetId) {
+                    queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
+                    queryClient.invalidateQueries({ queryKey: assetKeys.history(_assetId) });
                 }
             }
         }

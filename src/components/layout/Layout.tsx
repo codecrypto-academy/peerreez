@@ -44,7 +44,6 @@ export default function Layout({ children, title, description }: LayoutProps) {
 
             {/* Toggle body attribute to disable clicks on buttons/links when Producer is viewing non-producer pages */}
             {/* This runs on client only; keep minimal to avoid SSR issues */}
-            {/* eslint-disable-next-line react-hooks/rules-of-hooks */}
             <ClientBodyToggle />
 
             {/* Footer */}

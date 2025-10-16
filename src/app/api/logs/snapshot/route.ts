@@ -11,7 +11,7 @@ const ALLOWED = new Set([
     'orderer.supplychain.com'
 ]);
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<Response> {
     const url = new URL(req.url);
     const container = (url.searchParams.get('container') || 'peer0.producer.supplychain.com').trim();
 
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         return new Response('Contenedor no permitido', { status: 400 });
     }
 
-    return await new Promise((resolve) => {
+    return await new Promise<Response>((resolve: (res: Response) => void) => {
         const child = spawn('docker', ['logs', container], { stdio: ['ignore', 'pipe', 'pipe'] });
 
         let out = '';
@@ -31,13 +31,15 @@ export async function GET(req: NextRequest) {
         child.stderr.setEncoding('utf8');
         child.stderr.on('data', (chunk: string) => { err += chunk; });
 
-        child.on('error', (e) => {
+        child.on('error', (e: Error) => {
             console.error('docker logs spawn error:', e);
             resolve(new Response(`Error spawning docker: ${String(e)}`, { status: 500 }));
         });
 
-        child.on('close', (code) => {
+        // Handle process close
+        child.on('close', () => {
             const combined = out + (err ? `\n[stderr]\n${err}` : '');
+            clearTimeout(killTimeout);
             resolve(new Response(combined, {
                 status: 200,
                 headers: {
@@ -46,14 +48,10 @@ export async function GET(req: NextRequest) {
                 }
             }));
         });
-
         // safety timeout: kill if takes too long
         const killTimeout = setTimeout(() => {
             try { child.kill(); } catch (e) { console.error('error killing child on timeout', e); }
             resolve(new Response('[timeout reading docker logs]', { status: 504 }));
         }, 20_000);
-
-        // clear timeout on close
-        child.on('close', () => clearTimeout(killTimeout));
     });
 }

@@ -6,7 +6,8 @@ import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransfe
 import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { PendingTransfer } from '@/types/fabric';
 
 export default function ProducerPage() {
   const [showAssetsList, setShowAssetsList] = useState(false);
@@ -16,10 +17,11 @@ export default function ProducerPage() {
   const [showContainerLogs, setShowContainerLogs] = useState(false);
 
   // Using new Gateway hooks with React Query
-  const { data: assets = [], isLoading: assetsLoading, refetch: refetchAssets } = useAssetsByOwner();
+  const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
   const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('producer');
   const initiateMutation = useInitiateTransfer();
-  const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers();
+  const { data: pendingTransfers = [] } = usePendingTransfers();
+  const typedPendingTransfers = (pendingTransfers || []) as PendingTransfer[];
   const refreshAssets = useRefetchAssets();
 
   const transferLoading = initiateMutation.isPending;
@@ -36,9 +38,7 @@ export default function ProducerPage() {
   // render a visible "Pending" badge on the producer's assets list without
   // changing ledger-side asset.status (we keep stock visible).
   const pendingOutgoingIds = new Set(
-    (pendingTransfers || [])
-      .filter((t) => t.direction === 'outgoing' && t.status && t.assetId)
-      .map((t) => t.assetId)
+    typedPendingTransfers.filter((t) => t.direction === 'outgoing' && t.status && t.assetId).map((t) => t.assetId)
   );
 
   const realStats = {
@@ -91,7 +91,7 @@ export default function ProducerPage() {
   const toggleAssetsList = () => {
     setShowAssetsList(!showAssetsList);
     if (!showAssetsList && assets.length === 0) {
-      refetchAssets();
+      refreshAssets();
     }
   };
 
@@ -141,12 +141,12 @@ export default function ProducerPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                </button>
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Stats Cards CON DATOS REALES */}
+            {/* Stats Cards CON DATOS REALES */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {/* Clickeable Total Assets Card */}
             <div
@@ -215,7 +215,7 @@ export default function ProducerPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Pending → Factory</p>
-                  <p className="text-3xl font-bold text-amber-600">{((pendingTransfers || []) as any).filter((t: any) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')).length}</p>
+                  <p className="text-3xl font-bold text-amber-600">{typedPendingTransfers.filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')).length}</p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
                   <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -314,7 +314,7 @@ export default function ProducerPage() {
           </div>
 
           {/* Outgoing Pending Transfers to Factory (collapsible) */}
-          {showOutgoingList && ((pendingTransfers || []) as any).some((t: any) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')) && (
+          {showOutgoingList && typedPendingTransfers.some((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')) && (
             <div id="producerOutgoingSection" className="mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8">
               <h2 className="text-2xl font-semibold text-gray-900 mb-6 flex items-center">
                 <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center mr-3">
@@ -324,10 +324,10 @@ export default function ProducerPage() {
                 </div>
                 Outgoing Transfers to Factory
                 <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                  {((pendingTransfers || []) as any).filter((t: any) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')).length}
+                  {typedPendingTransfers.filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory')).length}
                 </span>
                 <button
-                  onClick={() => { refetchAssets(); }}
+                  onClick={() => { refreshAssets(); }}
                   className="ml-auto px-3 py-1 bg-gray-50 border border-gray-200 rounded-lg text-sm hover:bg-gray-100"
                 >
                   Refresh
@@ -335,16 +335,16 @@ export default function ProducerPage() {
               </h2>
 
               <div className="grid grid-cols-1 gap-4">
-                {((pendingTransfers || []) as any)
-                  .filter((t: any) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory'))
-                  .map((transfer: any) => (
+                {typedPendingTransfers
+                  .filter((t) => t.direction === 'outgoing' && (t.toMSP || '').toLowerCase().includes('factory'))
+                  .map((transfer) => (
                     <div key={transfer.id} className="p-0">
                       {/* Use PendingTransferCard so initiator can Cancel inline */}
                       <PendingTransferCard
                         transfer={transfer}
                         onSuccess={() => {
                           // Trigger a lightweight refetch of assets and pending transfers
-                          refetchAssets();
+                          refreshAssets();
                         }}
                       />
                     </div>
@@ -377,7 +377,7 @@ export default function ProducerPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
-                      refetchAssets();
+                      refreshAssets();
                     }}
                     disabled={assetsLoading || displayStats.loading}
                     className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-gray-700 font-medium transition-colors duration-200"
@@ -635,7 +635,7 @@ export default function ProducerPage() {
                       </svg>
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Transfer History</h3>
-                    <p className="text-gray-500">You haven't transferred any assets to Factory yet.</p>
+                                        <p className="text-gray-500">You haven&apos;t transferred any assets to Factory yet.</p>
                   </div>
                 )}
               </div>

@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(JSON.parse(raw) as User);
                 return;
             }
-        } catch (e) {
+        } catch {
             // ignore
         }
 
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(defaultUser);
         try {
             localStorage.setItem(LOCAL_KEY, JSON.stringify(defaultUser));
-        } catch (e) {
+        } catch {
             // ignore
         }
     }, []);
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(u);
         try {
             localStorage.setItem(LOCAL_KEY, JSON.stringify(u));
-        } catch (e) {
+        } catch {
             // ignore
         }
     };
@@ -69,15 +69,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         try {
             localStorage.removeItem(LOCAL_KEY);
-        } catch (e) {
+        } catch {
             // ignore
         }
         // Immediately set default back (requirement: always someone logged)
         setTimeout(() => {
             setUser(defaultUser);
             try {
-                localStorage.setItem(LOCAL_KEY, JSON.stringify(defaultUser));
-            } catch (e) { }
+                    localStorage.setItem(LOCAL_KEY, JSON.stringify(defaultUser));
+                } catch { }
         }, 200);
     };
 

@@ -133,7 +133,7 @@ export class IdentityManager {
         try {
             const tlsCert = await fs.readFile(tlsCertPath);
             return grpc.credentials.createSsl(tlsCert);
-        } catch (error) {
+        } catch {
             console.warn(`TLS certificate not found for ${role}, using insecure credentials`);
             return grpc.credentials.createInsecure();
         }

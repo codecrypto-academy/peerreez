@@ -28,7 +28,7 @@ export default function FactoryTransferPage() {
     // Filter only PRODUCT type assets (manufactured products or pending transfers should still be visible)
     const products = assets?.filter(asset => asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'PENDING_TRANSFER')) || [];
 
-    const handleInputChange = (field: string, value: any) => {
+    const handleInputChange = (field: string, value: unknown) => {
         setFormData(prev => ({
             ...prev,
             [field]: value

@@ -155,10 +155,10 @@ export class GatewayService {
             };
         } catch (error: unknown) {
             console.error(`Error evaluating transaction ${functionName}:`, error);
-            const err = error as { message?: string };
+            const message = (error as { message?: string })?.message;
             return {
                 success: false,
-                error: err.message || 'Unknown error occurred',
+                error: message || 'Unknown error occurred',
             };
         }
     }
@@ -201,7 +201,7 @@ export class GatewayService {
             const err = error as LocalError;
 
             // Extract detailed error information
-            let detailedError = err.message || 'Unknown error occurred';
+            let detailedError = err?.message || 'Unknown error occurred';
 
             // Check if error has details array (EndorseError)
             if (err.details && Array.isArray(err.details)) {
@@ -456,7 +456,7 @@ export class GatewayService {
         } else {
             try {
                 console.log(`[GatewayService] raw GetPendingTransfers data for ${role}:`, result.data);
-            } catch (e) {
+            } catch {
                 console.log(`[GatewayService] could not stringify GetPendingTransfers result for ${role}`);
             }
         }

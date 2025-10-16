@@ -57,14 +57,15 @@ const ContainerLogsCard: React.FC<ContainerLogsCardProps> = ({ containerName }) 
                 appendChunk('[Stream error or disconnected]');
                 // Do not forcibly close here; let browser handle retry, or user toggle follow
             };
-        } catch (err) {
+        } catch {
+            // Could not open EventSource for log stream
             setLines((prev) => [...prev, '[Could not open EventSource for log stream]']);
             setLoading(false);
             setStatusText('Error');
         }
 
         return () => {
-            try { eventSourceRef.current?.close(); } catch (e) { }
+            try { eventSourceRef.current?.close(); } catch { }
             eventSourceRef.current = null;
         };
     }, [containerName]);
@@ -110,7 +111,7 @@ const ContainerLogsCard: React.FC<ContainerLogsCardProps> = ({ containerName }) 
                 await navigator.clipboard.writeText(text);
                 return true;
             }
-        } catch (err) {
+        } catch {
             // fallthrough
         }
 
@@ -162,7 +163,8 @@ const ContainerLogsCard: React.FC<ContainerLogsCardProps> = ({ containerName }) 
             a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             setStatusText('Downloaded');
-        } catch (err) {
+        } catch {
+            console.error('download error');
             setStatusText('Error');
         } finally {
             setTimeout(() => setStatusText(prevStatus), 1500);

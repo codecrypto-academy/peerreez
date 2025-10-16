@@ -57,7 +57,7 @@ const getMockUser = (pathname: string): User | null => {
     return null;
 };
 
-export default function RoleGuard({ children, allowedRoles, fallbackPath = '/' }: RoleGuardProps) {
+export default function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
     const router = useRouter();
     const pathname = usePathname();
     const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +79,7 @@ export default function RoleGuard({ children, allowedRoles, fallbackPath = '/' }
             try {
                 // Store simple role identifier for server to read (note: this is NOT a substitute for real auth)
                 document.cookie = `userRole=${user.role}; path=/; samesite=lax`;
-            } catch (e) {
+            } catch {
                 // ignore (e.g., SSR or strict environments)
             }
         }

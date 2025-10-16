@@ -63,17 +63,19 @@ export default function InventoryManagementPage() {
             });
 
             // Parse the result data to show appropriate message
-            const resultData = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            const resultDataRaw = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
+            type DeleteResult = { type?: string; quantityDeleted?: number; remainingQuantity?: number };
+            const resultData = resultDataRaw as DeleteResult | undefined;
 
-            if (resultData && (resultData as any).type === 'complete') {
+            if (resultData && resultData.type === 'complete') {
                 setNotification({
                     type: 'success',
-                    message: `✅ Product completely removed: ${(resultData as any).quantityDeleted || availableQuantity} ${unit}`
+                    message: `✅ Product completely removed: ${resultData.quantityDeleted || availableQuantity} ${unit}`
                 });
             } else {
                 setNotification({
                     type: 'success',
-                    message: `✅ ${(resultData as any).quantityDeleted || 0} ${unit} removed. ${(resultData as any).remainingQuantity || 0} ${unit} remaining in stock.`
+                    message: `✅ ${resultData?.quantityDeleted || 0} ${unit} removed. ${resultData?.remainingQuantity || 0} ${unit} remaining in stock.`
                 });
             }
 
@@ -254,108 +256,112 @@ export default function InventoryManagementPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
-                                        {filteredProducts.map((product: any, index: number) => (
-                                            <tr key={product.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50 transition-colors duration-150`}>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                                                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                                            </svg>
+                                        {filteredProducts.map((product: Asset, index: number) => {
+                                            const qty = typeof product.quantity === 'number' ? product.quantity : Number(product.quantity || 0);
+                                            const unit = typeof product.unit === 'string' ? product.unit : 'units';
+                                            return (
+                                                <tr key={product.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-green-50 transition-colors duration-150`}>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                                                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                                                </svg>
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900">{String(product.name)}</p>
+                                                                {product.description && typeof product.description === 'string' && (
+                                                                    <p className="text-xs text-gray-500">{product.description}</p>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="font-semibold text-gray-900">{product.name}</p>
-                                                            {product.description && (
-                                                                <p className="text-xs text-gray-500">{product.description}</p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{product.id}</code>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                            {product.category || 'N/A'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <p className="text-lg font-bold text-gray-900">{qty || 0}</p>
+                                                            <p className="text-xs text-gray-500">{unit}</p>
+                                                            {qty < 10 && (
+                                                                <span className="mt-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                                                    Low Stock
+                                                                </span>
                                                             )}
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">{product.id}</code>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                        {product.category || 'N/A'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <p className="text-lg font-bold text-gray-900">{product.quantity || 0}</p>
-                                                        <p className="text-xs text-gray-500">{product.unit || 'units'}</p>
-                                                        {(product.quantity || 0) < 10 && (
-                                                            <span className="mt-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                                                                Low Stock
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${product.status === 'MANUFACTURED'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : product.status === 'IN_TRANSIT'
-                                                            ? 'bg-blue-100 text-blue-800'
-                                                            : 'bg-gray-100 text-gray-800'
-                                                        }`}>
-                                                        {product.status || 'UNKNOWN'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        {deleteConfirmId === product.id ? (
-                                                            <div className="flex flex-col items-center gap-2 min-w-[200px]">
-                                                                <div className="flex items-center gap-2 w-full">
-                                                                    <div className="flex-1">
-                                                                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                                            Quantity to Remove
-                                                                        </label>
-                                                                        <input
-                                                                            type="number"
-                                                                            value={quantityToDelete}
-                                                                            onChange={(e) => setQuantityToDelete(parseFloat(e.target.value) || 0)}
-                                                                            min="0"
-                                                                            max={product.quantity}
-                                                                            step="0.01"
-                                                                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black"
-                                                                            placeholder="0"
-                                                                        />
-                                                                        <p className="text-xs text-gray-500 mt-1">
-                                                                            Max: {product.quantity} {product.unit || 'units'}
-                                                                        </p>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${product.status === 'MANUFACTURED'
+                                                            ? 'bg-green-100 text-green-800'
+                                                            : product.status === 'IN_TRANSIT'
+                                                                ? 'bg-blue-100 text-blue-800'
+                                                                : 'bg-gray-100 text-gray-800'
+                                                            }`}>
+                                                            {product.status || 'UNKNOWN'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {deleteConfirmId === product.id ? (
+                                                                <div className="flex flex-col items-center gap-2 min-w-[200px]">
+                                                                    <div className="flex items-center gap-2 w-full">
+                                                                        <div className="flex-1">
+                                                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                                                Quantity to Remove
+                                                                            </label>
+                                                                            <input
+                                                                                type="number"
+                                                                                value={quantityToDelete}
+                                                                                onChange={(e) => setQuantityToDelete(parseFloat(e.target.value) || 0)}
+                                                                                min="0"
+                                                                                max={qty}
+                                                                                step="0.01"
+                                                                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 text-black"
+                                                                                placeholder="0"
+                                                                            />
+                                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                                Max: {qty} {unit}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 w-full">
+                                                                        <button
+                                                                            onClick={() => handleDelete(product.id, qty, unit)}
+                                                                            disabled={deleteMutation.isPending || quantityToDelete <= 0}
+                                                                            className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        >
+                                                                            {deleteMutation.isPending ? 'Removing...' : 'Remove'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={handleCancelDelete}
+                                                                            disabled={deleteMutation.isPending}
+                                                                            className="flex-1 px-3 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-800 text-sm font-medium rounded-lg transition-colors duration-200"
+                                                                        >
+                                                                            Cancel
+                                                                        </button>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 w-full">
-                                                                    <button
-                                                                        onClick={() => handleDelete(product.id, product.quantity, product.unit || 'units')}
-                                                                        disabled={deleteMutation.isPending || quantityToDelete <= 0}
-                                                                        className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                    >
-                                                                        {deleteMutation.isPending ? 'Removing...' : 'Remove'}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleCancelDelete}
-                                                                        disabled={deleteMutation.isPending}
-                                                                        className="flex-1 px-3 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-800 text-sm font-medium rounded-lg transition-colors duration-200"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => handleOpenDeleteModal(product.id, product.quantity)}
-                                                                className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-1"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                                Remove
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleOpenDeleteModal(product.id, qty)}
+                                                                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-medium rounded-lg transition-colors duration-200 flex items-center gap-1"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                    Remove
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -389,7 +395,7 @@ export default function InventoryManagementPage() {
                                     <li>• Search and filter products by name, ID, or category</li>
                                     <li>• Monitor low stock items (less than 10 units) with alerts</li>
                                     <li>• <strong>Remove partial or complete quantities</strong> when needed (damaged, expired, obsolete)</li>
-                                    <li>• Click "Remove" to specify the exact quantity you want to delete</li>
+                                    <li>• Click &quot;Remove&quot; to specify the exact quantity you want to delete</li>
                                     <li>• Removing the entire quantity will delete the product completely</li>
                                     <li>• All inventory adjustments are recorded on the blockchain for audit trails</li>
                                     <li>• Refresh data to sync with the latest blockchain state</li>

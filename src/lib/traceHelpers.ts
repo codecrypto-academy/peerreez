@@ -49,7 +49,7 @@ export const extractOrgFromIdentity = (identity?: string) => {
         // Try MSP-like identifiers (e.g., FactoryMSP)
         m = identity.match(/(\w+MSP)/i);
         if (m && m[1]) return m[1].replace(/MSP/i, '');
-    } catch (_e) {
+    } catch {
         // fallthrough
     }
 
@@ -64,7 +64,7 @@ export const formatTimestamp = (timestamp: string) => {
         return new Date(timestamp).toLocaleString('es-ES', {
             year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
-    } catch (_err) {
+    } catch {
         return String(timestamp || '');
     }
 };
@@ -82,7 +82,7 @@ export const getOriginBadge = (origin?: 'raw' | 'parent' | 'asset') => {
     }
 };
 
-export const formatQuantities = (quantities: any) => {
+export const formatQuantities = (quantities: unknown) => {
     if (quantities === null || quantities === undefined) return null;
 
     // If it's already a primitive, just stringify
@@ -91,7 +91,7 @@ export const formatQuantities = (quantities: any) => {
         try {
             const parsed = JSON.parse(quantities);
             return formatQuantities(parsed);
-        } catch (_e) {
+        } catch {
             // not JSON, return raw string
             return quantities;
         }
@@ -101,23 +101,24 @@ export const formatQuantities = (quantities: any) => {
     try {
         const parts: string[] = [];
         const nf = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 3 });
-        for (const [k, v] of Object.entries(quantities)) {
+        for (const [k, v] of Object.entries(quantities as Record<string, unknown>)) {
             // handle nested objects with amount/unit
             if (v && typeof v === 'object') {
                 // common shape: { amount: 1000, unit: 'kg' }
-                const amount = (v as any).amount ?? (v as any).quantity ?? (v as any).qty ?? null;
-                const unit = (v as any).unit ?? (v as any).u ?? '';
+                const obj = v as Record<string, unknown>;
+                const amount = obj['amount'] ?? obj['quantity'] ?? obj['qty'] ?? null;
+                const unit = (obj['unit'] ?? obj['u'] ?? '') as string;
                 if (amount !== null) parts.push(`${k}: ${nf.format(Number(amount))}${unit ? ` ${unit}` : ' units'}`);
                 else parts.push(`${k}: ${JSON.stringify(v)}`);
             } else {
                 // primitive value
                 // if numeric, format
                 if (typeof v === 'number' || (!isNaN(Number(v)) && v !== '')) parts.push(`${k}: ${nf.format(Number(v))} units`);
-                else parts.push(`${k}: ${v}`);
+                else parts.push(`${k}: ${String(v)}`);
             }
         }
         return parts.join(', ');
-    } catch (_e) {
-        try { return JSON.stringify(quantities); } catch (__) { return String(quantities); }
+    } catch {
+        try { return JSON.stringify(quantities); } catch { return String(quantities); }
     }
 };

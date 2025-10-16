@@ -73,7 +73,7 @@ export default function FactoryPage() {
 
     // Helper to safely read 'quality' field which may be string or object
     function getQuality(a: Asset) {
-        const q = (a as any).quality;
+        const q = (a as unknown as Record<string, unknown>)['quality'];
         if (typeof q === 'string') return q;
         if (q && typeof q === 'object') {
             const grade = (q as Record<string, unknown>)['grade'];
@@ -120,7 +120,7 @@ export default function FactoryPage() {
         setTransferringProductId(productId);
 
         // Use the full X509 identity for Retailer (same as transfer page)
-        const retailerIdentity = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@retailer.supplychain.com::/C=US/ST=California/L=San Francisco/O=retailer.supplychain.com/CN=ca.retailer.supplychain.com';
+    // full X509 identity intentionally omitted here (not used in dashboard flow)
 
         const transferData = {
             destination: 'retailer',
@@ -673,7 +673,7 @@ export default function FactoryPage() {
                                                     </p>
                                                     {asset.rawMaterialsUsed && Object.keys(asset.rawMaterialsUsed).length > 0 && (
                                                         <p className="text-xs text-gray-500 mt-1">
-                                                            Materials used: {Object.entries((asset as any).rawMaterialsUsed || {}).map(([id, qty]) =>
+                                                            Materials used: {Object.entries(((asset as unknown as Record<string, unknown>)['rawMaterialsUsed'] as Record<string, number>) || {}).map(([id, qty]) =>
                                                                 `${qty} ${getUnit(asset)} of ${id}`
                                                             ).join(', ')}
                                                         </p>
@@ -815,7 +815,7 @@ export default function FactoryPage() {
                                             </svg>
                                         </div>
                                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Transfer History</h3>
-                                        <p className="text-gray-500">You haven't shipped any products to Retailer yet.</p>
+                                        <p className="text-gray-500">You haven&apos;t shipped any products to Retailer yet.</p>
                                     </div>
                                 )}
                             </div>

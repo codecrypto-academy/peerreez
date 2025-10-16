@@ -13,13 +13,13 @@ export default function ClientBodyToggle() {
 
         // Never apply readonly mode on the root path
         if (pathname === '/' || pathname === '') {
-            try { document.body.removeAttribute('data-role-readonly'); } catch (e) { }
+            try { document.body.removeAttribute('data-role-readonly'); } catch { }
             return;
         }
 
         const role = user?.role;
         if (!role) {
-            try { document.body.removeAttribute('data-role-readonly'); } catch (e) { }
+            try { document.body.removeAttribute('data-role-readonly'); } catch { }
             return;
         }
 
@@ -38,13 +38,13 @@ export default function ClientBodyToggle() {
         if (!onOwnerPath) {
             try {
                 document.body.setAttribute('data-role-readonly', String(role));
-            } catch (e) { }
+            } catch { }
         } else {
-            try { document.body.removeAttribute('data-role-readonly'); } catch (e) { }
+            try { document.body.removeAttribute('data-role-readonly'); } catch { }
         }
 
         return () => {
-            try { document.body.removeAttribute('data-role-readonly'); } catch (e) { }
+            try { document.body.removeAttribute('data-role-readonly'); } catch { }
         };
     }, [pathname, user?.role]);
 

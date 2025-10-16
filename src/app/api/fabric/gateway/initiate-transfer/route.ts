@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { gatewayService } from '@/lib/fabric/gateway/gateway-service';
 import { Role } from '@/lib/fabric/identity/identity-manager';
-import { TransactionResult } from '@/types/fabric';
+import { TransactionResult, PendingTransfer } from '@/types/fabric';
 
 /**
  * POST /api/fabric/gateway/initiate-transfer
@@ -72,8 +72,8 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, error: pendingRes.error || 'Failed to check pending transfers' }, { status: 500 });
             }
 
-            const pendingList: any[] = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
-            const conflict = pendingList.find((t: any) => t.assetId === assetId && t.status === 'PENDING');
+            const pendingList: PendingTransfer[] = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
+            const conflict = pendingList.find((t: PendingTransfer) => t.assetId === assetId && t.status === 'PENDING');
             if (conflict) {
                 return NextResponse.json({ success: false, error: `Asset ${assetId} already has a pending transfer: ${conflict.id}` }, { status: 409 });
             }

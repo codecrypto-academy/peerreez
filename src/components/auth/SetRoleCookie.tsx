@@ -12,7 +12,7 @@ export default function SetRoleCookie() {
         try {
             // Write a simple cookie for demo flows so API can infer role
             document.cookie = `userRole=${user.role}; path=/; samesite=lax`;
-        } catch (e) {
+        } catch {
             // ignore in non-browser or restricted environments
         }
     }, [user]);
