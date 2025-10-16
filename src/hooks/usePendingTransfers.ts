@@ -236,7 +236,7 @@ export function useCancelTransfer() {
     const queryClient = useQueryClient();
 
     return useMutation({
-    mutationFn: async ({ transferId, reason }: { transferId: string; reason?: string; assetId?: string; }) => {
+        mutationFn: async ({ transferId, reason }: { transferId: string; reason?: string; assetId?: string; }) => {
             if (!user) {
                 throw new Error('User not authenticated');
             }

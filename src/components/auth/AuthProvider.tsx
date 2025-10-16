@@ -76,8 +76,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => {
             setUser(defaultUser);
             try {
-                    localStorage.setItem(LOCAL_KEY, JSON.stringify(defaultUser));
-                } catch { }
+                localStorage.setItem(LOCAL_KEY, JSON.stringify(defaultUser));
+            } catch { }
         }, 200);
     };
 

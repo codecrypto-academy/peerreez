@@ -130,7 +130,7 @@ export default function TracePage() {
         let mounted = true;
         const MAX_DEPTH = 6;
 
-            const findParentIds = (data: TraceData | undefined) => {
+        const findParentIds = (data: TraceData | undefined) => {
             const parents = new Set<string>();
             if (!data) return parents;
 
@@ -142,14 +142,14 @@ export default function TracePage() {
 
             if (Array.isArray(data.history)) {
                 for (const h of data.history) {
-                        try {
-                            const d = (h.data || {}) as Record<string, unknown>;
-                            if (d.originalProductId && typeof d.originalProductId === 'string') {
-                                parents.add(String(d.originalProductId));
-                            }
-                        } catch {
-                            // ignore
+                    try {
+                        const d = (h.data || {}) as Record<string, unknown>;
+                        if (d.originalProductId && typeof d.originalProductId === 'string') {
+                            parents.add(String(d.originalProductId));
                         }
+                    } catch {
+                        // ignore
+                    }
                 }
             }
 

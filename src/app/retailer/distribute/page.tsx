@@ -53,8 +53,8 @@ export default function DistributePage() {
         }
 
         // Get selected product to validate quantity
-    const selectedProduct = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
-    const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
+        const selectedProduct = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
+        const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
         if (selectedProduct && quantityToSell > selectedProductQty) {
             setNotification({
                 type: 'error',
@@ -190,43 +190,43 @@ export default function DistributePage() {
                                     <div className="grid grid-cols-1 gap-3">
                                         {availableProducts.map((asset: Asset) => {
                                             return (
-                                            <label
-                                                key={asset.id}
-                                                className={`relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedAsset === asset.id
-                                                    ? 'border-indigo-500 bg-indigo-50'
-                                                    : 'border-gray-300 hover:border-indigo-300 bg-white'
-                                                    }`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="product"
-                                                    value={asset.id}
-                                                    checked={selectedAsset === asset.id}
-                                                    onChange={(e) => setSelectedAsset(e.target.value)}
-                                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <div className="ml-4 flex-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="font-semibold text-black">{asset.name}</p>
-                                                            <p className="text-sm text-black">ID: {asset.id}</p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                                                                {asset.status}
-                                                            </span>
-                                                            {asset.category && (
-                                                                <p className="text-sm text-gray-500 mt-1">{asset.category}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                                {asset.quantity !== undefined && (
-                                                                    <p className="text-sm text-black mt-2">
-                                                                        Quantity: {typeof asset.quantity === 'number' ? asset.quantity : Number(asset.quantity || 0)} {typeof asset.unit === 'string' ? asset.unit : 'units'}
-                                                                    </p>
+                                                <label
+                                                    key={asset.id}
+                                                    className={`relative flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${selectedAsset === asset.id
+                                                        ? 'border-indigo-500 bg-indigo-50'
+                                                        : 'border-gray-300 hover:border-indigo-300 bg-white'
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="product"
+                                                        value={asset.id}
+                                                        checked={selectedAsset === asset.id}
+                                                        onChange={(e) => setSelectedAsset(e.target.value)}
+                                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <div className="ml-4 flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <p className="font-semibold text-black">{asset.name}</p>
+                                                                <p className="text-sm text-black">ID: {asset.id}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${asset.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
+                                                                    {asset.status}
+                                                                </span>
+                                                                {asset.category && (
+                                                                    <p className="text-sm text-gray-500 mt-1">{asset.category}</p>
                                                                 )}
-                                                </div>
-                                            </label>
+                                                            </div>
+                                                        </div>
+                                                        {asset.quantity !== undefined && (
+                                                            <p className="text-sm text-black mt-2">
+                                                                Quantity: {typeof asset.quantity === 'number' ? asset.quantity : Number(asset.quantity || 0)} {typeof asset.unit === 'string' ? asset.unit : 'units'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </label>
                                             );
                                         })}
                                     </div>

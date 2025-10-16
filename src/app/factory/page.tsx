@@ -120,7 +120,7 @@ export default function FactoryPage() {
         setTransferringProductId(productId);
 
         // Use the full X509 identity for Retailer (same as transfer page)
-    // full X509 identity intentionally omitted here (not used in dashboard flow)
+        // full X509 identity intentionally omitted here (not used in dashboard flow)
 
         const transferData = {
             destination: 'retailer',

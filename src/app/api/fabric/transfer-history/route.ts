@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[API] Raw chaincode response:', JSON.stringify(result.data).substring(0, 200));
 
-  const assets: Asset[] = Array.isArray(result.data) ? (result.data as Asset[]) : [];
+    const assets: Asset[] = Array.isArray(result.data) ? (result.data as Asset[]) : [];
 
     console.log(`[API] Transfer history retrieved: ${assets.length} assets`);
 

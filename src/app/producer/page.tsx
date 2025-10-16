@@ -141,12 +141,12 @@ export default function ProducerPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
-                  </button>
-                </div>
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Stats Cards CON DATOS REALES */}
+          {/* Stats Cards CON DATOS REALES */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             {/* Clickeable Total Assets Card */}
             <div
@@ -635,7 +635,7 @@ export default function ProducerPage() {
                       </svg>
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Transfer History</h3>
-                                        <p className="text-gray-500">You haven&apos;t transferred any assets to Factory yet.</p>
+                    <p className="text-gray-500">You haven&apos;t transferred any assets to Factory yet.</p>
                   </div>
                 )}
               </div>

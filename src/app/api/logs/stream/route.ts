@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
             // the writer is already closed; also wrap in try/catch in case
             // writer.close() throws synchronously in some environments.
             const p = writer.close();
-            if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => {});
+            if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => { });
         } catch (e) { void e; }
     };
 
