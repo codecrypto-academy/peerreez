@@ -48,6 +48,29 @@ docker system prune -f 2>/dev/null || true
 docker rmi $(docker images --filter "reference=dev-*" -q) 2>/dev/null || true
 print_success "Docker limpio"
 
+print_step "Eliminando contenedores e imágenes de Hyperledger Explorer (si existen)..."
+# stop and remove explorer containers
+for name in explorer explorer-db; do
+    if docker ps -a --format '{{.Names}}' | grep -q "^${name}$"; then
+        docker rm -f "$name" >/dev/null 2>&1 || true
+        print_success "Removed container $name"
+    else
+        print_warning "Container $name not present"
+    fi
+done
+# remove explorer-related images (if present)
+EXPL_IMG_IDS=$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep -E 'hyperledger/explorer|explorer' || true)
+if [ -n "$EXPL_IMG_IDS" ]; then
+    echo "$EXPL_IMG_IDS" | awk '{print $2}' | xargs -r docker rmi -f || true
+    print_success "Explorer images removed"
+else
+    print_warning "No explorer images found"
+fi
+
+print_step "Eliminando datos y artefactos de Explorer (wallets, resolved jsons, db data)..."
+rm -rf explorer/wallet explorer/connection-profile.resolved.json explorer/explorer-config.resolved.json explorer_db_data 2>/dev/null || true
+print_success "Explorer artifacts removed (if present)"
+
 print_step "Eliminando archivos generados..."
 rm -rf crypto-config channel-artifacts *.tar.gz *.block *.tx config bin fabric-samples 2>/dev/null || true
 rm -rf wallets 2>/dev/null || true

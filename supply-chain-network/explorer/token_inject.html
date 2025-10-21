@@ -1,0 +1,11 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Explorer auto-login</title></head>
+  <body>
+    <p>Auto login to Hyperledger Explorer. Redirecting...</p>
+    <script>
+      try { localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoibG9jYWxhZG1pbiIsIm5ldHdvcmsiOiJzdXBwbHktY2hhaW4tbmV0d29yayIsImlhdCI6MTc2MTA1NDg3NywiZXhwIjoxNzYxMDYyMDc3fQ.3Jm9CO5bcya4Tga8MGrtck9IGmLnsjwWXxhsmesUyYk'); localStorage.setItem('network','supply-chain-network'); } catch(e) {}
+      window.location = 'http://localhost:8080/';
+    </script>
+  </body>
+</html>

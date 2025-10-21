@@ -1,0 +1,46 @@
+version: '3.7'
+services:
+  explorer-db:
+    image: postgres:12
+    environment:
+      - POSTGRES_DB=explorerdb
+      - POSTGRES_USER=explorer
+      - POSTGRES_PASSWORD=explorerpw
+    # Use a host directory for Postgres data so it can be managed outside the repo tree
+    # Default: $HOME/explorer_db_data (expandable by docker-compose)
+    volumes:
+      - ${HOME}/explorer_db_data:/var/lib/postgresql/data
+    networks:
+      - supply-chain
+
+  explorer:
+    image: hyperledger/explorer:local
+    # If you'd rather build as part of compose, uncomment the following build section
+    # and set `context` to the cloned explorer-src directory.
+    # build:
+    #   context: ../explorer-src
+    #   dockerfile: Dockerfile
+    # alternatively use the published image: ghcr.io/hyperledger/explorer:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_HOST=explorer-db
+      - DATABASE_DATABASE=explorerdb
+      - DATABASE_USERNAME=explorer
+      - DATABASE_PASSWORD=explorerpw
+      - DATABASE_PASSWD=explorerpw
+      - LOG_LEVEL=debug
+    volumes:
+      - ../crypto-config:/opt/explorer/crypto-config:ro
+      - ./connection-profile.json:/opt/explorer/connection-profile/connection-profile.json:ro
+      - ./explorer-config.json:/opt/explorer/app/config.json:ro
+    depends_on:
+      - explorer-db
+    networks:
+      - supply-chain
+
+## Note: explorer-db-data named volume removed in favor of host bind to ${HOME}/explorer_db_data
+
+networks:
+  supply-chain:
+    external: true

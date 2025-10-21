@@ -46,5 +46,7 @@ supply-chain-network/crypto-config/peerOrganizations/
 supply-chain-network/channel-artifacts/
 channel-artifacts/
 supply-chain-network/chaincode/supply-chain/node_modules/
+supply-chain-network/explorer/wallet/
+explorer_db_data
 # Docker volumes and temporary files
 *.log

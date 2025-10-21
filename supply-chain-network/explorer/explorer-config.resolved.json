@@ -1,0 +1,34 @@
+{
+  "network-configs": {
+    "supply-chain-network": {
+      "name": "supply-chain-network",
+      "type": "fabric-v1",
+      "version": "1.0.0",
+      "profile": "/opt/explorer/connection-profile/connection-profile.json",
+      "explorer": {
+        "connection-profile": "/opt/explorer/connection-profile/connection-profile.json",
+        "channel": "supply-chain-channel"
+      },
+      "organizations": {
+        "ProducerMSP": {
+          "mspID": "ProducerMSP",
+          "adminPrivateKey": {
+            "path": "/opt/explorer/crypto-config/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp/keystore/priv_sk"
+          },
+          "signedCert": {
+            "path": "/opt/explorer/crypto-config/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp/signcerts/Admin@producer.supplychain.com-cert.pem"
+          }
+        }
+      },
+      "discovery": {
+        "enabled": true,
+        "asLocalhost": false
+      },
+      "client": {
+        "tlsEnable": true
+      }
+    }
+  },
+  "license": "UNLICENSED",
+  "version": "1.0.0"
+}

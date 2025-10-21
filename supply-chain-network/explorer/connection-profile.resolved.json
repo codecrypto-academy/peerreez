@@ -1,0 +1,70 @@
+{
+  "name": "supply-chain-network",
+  "version": "1.0.0",
+  "client": {
+    "organization": "ProducerMSP",
+    "tlsEnable": true,
+    "enableAuthentication": false,
+    "adminCredential": {
+      "id": "exploreradmin",
+      "password": "exploreradminpw"
+    },
+    "connection": {
+      "timeouts": {
+        "peer": {
+          "endorser": "300"
+        }
+      }
+    }
+  },
+  "organizations": {
+    "ProducerMSP": {
+      "mspid": "ProducerMSP",
+      "peers": [
+        "peer0.producer.supplychain.com"
+      ],
+      "certificateAuthorities": [
+        "ca.producer.supplychain.com"
+      ],
+      "adminPrivateKey": {
+        "path": "/opt/explorer/crypto-config/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp/keystore/priv_sk"
+      },
+      "signedCert": {
+        "path": "/opt/explorer/crypto-config/peerOrganizations/producer.supplychain.com/users/Admin@producer.supplychain.com/msp/signcerts/Admin@producer.supplychain.com-cert.pem"
+      }
+    }
+  },
+  "orderers": {
+    "orderer.supplychain.com": {
+      "url": "grpcs://orderer.supplychain.com:7050",
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.supplychain.com",
+        "grpc.max_send_message_length": -1,
+        "grpc.max_receive_message_length": -1
+      },
+      "tlsCACerts": {
+        "path": "/opt/explorer/crypto-config/ordererOrganizations/supplychain.com/orderers/orderer.supplychain.com/tls/ca.crt"
+      }
+    }
+  },
+  "peers": {
+    "peer0.producer.supplychain.com": {
+      "url": "grpcs://peer0.producer.supplychain.com:7051",
+      "eventUrl": "grpcs://peer0.producer.supplychain.com:7053",
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.producer.supplychain.com",
+        "grpc.keepalive_time_ms": 600000
+      },
+      "tlsCACerts": {
+        "path": "/opt/explorer/crypto-config/peerOrganizations/producer.supplychain.com/peers/peer0.producer.supplychain.com/tls/ca.crt"
+      }
+    }
+  },
+  "channels": {
+    "supply-chain-channel": {
+      "peers": {
+        "peer0.producer.supplychain.com": {}
+      }
+    }
+  }
+}
