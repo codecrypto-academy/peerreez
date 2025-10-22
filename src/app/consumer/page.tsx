@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Layout from '../../components/layout/Layout';
+import ConsumerWalletControls from '@/components/wallet/ConsumerWalletControls';
 import { useAssetsByOwner, Asset } from '../../hooks/useGatewayAssets';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransfer } from '@/types/fabric';
@@ -26,6 +27,9 @@ export default function ConsumerPage() {
                     <div className="mb-8">
                         <h1 className="text-4xl font-bold text-gray-900 mb-2">Consumer Dashboard</h1>
                         <p className="text-lg text-gray-600">View and trace your purchased products</p>
+                    </div>
+                    <div className="mb-6">
+                        <ConsumerWalletControls />
                     </div>
 
                     {/* Header: only two cards per request */}

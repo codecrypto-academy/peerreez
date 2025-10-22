@@ -6,6 +6,7 @@ import { useTransferHistory } from '../../hooks/useTransferHistory';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
+import FactoryWalletControls from '@/components/wallet/FactoryWalletControls';
 import { useState } from 'react';
 import { PendingTransfer } from '@/types/fabric';
 import { Asset } from '../../hooks/useGatewayAssets';
@@ -172,6 +173,10 @@ export default function FactoryPage() {
                     <div className="mb-8">
                         <h1 className="text-4xl font-bold text-gray-900 mb-2">Factory Dashboard</h1>
                         <p className="text-lg text-gray-600">Transform raw materials into finished products</p>
+                        <div className="mt-4">
+                            {/* Wallet selector for Factory role - full width card */}
+                            <FactoryWalletControls />
+                        </div>
                     </div>
 
                     {/* Notification Toast */}

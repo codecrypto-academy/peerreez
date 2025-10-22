@@ -6,6 +6,7 @@ import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/components/auth/AuthProvider';
+import WalletButton from '@/components/wallet/WalletButton';
 
 export default function Header() {
     const [showLogin, setShowLogin] = useState(false);
@@ -107,45 +108,46 @@ export default function Header() {
                             </div>
                         </div>
 
-                        <div className="relative">
-                            {/* Trigger button to open modal and change role */}
-                            {/* Trigger button to open modal and change role (styled) */}
-                            <div className="flex items-center gap-3">
-                                <div className="px-2 py-1 bg-gray-100 rounded-full text-sm text-gray-800">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Guest'}</div>
-                                <button
-                                    onClick={() => setShowLogin((s) => !s)}
-                                    aria-expanded={showLogin}
-                                    aria-haspopup="dialog"
-                                    className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-black bg-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                >
-                                    <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m0-4a4 4 0 100-8 4 4 0 000 8z" />
-                                    </svg>
-                                    <span>Cambiar rol</span>
-                                </button>
-                            </div>
-
-                            {showLogin && portalRoot.current && createPortal(
-                                <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-                                    {/* Backdrop: click to close */}
-                                    <div
-                                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                                        onClick={() => setShowLogin(false)}
-                                    />
-
-                                    {/* Modal container */}
-                                    <div
-                                        role="dialog"
-                                        aria-modal="true"
-                                        className="relative z-[10000] w-full max-w-lg px-4 allow-interaction"
+                        <div className="flex items-center gap-3">
+                            {/* WalletButton removed from header to hide account info */}
+                            <div className="relative">
+                                <div className="flex items-center gap-3">
+                                    <div className="px-2 py-1 bg-gray-100 rounded-full text-sm text-gray-800">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Guest'}</div>
+                                    <button
+                                        onClick={() => setShowLogin((s) => !s)}
+                                        aria-expanded={showLogin}
+                                        aria-haspopup="dialog"
+                                        className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-black bg-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                     >
-                                        <div className="transform transition-all duration-150 scale-100">
-                                            <LoginForm onClose={() => setShowLogin(false)} />
+                                        <svg className="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-4-4h-1M9 20H4v-2a4 4 0 014-4h1m0-4a4 4 0 100-8 4 4 0 000 8z" />
+                                        </svg>
+                                        <span>Cambiar rol</span>
+                                    </button>
+                                </div>
+
+                                {showLogin && portalRoot.current && createPortal(
+                                    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+                                        {/* Backdrop: click to close */}
+                                        <div
+                                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                                            onClick={() => setShowLogin(false)}
+                                        />
+
+                                        {/* Modal container */}
+                                        <div
+                                            role="dialog"
+                                            aria-modal="true"
+                                            className="relative z-[10000] w-full max-w-lg px-4 allow-interaction"
+                                        >
+                                            <div className="transform transition-all duration-150 scale-100">
+                                                <LoginForm onClose={() => setShowLogin(false)} />
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>,
-                                portalRoot.current,
-                            )}
+                                    </div>,
+                                    portalRoot.current,
+                                )}
+                            </div>
                         </div>
                     </div>
 

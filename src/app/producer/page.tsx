@@ -1,6 +1,8 @@
 'use client';
 
 import Layout from '../../components/layout/Layout';
+import dynamic from 'next/dynamic';
+import ProducerWalletControls from '@/components/wallet/ProducerWalletControls';
 import { useAssetsByOwner, useRefetchAssets, Asset } from '../../hooks/useGatewayAssets';
 import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransferHistory';
 import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
@@ -103,6 +105,10 @@ export default function ProducerPage() {
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Producer Dashboard</h1>
             <p className="text-lg text-gray-600">Manage your raw materials and supply chain operations</p>
+            <div className="mt-4">
+              {/* Wallet selector for Producer role - full width card */}
+              <ProducerWalletControls />
+            </div>
             {displayStats.error && (
               <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600">⚠️ {displayStats.error}</p>

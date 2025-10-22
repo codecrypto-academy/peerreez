@@ -4,6 +4,7 @@ import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import SetRoleCookie from '@/components/auth/SetRoleCookie';
 import AuthProvider from '@/components/auth/AuthProvider';
+import WalletProvider from '@/components/wallet/WalletProvider';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +32,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
         <QueryProvider>
+          {/* Move WalletProvider inside AuthProvider so WalletProvider can read current role from useAuth */}
           <AuthProvider>
-            <SetRoleCookie />
-            {children}
+            <WalletProvider>
+              <SetRoleCookie />
+              {children}
+            </WalletProvider>
           </AuthProvider>
         </QueryProvider>
       </body>

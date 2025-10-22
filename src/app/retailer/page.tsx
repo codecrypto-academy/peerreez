@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Layout from '../../components/layout/Layout';
+import RetailerWalletControls from '@/components/wallet/RetailerWalletControls';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import { PendingTransfer, Asset } from '@/types/fabric';
@@ -56,6 +57,9 @@ export default function RetailerPage() {
                         <div className="mb-8">
                             <h1 className="text-4xl font-bold text-gray-900 mb-2">Retailer Dashboard</h1>
                             <p className="text-lg text-gray-600">Distribute products to final consumers</p>
+                        </div>
+                        <div className="mb-6">
+                            <RetailerWalletControls />
                         </div>
 
                         {/* Notification Toast */}
