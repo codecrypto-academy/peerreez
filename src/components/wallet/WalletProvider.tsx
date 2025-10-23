@@ -126,7 +126,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             return;
           }
           const js = await res.json();
-          const ids = (js?.identities || []).map((i: any) => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn }));
+          const ids = (js?.identities || []).map((i: Record<string, unknown>) => ({ username: String(i.username || ''), address: String(i.address || ''), fingerprint: String(i.fingerprint || ''), certFile: String(i.certFile || ''), cn: i.cn ? String(i.cn) : undefined }));
           setAvailableIdentities(ids);
           setAddress(ids.length > 0 ? ids[0].address : null);
         } else {

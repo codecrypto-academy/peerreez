@@ -37,8 +37,9 @@ export async function GET(req: Request) {
     const fp = crypto.createHash('sha256').update(der).digest('hex');
 
     return NextResponse.json({ role, fingerprint: fp, certPem: pem });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

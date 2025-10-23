@@ -7,7 +7,8 @@ import { useAuth } from '@/components/auth/AuthProvider';
 export default function RetailerWalletControls() {
     const { user } = useAuth();
     const role = user?.role ?? null;
-    const [identities, setIdentities] = useState<Array<any>>([]);
+    type Identity = { username: string; address: string; fingerprint: string; certFile: string; cn?: string };
+    const [identities, setIdentities] = useState<Identity[]>([]);
     const panelOrg = 'retailer.supplychain.com';
 
     useEffect(() => {

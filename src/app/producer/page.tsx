@@ -8,7 +8,7 @@ import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransfe
 import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PendingTransfer } from '@/types/fabric';
 
 export default function ProducerPage() {
@@ -97,6 +97,8 @@ export default function ProducerPage() {
     }
   };
 
+  // ProducerIdentitySelector removed per UI simplification request
+
   return (
     <Layout title="Producer Dashboard" description="Manage your raw materials and supply chain operations">
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -108,6 +110,9 @@ export default function ProducerPage() {
             <div className="mt-4">
               {/* Wallet selector for Producer role - full width card */}
               <ProducerWalletControls />
+
+              {/* New: Producer identity selector + Connect (UI-only) */}
+              {/* Producer identity selector removed */}
             </div>
             {displayStats.error && (
               <div className="mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">

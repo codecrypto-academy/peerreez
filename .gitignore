@@ -50,3 +50,4 @@ supply-chain-network/explorer/wallet/
 explorer_db_data
 # Docker volumes and temporary files
 *.log
+supply-chain-network/explorer/token_inject.html
