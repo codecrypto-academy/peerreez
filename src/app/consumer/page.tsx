@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../../components/layout/Layout';
 import ConsumerWalletControls from '@/components/wallet/ConsumerWalletControls';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import { useAssetsByOwner, Asset } from '../../hooks/useGatewayAssets';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransfer } from '@/types/fabric';
@@ -11,13 +12,55 @@ import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import Link from 'next/link';
 
 export default function ConsumerPage() {
-    const { data: assets = [], isLoading } = useAssetsByOwner();
+    const { address } = useWallet();
+    const [resolvedOwner, setResolvedOwner] = useState<string | undefined>(undefined);
+
+    // Resolve username for the connected wallet address so hooks can filter by user (not org)
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setResolvedOwner(undefined);
+            if (!address) return;
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=consumer.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match && mounted) {
+                        setResolvedOwner(match.username || match.address);
+                        return;
+                    }
+                }
+            } catch {
+                // fallthrough
+            }
+
+            try {
+                const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=consumer.supplychain.com`);
+                if (rr.ok) {
+                    const rjs = await rr.json();
+                    if (rjs && rjs.success && rjs.found && rjs.found.username && mounted) {
+                        setResolvedOwner(rjs.found.username);
+                        return;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { mounted = false; };
+    }, [address]);
+
+    const ownerParam = resolvedOwner || address || undefined;
+
+    const { data: assets = [], isLoading } = useAssetsByOwner(ownerParam);
     const [showProductsList, setShowProductsList] = useState(false);
     const [showContainerLogs, setShowContainerLogs] = useState(false);
 
     // show only delivered or in-transit items
     const myProducts = (assets as Asset[]).filter((a) => a.status === 'DELIVERED' || a.status === 'IN_TRANSIT');
-    const { data: pendingTransfers = [], isLoading: pendingLoading, refetch: refetchPending } = usePendingTransfers();
+    const { data: pendingTransfers = [], isLoading: pendingLoading, refetch: refetchPending } = usePendingTransfers(ownerParam);
     const incomingPending = (pendingTransfers as PendingTransfer[]).filter((t) => t.direction === 'incoming').length;
 
     return (
@@ -178,7 +221,7 @@ export default function ConsumerPage() {
                             ) : (
                                 <div className="space-y-4">
                                     {(pendingTransfers as PendingTransfer[]).filter((t) => t.direction === 'incoming').map((transfer) => (
-                                        <PendingTransferCard key={transfer.id} transfer={transfer} onSuccess={() => refetchPending()} />
+                                        <PendingTransferCard key={transfer.id} transfer={transfer} ownerIdentity={ownerParam} onSuccess={() => refetchPending()} />
                                     ))}
                                 </div>
                             )}

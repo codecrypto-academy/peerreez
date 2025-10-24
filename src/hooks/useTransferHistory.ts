@@ -19,11 +19,12 @@ export interface TransferHistoryAsset extends Asset {
  * Hook to fetch transfer history - Assets that were transferred BY the current user
  * Uses the new QueryTransferHistory chaincode function
  */
-export function useTransferHistory(org: 'producer' | 'factory' | 'retailer' | 'consumer' = 'producer') {
+export function useTransferHistory(org: 'producer' | 'factory' | 'retailer' | 'consumer' = 'producer', ownerAddress?: string) {
   return useQuery<TransferHistoryAsset[], Error>({
-    queryKey: ['transferHistory', org],
+    queryKey: ['transferHistory', org, ownerAddress || null],
     queryFn: async () => {
-      const response = await fetch(`/api/fabric/transfer-history?org=${org}`);
+      const ownerQuery = ownerAddress ? `&ownerIdentity=${encodeURIComponent(ownerAddress)}` : '';
+      const response = await fetch(`/api/fabric/transfer-history?org=${org}${ownerQuery}`);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -38,5 +39,12 @@ export function useTransferHistory(org: 'producer' | 'factory' | 'retailer' | 'c
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchOnMount: true,
     refetchOnWindowFocus: false,
+    // When ownerAddress is provided we evaluate QueryTransferHistory as that user on the server
+    // The chaincode already returns assets transferred BY that caller, so avoid additional
+    // client-side filtering which would remove assets that were transferred by the caller
+    // but whose currentOwner is now the recipient. If no ownerAddress is provided, return as-is.
+    select: (assets: TransferHistoryAsset[]) => {
+      return assets;
+    }
   });
 }

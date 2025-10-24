@@ -19,7 +19,8 @@ export default function FactoryWalletControls() {
                 if (!res.ok) return;
                 const js = await res.json();
                 if (!mounted) return;
-                setIdentities(js?.identities || []);
+                const raw = js?.identities || [];
+                setIdentities((raw as any[]).map(i => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn })).filter((x) => !(x.username || '').toLowerCase().startsWith('admin@')));
             } catch (e) {
                 // ignore
             }

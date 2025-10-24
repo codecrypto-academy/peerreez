@@ -20,6 +20,7 @@ export class IdentityManager {
     private static instance: IdentityManager;
     private identityCache = new Map<string, Identity>();
     private cryptoBasePath: string;
+    // mappingsPath removed: mappings support intentionally disabled when file is unused
 
     private constructor() {
         // Base path to crypto-config directory
@@ -29,6 +30,7 @@ export class IdentityManager {
             'supply-chain-network/crypto-config/peerOrganizations'
         );
         this.cryptoBasePath = projectRoot;
+        // mapping file support disabled — resolution will fall back to certificate discovery only
     }
 
     public static getInstance(): IdentityManager {
@@ -53,6 +55,102 @@ export class IdentityManager {
         const identity = await this.loadIdentityFromDisk(role);
         this.identityCache.set(cacheKey, identity);
         return identity;
+    }
+
+    /**
+     * Load identity by username (e.g., 'User1@producer.supplychain.com' or 'Admin@producer.supplychain.com')
+     */
+    public async getIdentityByUsername(role: Role, username: string): Promise<Identity> {
+        const cacheKey = `${role.toLowerCase()}::${username}`;
+        if (this.identityCache.has(cacheKey)) return this.identityCache.get(cacheKey)!;
+
+        const identity = await this.loadIdentityForUser(role, username);
+        this.identityCache.set(cacheKey, identity);
+        return identity;
+    }
+
+    /**
+     * Find an identity by selector (username, CN or derived address) under a role's users directory
+     */
+    public async findIdentity(role: Role, selector: string): Promise<{ username: string; identity: Identity } | null> {
+        // First check runtime mappings (e.g., address -> username) so operators can map external
+        // wallet addresses to existing Fabric usernames without changing crypto-config.
+        try {
+            const mappings = await this.loadMappings();
+            const orgName = this.getOrgName(role);
+            const selLower = selector.toLowerCase();
+            const possibleKeys = [
+                `${orgName}:${selLower}`,
+                `${orgName}.supplychain.com:${selLower}`,
+                `${orgName}:0x${selLower.replace(/^0x/, '')}`,
+                `${orgName}.supplychain.com:0x${selLower.replace(/^0x/, '')}`,
+            ];
+            let mappedUsername: string | undefined;
+            for (const k of possibleKeys) {
+                if (mappings && mappings[k]) {
+                    mappedUsername = mappings[k];
+                    break;
+                }
+            }
+            if (mappedUsername) {
+                try {
+                    const ident = await this.loadIdentityForUser(role, mappedUsername);
+                    return { username: mappedUsername, identity: ident };
+                } catch (e) {
+                    // if the mapped username doesn't exist on disk, continue to disk search
+                }
+            }
+        } catch (e) {
+            // ignore mapping errors and continue to disk search
+        }
+        const orgName = this.getOrgName(role);
+        const usersDir = path.join(this.cryptoBasePath, `${orgName}.supplychain.com`, 'users');
+        try {
+            const entries = await fs.readdir(usersDir, { withFileTypes: true });
+            for (const e of entries) {
+                if (!e.isDirectory()) continue;
+                const username = e.name;
+                try {
+                    const certsDir = path.join(usersDir, username, 'msp', 'signcerts');
+                    const files = await fs.readdir(certsDir).catch(() => []);
+                    if (!files || files.length === 0) continue;
+                    const certFile = path.join(certsDir, files[0]);
+                    const pem = await fs.readFile(certFile, 'utf8');
+                    const der = pemToDer(Buffer.from(pem, 'utf8'));
+                    const fp = crypto.createHash('sha256').update(der).digest('hex');
+                    const addr = '0x' + fp.slice(-40);
+                    const cn = extractCNFromPem(pem);
+                    const sel = selector.toLowerCase();
+                    if (username.toLowerCase() === sel || (cn && cn.toLowerCase() === sel) || addr.toLowerCase() === sel) {
+                        // load full identity for this user and return username
+                        const ident = await this.loadIdentityForUser(role, username);
+                        return { username, identity: ident };
+                    }
+                } catch {
+                    // ignore and continue
+                }
+            }
+        } catch {
+            // ignore
+        }
+        return null;
+    }
+
+    /**
+     * Load mappings from JSON file. Returns an object with keys like 'producer:0xabc...': 'User1@producer.supplychain.com'
+     */
+    private async loadMappings(): Promise<Record<string, string>> {
+        // Mappings disabled: always return empty mapping so callers fall back to disk discovery
+        return {};
+    }
+
+    /**
+     * Add or update a mapping (orgName:selector -> username)
+     */
+    public async addMapping(orgName: string, selector: string, username: string): Promise<void> {
+        // Mappings persistence disabled. No-op to remain backward compatible with callers.
+        // If you want to re-enable mappings, restore the identity-mappings.json handling.
+        return;
     }
 
     /**
@@ -90,6 +188,41 @@ export class IdentityManager {
             path.join(keyPath, keyFile),
             'utf8'
         );
+
+        return {
+            mspId,
+            credentials: {
+                certificate,
+                privateKey,
+            },
+        };
+    }
+
+    /**
+     * Load identity for a specific user directory
+     */
+    private async loadIdentityForUser(role: Role, username: string): Promise<Identity> {
+        const orgName = this.getOrgName(role);
+        const mspId = this.getMspId(role);
+
+        const userPath = path.join(
+            this.cryptoBasePath,
+            `${orgName}.supplychain.com`,
+            'users',
+            username
+        );
+
+        const certPath = path.join(userPath, 'msp', 'signcerts');
+        const certFiles = await fs.readdir(certPath).catch(() => []);
+        const certFile = certFiles.find(f => f.endsWith('.pem'));
+        if (!certFile) throw new Error(`Certificate not found for ${username} at ${certPath}`);
+        const certificate = await fs.readFile(path.join(certPath, certFile), 'utf8');
+
+        const keyPath = path.join(userPath, 'msp', 'keystore');
+        const keyFiles = await fs.readdir(keyPath).catch(() => []);
+        const keyFile = keyFiles[0];
+        if (!keyFile) throw new Error(`Private key not found for ${username} at ${keyPath}`);
+        const privateKey = await fs.readFile(path.join(keyPath, keyFile), 'utf8');
 
         return {
             mspId,
@@ -165,3 +298,20 @@ export class IdentityManager {
 
 // Export singleton instance
 export const identityManager = IdentityManager.getInstance();
+
+function pemToDer(pemBuffer: Buffer) {
+    const pem = pemBuffer.toString();
+    const b = pem.replace(/-----BEGIN CERTIFICATE-----/, '')
+        .replace(/-----END CERTIFICATE-----/, '')
+        .replace(/\s+/g, '');
+    return Buffer.from(b, 'base64');
+}
+
+function extractCNFromPem(pem: string) {
+    const m = pem.match(/Subject:.*CN=([^,\n/]+)/);
+    if (m && m[1]) return m[1].trim();
+    // alternative: try CN= in DN lines
+    const m2 = pem.match(/CN=([^,\n/]+)/i);
+    if (m2 && m2[1]) return m2[1].trim();
+    return undefined;
+}

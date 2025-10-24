@@ -8,9 +8,10 @@ import { useCurrentUser } from '@/components/auth/RoleGuard';
 interface PendingTransferCardProps {
     transfer: PendingTransfer;
     onSuccess?: () => void;
+    ownerIdentity?: string;
 }
 
-export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCardProps) {
+export function PendingTransferCard({ transfer, onSuccess, ownerIdentity }: PendingTransferCardProps) {
     const [showRejectDialog, setShowRejectDialog] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showCancelCard, setShowCancelCard] = useState(false);
@@ -26,6 +27,7 @@ export function PendingTransferCard({ transfer, onSuccess }: PendingTransferCard
             await acceptTransfer.mutateAsync({
                 transferId: transfer.id,
                 assetId: transfer.assetId,
+                ownerIdentity: ownerIdentity,
             });
             onSuccess?.();
         } catch (error: unknown) {

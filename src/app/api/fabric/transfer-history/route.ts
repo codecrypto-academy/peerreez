@@ -11,9 +11,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[API] Transfer History - Starting request');
 
-    // Get organization from query params (default to producer for testing)
+    // Get organization and optional ownerIdentity from query params (default to producer for testing)
     const searchParams = request.nextUrl.searchParams;
     const orgParam = searchParams.get('org') || 'producer';
+    const ownerIdentity = searchParams.get('ownerIdentity') || undefined;
 
     console.log(`[API] Fetching transfer history for org: ${orgParam}`);
 
@@ -25,10 +26,7 @@ export async function GET(request: NextRequest) {
     // Call the new QueryTransferHistory function
     // Capitalize first letter for Role enum
     const role = (orgParam.charAt(0).toUpperCase() + orgParam.slice(1)) as 'Producer' | 'Factory' | 'Retailer' | 'Consumer';
-    const result = await gatewayService.evaluateTransaction(
-      role,
-      'QueryTransferHistory'
-    );
+    const result = await gatewayService.queryTransferHistory(role, ownerIdentity);
 
     if (!result.success) {
       console.error('[API] Transaction failed:', result.error);

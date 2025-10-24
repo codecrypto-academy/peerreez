@@ -23,7 +23,18 @@ export async function GET(request: NextRequest) {
 
         switch (operation) {
             case 'queryByOwner': {
-                const result = await gatewayService.queryAssetsByOwner(role);
+                // Optional ownerIdentity can be provided to query assets of an arbitrary identity
+                const ownerIdentity = searchParams.get('ownerIdentity') || undefined;
+                const result = ownerIdentity
+                    ? await gatewayService.queryAssetsByOwner(role, ownerIdentity)
+                    : await gatewayService.queryAssetsByOwner(role);
+
+                // If the gatewayService returned a specific hint that the chaincode lacks the function,
+                // forward a helpful error to the client so the UI can fallback to client-side filtering.
+                if (!result.success && result.error && result.error.includes('QueryAssetsByOwnerIdentity')) {
+                    return NextResponse.json({ success: false, error: result.error }, { status: 501 });
+                }
+
                 return NextResponse.json(result);
             }
 
@@ -61,12 +72,16 @@ export async function GET(request: NextRequest) {
             }
 
             case 'queryTransferHistory': {
-                const result = await gatewayService.queryTransferHistory(role);
+                // Optionally query transfer history as a specific owner identity (selector)
+                const ownerIdentity = searchParams.get('ownerIdentity') || undefined;
+                const result = await gatewayService.queryTransferHistory(role, ownerIdentity);
                 return NextResponse.json(result);
             }
 
             case 'getPendingTransfers': {
-                const result = await gatewayService.getPendingTransfers(role);
+                // Optionally evaluate GetPendingTransfers as a specific user when ownerIdentity is provided
+                const ownerIdentity = searchParams.get('ownerIdentity') || undefined;
+                const result = await gatewayService.getPendingTransfers(role, ownerIdentity);
                 return NextResponse.json(result);
             }
 
@@ -114,13 +129,20 @@ export async function POST(request: NextRequest) {
                         { status: 400 }
                     );
                 }
+
+                const ownerIdentity = body.ownerIdentity as string | undefined;
+
+                // DEBUG: log ownerIdentity received by API
+                console.log('[API] createAsset ownerIdentity:', ownerIdentity);
+
                 const result = await gatewayService.createAsset(
                     role as Role,
                     assetId,
                     assetType,
                     quantity,
                     unit,
-                    metadata || {}
+                    metadata || {},
+                    ownerIdentity
                 );
                 return NextResponse.json(result);
             }
@@ -191,6 +213,28 @@ export async function POST(request: NextRequest) {
                     );
                 }
 
+                // If ownerIdentity is provided, submit the transaction using that user's identity
+                // so chaincode `ctx.clientIdentity` reflects the selected wallet.
+                const ownerIdentity = body.ownerIdentity as string | undefined;
+
+                if (ownerIdentity) {
+                    // submitTransactionWithIdentity(role, identitySelector, functionName, ...args)
+                    const args = [
+                        JSON.stringify(rawMaterialIds),
+                        newAssetId,
+                        JSON.stringify(productData),
+                        JSON.stringify(quantities)
+                    ];
+
+                    const res = await gatewayService.submitTransactionWithIdentity(
+                        role as Role,
+                        ownerIdentity,
+                        'TransformAsset',
+                        ...args
+                    );
+                    return NextResponse.json(res);
+                }
+
                 const result = await gatewayService.transformAsset(
                     role as Role,
                     rawMaterialIds,
@@ -241,6 +285,7 @@ export async function POST(request: NextRequest) {
 
             case 'deleteAsset': {
                 const quantityToDelete = typeof body.quantityToDelete === 'number' ? (body.quantityToDelete as number) : undefined;
+                const ownerIdentity = body.ownerIdentity as string | undefined;
 
                 if (!assetId) {
                     return NextResponse.json(
@@ -261,7 +306,7 @@ export async function POST(request: NextRequest) {
                 // Owners can delete/reduce their own assets
                 console.log(`[API] Deleting asset ${assetId} for role ${role}${quantityToDelete ? ` (quantity: ${quantityToDelete})` : ' (complete)'}`);
 
-                const result = await gatewayService.deleteAsset(role as Role, assetId, quantityToDelete);
+                const result = await gatewayService.deleteAsset(role as Role, assetId, quantityToDelete, ownerIdentity);
                 return NextResponse.json(result);
             }
 
@@ -309,6 +354,7 @@ export async function POST(request: NextRequest) {
                     targetMSP,
                     td
                 );
+                // Chaincode persists recipientIdentity when provided inside transferData; no in-memory index required.
                 return NextResponse.json(result);
             }
 

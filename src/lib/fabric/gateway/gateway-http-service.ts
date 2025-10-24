@@ -21,11 +21,13 @@ class GatewayHttpService {
     /**
      * Query assets by owner using Gateway API
      */
-    async queryAssetsByOwner(role: Role): Promise<TransactionResult> {
+    async queryAssetsByOwner(role: Role, ownerIdentity?: string): Promise<TransactionResult> {
         try {
-            console.debug('[GatewayHttpService] GET /api/fabric/gateway queryByOwner', { role });
-            const response = await fetch(
-                `/api/fabric/gateway?operation=queryByOwner&role=${role}`,
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway queryByOwner', { role, ownerIdentity });
+            const url = ownerIdentity
+                ? `/api/fabric/gateway?operation=queryByOwner&role=${role}&ownerIdentity=${encodeURIComponent(ownerIdentity)}`
+                : `/api/fabric/gateway?operation=queryByOwner&role=${role}`;
+            const response = await fetch(url,
                 {
                     method: 'GET',
                     credentials: 'include',
@@ -171,7 +173,8 @@ class GatewayHttpService {
         assetType: string,
         quantity: number,
         unit: string,
-        metadata: Record<string, unknown>
+        metadata: Record<string, unknown>,
+        ownerIdentity?: string
     ): Promise<TransactionResult> {
         try {
             console.debug('[GatewayHttpService] POST /api/fabric/gateway createAsset', { role, assetId });
@@ -189,6 +192,7 @@ class GatewayHttpService {
                     quantity,
                     unit,
                     metadata,
+                    ownerIdentity
                 }),
             });
 
@@ -349,7 +353,7 @@ class GatewayHttpService {
     /**
      * Delete an asset or reduce its quantity (Owner or Admin)
      */
-    async deleteAsset(role: Role, assetId: string, quantityToDelete?: number): Promise<TransactionResult> {
+    async deleteAsset(role: Role, assetId: string, quantityToDelete?: number, ownerIdentity?: string): Promise<TransactionResult> {
         try {
             const body: Record<string, unknown> = {
                 operation: 'deleteAsset',
@@ -360,6 +364,9 @@ class GatewayHttpService {
             // Only include quantityToDelete if it's provided and valid
             if (quantityToDelete !== undefined && quantityToDelete > 0) {
                 body.quantityToDelete = quantityToDelete;
+            }
+            if (ownerIdentity) {
+                body.ownerIdentity = ownerIdentity;
             }
 
             console.debug('[GatewayHttpService] POST /api/fabric/gateway deleteAsset', { role, assetId, quantityToDelete });
@@ -399,22 +406,34 @@ class GatewayHttpService {
         role: Role,
         assetId: string,
         recipientMSP: string,
-        transferData?: Record<string, unknown>
+        transferData?: Record<string, unknown>,
+        recipientIdentity?: string,
+        ownerIdentity?: string
     ): Promise<TransactionResult> {
         try {
-            console.debug('[GatewayHttpService] POST /api/fabric/gateway/initiate-transfer', { role, assetId, recipientMSP });
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/initiate-transfer', { role, assetId, recipientMSP, recipientIdentity });
+            const body: Record<string, unknown> = {
+                role,
+                assetId,
+                recipientMSP,
+                transferData: transferData || {},
+            };
+
+            if (recipientIdentity) {
+                body.recipientIdentity = recipientIdentity;
+            }
+
+            if (ownerIdentity) {
+                body.ownerIdentity = ownerIdentity;
+            }
+
             const response = await fetch('/api/fabric/gateway/initiate-transfer', {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    role,
-                    assetId,
-                    recipientMSP,
-                    transferData: transferData || {},
-                }),
+                body: JSON.stringify(body),
             });
 
             if (!response.ok) {
@@ -440,19 +459,19 @@ class GatewayHttpService {
      * Accept a pending transfer (2-step transfer: step 2a)
      * Recipient accepts the transfer and completes ownership change
      */
-    async acceptTransfer(role: Role, transferId: string): Promise<TransactionResult> {
+    async acceptTransfer(role: Role, transferId: string, ownerIdentity?: string): Promise<TransactionResult> {
         try {
-            console.debug('[GatewayHttpService] POST /api/fabric/gateway/accept-transfer', { role, transferId });
+            console.debug('[GatewayHttpService] POST /api/fabric/gateway/accept-transfer', { role, transferId, ownerIdentity });
+            const body: Record<string, unknown> = { role, transferId };
+            if (ownerIdentity) body.ownerIdentity = ownerIdentity;
+
             const response = await fetch('/api/fabric/gateway/accept-transfer', {
                 method: 'POST',
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    role,
-                    transferId,
-                }),
+                body: JSON.stringify(body),
             });
 
             if (!response.ok) {
@@ -517,19 +536,19 @@ class GatewayHttpService {
      * Get all pending transfers for the caller
      * Returns both incoming and outgoing pending transfers
      */
-    async getPendingTransfers(role: Role): Promise<TransactionResult> {
+    async getPendingTransfers(role: Role, ownerIdentity?: string): Promise<TransactionResult> {
         try {
-            console.debug('[GatewayHttpService] GET /api/fabric/gateway/pending-transfers', { role });
-            const response = await fetch(
-                `/api/fabric/gateway/pending-transfers?role=${role}`,
-                {
-                    method: 'GET',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
+            console.debug('[GatewayHttpService] GET /api/fabric/gateway/pending-transfers', { role, ownerIdentity });
+            const url = ownerIdentity
+                ? `/api/fabric/gateway/pending-transfers?role=${role}&ownerIdentity=${encodeURIComponent(ownerIdentity)}`
+                : `/api/fabric/gateway/pending-transfers?role=${role}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
 
             if (!response.ok) {
                 const errorData = (await response.json()) as { error?: string } | null;

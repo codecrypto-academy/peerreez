@@ -7,7 +7,8 @@ import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import FactoryWalletControls from '@/components/wallet/FactoryWalletControls';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import { PendingTransfer } from '@/types/fabric';
 import { Asset } from '../../hooks/useGatewayAssets';
 
@@ -19,11 +20,59 @@ export default function FactoryPage() {
     const [showContainerLogs, setShowContainerLogs] = useState(false);
     const [transferringProductId, setTransferringProductId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [retailers, setRetailers] = useState<Array<any>>([]);
+    const [selectingRetailerFor, setSelectingRetailerFor] = useState<string | null>(null);
+    const [selectedRetailer, setSelectedRetailer] = useState<string | undefined>(undefined);
+    const [loadingRetailers, setLoadingRetailers] = useState(false);
 
     // Using Gateway hooks with React Query
-    const { data: assets = [], isLoading: assetsLoading, refetch: refetchAssets } = useAssetsByOwner();
-    const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('factory');
-    const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers();
+    const { address } = useWallet();
+    const [resolvedOwner, setResolvedOwner] = useState<string | undefined>(undefined);
+
+    // Resolve username for the connected wallet address so hooks can filter by user (not org)
+    // This uses the same strategy as Producer's quick transfer flow: list identities then resolve
+    // We call it in an effect whenever the address changes.
+    React.useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setResolvedOwner(undefined);
+            if (!address) return;
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match && mounted) {
+                        setResolvedOwner(match.username || match.address);
+                        return;
+                    }
+                }
+            } catch {
+                // fallthrough
+            }
+
+            try {
+                const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=factory.supplychain.com`);
+                if (rr.ok) {
+                    const rjs = await rr.json();
+                    if (rjs && rjs.success && rjs.found && rjs.found.username && mounted) {
+                        setResolvedOwner(rjs.found.username);
+                        return;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { mounted = false; };
+    }, [address]);
+
+    const ownerParam = resolvedOwner || address || undefined;
+
+    const { data: assets = [], isLoading: assetsLoading, refetch: refetchAssets } = useAssetsByOwner(ownerParam);
+    const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('factory', ownerParam);
+    const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers(ownerParam);
 
     // Calculate stats from real data - SEPARANDO CLARAMENTE MATERIALES Y PRODUCTOS
     // Raw Materials DISPONIBLES (listos para usar en transformación)
@@ -118,10 +167,44 @@ export default function FactoryPage() {
     const incomingPending = ((pendingTransfers || []) as PendingTransfer[]).filter((t: PendingTransfer) => t.direction === 'incoming').length;
 
     const handleTransferProduct = async (productId: string) => {
+        // Open retailer selector modal for this product
+        setSelectingRetailerFor(productId);
         setTransferringProductId(productId);
 
-        // Use the full X509 identity for Retailer (same as transfer page)
-        // full X509 identity intentionally omitted here (not used in dashboard flow)
+        // Load retailer identities if not already loaded
+        if (retailers.length === 0) {
+            setLoadingRetailers(true);
+            try {
+                const res = await fetch('/api/fabric/identity/list?org=retailer.supplychain.com');
+                if (res.ok) {
+                    const js = await res.json();
+                    const ids = js?.identities || [];
+                    // Filter out admin entries
+                    const filtered = ids.filter((i: any) => i.username && !String(i.username).toLowerCase().includes('admin'));
+                    setRetailers(filtered);
+                    if (filtered.length > 0) setSelectedRetailer(filtered[0].username || filtered[0].address);
+                } else {
+                    setNotification({ type: 'error', message: 'Failed to load retailer identities' });
+                    setTimeout(() => setNotification(null), 4000);
+                }
+            } catch (err) {
+                console.error('Failed to load retailers', err);
+                setNotification({ type: 'error', message: 'Failed to load retailer identities' });
+                setTimeout(() => setNotification(null), 4000);
+            } finally {
+                setLoadingRetailers(false);
+            }
+        } else {
+            // Preselect first available if exists
+            if (!selectedRetailer && retailers.length > 0) setSelectedRetailer(retailers[0].username || retailers[0].address);
+        }
+    };
+
+    const doTransferToSelectedRetailer = async () => {
+        const productId = selectingRetailerFor;
+        if (!productId) return;
+
+        setTransferringProductId(productId);
 
         const transferData = {
             destination: 'retailer',
@@ -133,15 +216,46 @@ export default function FactoryPage() {
         };
 
         try {
-            // Use the 2-step initiateTransfer flow so Retailer must accept (pending)
+            // Resolve owner identity (try list first then resolve endpoint)
+            let ownerIdentity: string | undefined = undefined;
+            if (address) {
+                try {
+                    const pres = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+                    if (pres.ok) {
+                        const pjs = await pres.json();
+                        const pids = pjs?.identities || [];
+                        const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                        if (match) ownerIdentity = match.username || match.address;
+                    }
+                } catch {
+                    // fallthrough
+                }
+
+                if (!ownerIdentity) {
+                    try {
+                        const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=factory.supplychain.com`);
+                        if (rr.ok) {
+                            const rjs = await rr.json();
+                            if (rjs && rjs.success && rjs.found && rjs.found.username) {
+                                ownerIdentity = rjs.found.username;
+                            }
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+            }
+
+            // Initiate transfer and include recipientIdentity
             const response = await fetch('/api/fabric/gateway/initiate-transfer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    // role will be inferred server-side from cookie (RoleGuard)
                     assetId: productId,
                     recipientMSP: 'RetailerMSP',
-                    transferData
+                    transferData,
+                    ownerIdentity: ownerIdentity || address,
+                    recipientIdentity: selectedRetailer
                 })
             });
 
@@ -150,6 +264,7 @@ export default function FactoryPage() {
             if (result.success) {
                 setNotification({ type: 'success', message: 'Transfer initiated — awaiting Retailer approval (pending).' });
                 refetch();
+                setSelectingRetailerFor(null);
                 // Auto-hide notification after 3 seconds
                 setTimeout(() => setNotification(null), 3000);
             } else {
@@ -162,6 +277,7 @@ export default function FactoryPage() {
             setTimeout(() => setNotification(null), 5000);
         } finally {
             setTransferringProductId(null);
+            setSelectingRetailerFor(null);
         }
     };
 
@@ -437,6 +553,7 @@ export default function FactoryPage() {
                                             <PendingTransferCard
                                                 key={transfer.id}
                                                 transfer={transfer}
+                                                ownerIdentity={ownerParam}
                                                 onSuccess={() => {
                                                     refetch();
                                                     setNotification({
@@ -821,6 +938,36 @@ export default function FactoryPage() {
                                         </div>
                                         <h3 className="text-lg font-medium text-gray-900 mb-2">No Transfer History</h3>
                                         <p className="text-gray-500">You haven&apos;t shipped any products to Retailer yet.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Retailer selector modal (shown when selectingRetailerFor != null) */}
+                    {selectingRetailerFor && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/40" onClick={() => { setSelectingRetailerFor(null); setTransferringProductId(null); }}></div>
+                            <div className="relative bg-white rounded-xl shadow-xl p-6 w-11/12 max-w-md">
+                                <h3 className="text-lg font-semibold mb-4 text-black">Select Retailer to receive product</h3>
+                                {loadingRetailers ? (
+                                    <div className="py-8 text-center">Loading retailers...</div>
+                                ) : retailers.length === 0 ? (
+                                    <div className="py-6 text-center">No retailer identities available.</div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <label className="text-sm text-black">Retailer</label>
+                                        <select value={selectedRetailer} onChange={(e) => setSelectedRetailer(e.target.value)} className="w-full border p-2 rounded text-black">
+                                            {retailers.map((r: any) => (
+                                                <option className="text-black" key={r.username || r.address} value={r.username || r.address}>
+                                                    {r.username || r.address}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="flex justify-end gap-3 mt-4">
+                                            <button onClick={() => { setSelectingRetailerFor(null); setTransferringProductId(null); }} className="px-4 py-2 bg-gray-100 rounded">Cancel</button>
+                                            <button onClick={doTransferToSelectedRetailer} className="px-4 py-2 bg-purple-600 text-white rounded">Confirm & Send</button>
+                                        </div>
                                     </div>
                                 )}
                             </div>

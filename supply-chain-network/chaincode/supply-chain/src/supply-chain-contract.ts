@@ -57,8 +57,18 @@ export class SupplyChainContract extends Contract {
         // Set created timestamp and creator
         asset.createdAt = new Date().toISOString();
         asset.updatedAt = asset.createdAt;
-        asset.createdBy = this.getClientIdentity(ctx);
-        asset.currentOwner = asset.createdBy;
+
+        // Normalize stored owner strings to a canonical form for reliable comparisons later
+        if (!asset.createdBy) {
+            asset.createdBy = this.getClientIdentity(ctx);
+        }
+        // Ensure stored values are normalized (lowercased CN or username) to match getNormalizedClientIdentity
+        asset.createdBy = this.normalizeIdentityString(asset.createdBy);
+        if (!asset.currentOwner) {
+            asset.currentOwner = asset.createdBy;
+        } else {
+            asset.currentOwner = this.normalizeIdentityString(asset.currentOwner);
+        }
         asset.status = 'CREATED';
 
         await ctx.stub.putState(assetId, Buffer.from(JSON.stringify(asset)));
@@ -100,10 +110,10 @@ export class SupplyChainContract extends Contract {
 
         const assetString = await this.ReadAsset(ctx, assetId);
         const asset: Asset = JSON.parse(assetString);
-        const clientId = this.getClientIdentity(ctx);
+        const clientId = this.getNormalizedClientIdentity(ctx);
 
-        // Verify ownership
-        if (asset.currentOwner !== clientId) {
+        // Verify ownership: compare normalized forms
+        if (this.normalizeIdentityString(asset.currentOwner) !== clientId) {
             throw new Error(`Only the current owner can update the asset`);
         }
 
@@ -141,10 +151,10 @@ export class SupplyChainContract extends Contract {
 
         const assetString = await this.ReadAsset(ctx, assetId);
         const asset: Asset = JSON.parse(assetString);
-        const clientId = this.getClientIdentity(ctx);
+        const clientId = this.getNormalizedClientIdentity(ctx);
 
-        // Verify ownership
-        if (asset.currentOwner !== clientId) {
+        // Verify ownership: compare normalized forms
+        if (this.normalizeIdentityString(asset.currentOwner) !== clientId) {
             throw new Error(`Only the current owner can transfer the asset`);
         }
 
@@ -488,8 +498,9 @@ export class SupplyChainContract extends Contract {
     @Transaction(false)
     @Returns('string')
     public async QueryAssetsByOwner(ctx: Context): Promise<string> {
-        const clientId = this.getClientIdentity(ctx);
-        console.log(`Querying assets for owner: ${clientId}`);
+        // Use normalized client identity so client cert formats (x509 vs username) match stored owner strings
+        const clientId = this.getNormalizedClientIdentity(ctx);
+        console.log(`Querying assets for owner (normalized): ${clientId}`);
 
         // Use state range query compatible with LevelDB
         const resultsIterator = await ctx.stub.getStateByRange('', '');
@@ -503,8 +514,17 @@ export class SupplyChainContract extends Contract {
             try {
                 record = JSON.parse(strValue);
                 // Filter assets that are owned by the current client and have the required structure
-                if (record && record.currentOwner === clientId && record.id) {
-                    ownedAssets.push(record);
+                try {
+                    // Normalize stored currentOwner for comparison
+                    const storedOwner = this.normalizeIdentityString(record.currentOwner || '');
+                    if (record && storedOwner === clientId && record.id) {
+                        ownedAssets.push(record);
+                    }
+                } catch (errInner) {
+                    // fallback to legacy equality
+                    if (record && record.currentOwner === clientId && record.id) {
+                        ownedAssets.push(record);
+                    }
                 }
             } catch (err) {
                 // Skip non-asset entries (like history records)
@@ -520,12 +540,50 @@ export class SupplyChainContract extends Contract {
         return JSON.stringify(ownedAssets);
     }
 
+    // Query assets by an explicit owner identity (allows server-side filtering for demos)
+    @Transaction(false)
+    @Returns('string')
+    public async QueryAssetsByOwnerIdentity(ctx: Context, ownerIdentity: string): Promise<string> {
+        console.log(`Querying assets for explicit owner identity: ${ownerIdentity}`);
+
+        const resultsIterator = await ctx.stub.getStateByRange('', '');
+        const ownedAssets: Asset[] = [];
+
+        let result = await resultsIterator.next();
+        while (!result.done) {
+            const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
+            let record: Asset;
+
+            try {
+                record = JSON.parse(strValue);
+                // Match provided ownerIdentity against currentOwner or createdBy
+                // Use normalized comparison to allow matching username vs x509 forms
+                const normProvided = this.normalizeIdentityString(ownerIdentity);
+                const storedCurrent = this.normalizeIdentityString(record.currentOwner || '');
+                const storedCreated = this.normalizeIdentityString(record.createdBy || '');
+                if (record && (storedCurrent === normProvided || storedCreated === normProvided || record.currentOwner === ownerIdentity || record.createdBy === ownerIdentity) && record.id) {
+                    ownedAssets.push(record);
+                }
+            } catch (err) {
+                // Skip non-asset entries
+            }
+
+            result = await resultsIterator.next();
+        }
+
+        await resultsIterator.close();
+
+        console.log(`Found ${ownedAssets.length} assets for explicit owner ${ownerIdentity}`);
+        return JSON.stringify(ownedAssets);
+    }
+
     // Query transfer history - Get all assets that were transferred BY the caller
     @Transaction(false)
     @Returns('string')
     public async QueryTransferHistory(ctx: Context): Promise<string> {
-        const clientId = this.getClientIdentity(ctx);
-        console.log(`Querying transfer history for: ${clientId}`);
+        // Use normalized client identity so x509 and username forms match stored history
+        const clientId = this.getNormalizedClientIdentity(ctx);
+        console.log(`Querying transfer history (normalized) for: ${clientId}`);
 
         const resultsIterator = await ctx.stub.getStateByRange('', '');
         const transferredAssets: any[] = [];
@@ -542,13 +600,20 @@ export class SupplyChainContract extends Contract {
                 try {
                     const historyRecords: AssetHistory[] = JSON.parse(strValue);
 
-                    // Find actions where previousOwner was the caller:
+                    // Find actions where previousOwner was the caller (compare normalized forms):
                     // 1. TRANSFER actions (complete transfers or complete sales)
                     // 2. CREATE actions where previousOwner === clientId (partial sales - new product for buyer)
-                    const transferRecords = historyRecords.filter(record =>
-                        (record.action === 'TRANSFER' && record.previousOwner === clientId) ||
-                        (record.action === 'CREATE' && record.previousOwner === clientId && record.newOwner !== clientId)
-                    );
+                    const transferRecords = historyRecords.filter(record => {
+                        try {
+                            const prevNorm = this.normalizeIdentityString(record.previousOwner || '');
+                            const newNorm = this.normalizeIdentityString(record.newOwner || '');
+                            const isTransfer = (record.action === 'TRANSFER' && prevNorm === clientId);
+                            const isCreateForBuyer = (record.action === 'CREATE' && prevNorm === clientId && newNorm !== clientId);
+                            return isTransfer || isCreateForBuyer;
+                        } catch (err) {
+                            return false;
+                        }
+                    });
 
                     // For each transfer, get the current asset state
                     if (transferRecords.length > 0) {
@@ -782,8 +847,9 @@ export class SupplyChainContract extends Contract {
         const asset: Asset = JSON.parse(assetString);
 
         // 3. Verify caller is the current owner
-        const clientId = this.getClientIdentity(ctx);
-        if (asset.currentOwner !== clientId) {
+        // Use normalized identity comparison for robustness (matches other functions)
+        const clientId = this.getNormalizedClientIdentity(ctx);
+        if (this.normalizeIdentityString(asset.currentOwner) !== clientId) {
             throw new Error(`Only the current owner can initiate a transfer`);
         }
 
@@ -852,6 +918,7 @@ export class SupplyChainContract extends Contract {
         const pendingTransfer: PendingTransfer = {
             id: transferId,
             assetId,
+            // Store the normalized identity string as the initiator (consistent with other history entries)
             from: clientId,
             fromMSP: senderMSP,
             to: recipientMSP,  // Store the MSP directly (backwards compatible)
@@ -1353,7 +1420,26 @@ export class SupplyChainContract extends Contract {
     }
 
     private getClientIdentity(ctx: Context): string {
+        // Return the raw client identity string
         return ctx.clientIdentity.getID();
+    }
+
+    private normalizeIdentityString(id: string): string {
+        if (!id) return '';
+        // Try to extract CN from x509 identity strings like 'x509::<DN>::<IssuerDN>'
+        const m = id.match(/CN=([^,\/:+]+)/i);
+        if (m && m[1]) return m[1].toLowerCase();
+        // If it's already a simple username like user@org..., return lowercased
+        return id.toLowerCase();
+    }
+
+    private getNormalizedClientIdentity(ctx: Context): string {
+        try {
+            const id = ctx.clientIdentity.getID();
+            return this.normalizeIdentityString(id);
+        } catch (err) {
+            return '';
+        }
     }
 
     private getClientMSP(ctx: Context): string {

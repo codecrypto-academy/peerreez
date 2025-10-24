@@ -12,10 +12,14 @@ export function useInitiateTransfer() {
             assetId,
             recipientMSP,
             transferData,
+            recipientIdentity,
+            ownerIdentity,
         }: {
             assetId: string;
             recipientMSP: string;
             transferData?: Record<string, unknown>;
+            recipientIdentity?: string;
+            ownerIdentity?: string;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -25,7 +29,9 @@ export function useInitiateTransfer() {
                 toGatewayRole(user.role),
                 assetId,
                 recipientMSP,
-                transferData
+                transferData,
+                recipientIdentity,
+                ownerIdentity
             );
 
             if (!result.success) {
@@ -85,7 +91,8 @@ function toGatewayRole(userRole: UserRole): Role {
  */
 export const assetKeys = {
     all: ['assets'] as const,
-    byOwner: (role: Role) => [...assetKeys.all, 'owner', role] as const,
+    // ownerIdentity is optional; include it in the cache key so queries vary per selected owner
+    byOwner: (role: Role, ownerIdentity?: string) => [...assetKeys.all, 'owner', role, ownerIdentity || ''] as const,
     detail: (assetId: string) => [...assetKeys.all, 'detail', assetId] as const,
     history: (assetId: string) => [...assetKeys.all, 'history', assetId] as const,
 };
@@ -93,29 +100,85 @@ export const assetKeys = {
 /**
  * Hook to query assets by owner with React Query caching
  */
-export function useAssetsByOwner() {
+export function useAssetsByOwner(ownerAddress?: string) {
     const user = useCurrentUser();
     const gatewayRole = user ? toGatewayRole(user.role) : 'Producer';
 
     return useQuery({
-        queryKey: assetKeys.byOwner(gatewayRole),
+        queryKey: assetKeys.byOwner(gatewayRole, ownerAddress),
         queryFn: async () => {
             if (!user) {
                 throw new Error('User not authenticated');
             }
 
-            const result = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
+            // Ask server to filter by provided ownerAddress when available so results are accurate
+            if (ownerAddress) {
+                const result = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role), ownerAddress);
 
-            if (!result.success) {
-                throw new Error(result.error || 'Failed to query assets');
+                // If the deployed chaincode does not support QueryAssetsByOwnerIdentity, the
+                // gatewayService returns an error string. Detect that and fall back to
+                // querying without owner and filter client-side (keeps UI working).
+                if (!result.success) {
+                    const errMsg = String(result.error || '');
+                    if (errMsg.includes('QueryAssetsByOwnerIdentity') || errMsg.includes('does not expose')) {
+                        console.warn('[useAssetsByOwner] chaincode missing QueryAssetsByOwnerIdentity; falling back to client-side filter');
+                        const fallback = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
+                        if (!fallback.success) {
+                            throw new Error(fallback.error || 'Failed to query assets (fallback)');
+                        }
+                        return (fallback.data || []) as Asset[];
+                    }
+
+                    throw new Error(result.error || 'Failed to query assets');
+                }
+
+                return (result.data || []) as Asset[];
             }
 
-            return (result.data || []) as Asset[];
+            // No ownerAddress provided — query normally (uses client identity on server)
+            const resNoOwner = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
+            if (!resNoOwner.success) {
+                throw new Error(resNoOwner.error || 'Failed to query assets');
+            }
+            return (resNoOwner.data || []) as Asset[];
         },
         enabled: !!user,
         staleTime: 30 * 1000, // 30 seconds
         gcTime: 5 * 60 * 1000, // 5 minutes
         refetchOnWindowFocus: true,
+        // If ownerAddress provided, return only assets where the currentOwner matches the ownerAddress.
+        // Previously we also matched `createdBy` which caused assets to still appear for the original
+        // producer after a transfer. That made transferred assets still show in the seller's inventory.
+        // To avoid that, when an explicit ownerAddress is provided we only match currentOwner.
+        select: (data: Asset[]) => {
+            if (!ownerAddress) return data;
+            const target = String(ownerAddress).toLowerCase();
+
+            const normalize = (s?: unknown) => (s && typeof s === 'string' ? s.toLowerCase() : '');
+
+            const matches = (field?: string) => {
+                const f = normalize(field);
+                if (!f) return false;
+                if (f === target) return true;
+                if (f.includes(target) || target.includes(f)) return true;
+                if (f.includes('@')) {
+                    const local = f.split('@')[0];
+                    if (local === target) return true;
+                    if (local.includes(target) || target.includes(local)) return true;
+                }
+                const cnMatch = f.match(/cn=([^,\/+]+)/i);
+                if (cnMatch && cnMatch[1]) {
+                    const cn = cnMatch[1].toLowerCase();
+                    if (cn === target) return true;
+                    if (cn.includes(target) || target.includes(cn)) return true;
+                }
+                return false;
+            };
+
+            return data.filter((a) => {
+                return matches(a.currentOwner as string);
+            });
+        }
     });
 }
 
@@ -188,12 +251,14 @@ export function useCreateAsset() {
             quantity,
             unit,
             metadata,
+            ownerIdentity
         }: {
             assetId: string;
             assetType: string;
             quantity: number;
             unit: string;
             metadata: Record<string, unknown>;
+            ownerIdentity?: string;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -205,7 +270,8 @@ export function useCreateAsset() {
                 assetType,
                 quantity,
                 unit,
-                metadata
+                metadata,
+                ownerIdentity
             );
 
             if (!result.success) {
@@ -215,9 +281,9 @@ export function useCreateAsset() {
             return result;
         },
         onSuccess: () => {
-            // Invalidate and refetch assets by owner
+            // Invalidate and refetch assets by owner (invalidate all owner-specific caches for this role)
             if (user) {
-                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)), exact: false });
             }
         },
     });
@@ -367,10 +433,12 @@ export function useDeleteAsset() {
     return useMutation({
         mutationFn: async ({
             assetId,
-            quantityToDelete
+            quantityToDelete,
+            ownerIdentity
         }: {
             assetId: string;
             quantityToDelete?: number;
+            ownerIdentity?: string;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -379,7 +447,8 @@ export function useDeleteAsset() {
             const result = await gatewayHttpService.deleteAsset(
                 toGatewayRole(user.role),
                 assetId,
-                quantityToDelete
+                quantityToDelete,
+                ownerIdentity
             );
 
             if (!result.success) {

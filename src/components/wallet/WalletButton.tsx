@@ -42,12 +42,19 @@ export default function WalletButton({ panelIdentities, panelOrg, panelDisabled 
   else if (panelOrg?.includes('consumer')) panelRole = 'consumer';
 
   // when panelDisabled (i.e., user role != panelOrg) we want to display the panel's identity
+  // but avoid auto-selecting Admin by default - prefer a non-admin identity or leave blank
   let panelDisplayAddress: string | null = null;
   try {
     if (panelDisabled && panelRole) {
       const mapped = localStorage.getItem(`wallet_for_${panelRole}`);
-      if (mapped) panelDisplayAddress = mapped;
-      else if (panelIds && panelIds.length > 0) panelDisplayAddress = panelIds[0].address;
+      // ignore admin mappings
+      if (mapped && !(String(mapped || '').toLowerCase().includes('admin@') || String(mapped || '').toLowerCase().includes('cn=admin@'))) {
+        panelDisplayAddress = mapped;
+      }
+      else if (panelIds && panelIds.length > 0) {
+        const nonAdmin = panelIds.find(id => id.username && !/^admin$/i.test(id.username));
+        panelDisplayAddress = nonAdmin ? nonAdmin.address : null;
+      }
     }
   } catch (e) {
     // ignore localStorage errors
@@ -85,15 +92,19 @@ export default function WalletButton({ panelIdentities, panelOrg, panelDisabled 
                 >
                   {/* Use discovered identities if present */}
                   {panelIds && panelIds.length > 0 ? (
-                    panelIds.map((id) => {
-                      const short = (id.username || id.cn || id.fingerprint).split('@')[0];
-                      const displayAddr = id.address;
-                      return <option key={id.username || id.address} value={displayAddr} className="text-black">{short} — {shorten(displayAddr)}</option>;
-                    })
+                    panelIds
+                      // Filter out Admin entries
+                      .filter((id) => !(id.username || '').toLowerCase().startsWith('admin@'))
+                      .map((id) => {
+                        const short = (id.username || id.cn || id.fingerprint).split('@')[0];
+                        // Use username as the option value when available, fallback to address
+                        const optionValue = id.username && id.username.length > 0 ? id.username : id.address;
+                        const displayAddr = id.address;
+                        return <option key={id.username || id.address} value={optionValue} className="text-black">{short} — {shorten(displayAddr)}</option>;
+                      })
                   ) : (
-                    /* Fallback hard-coded options (Admin/User1/User2) with known addresses */
+                    /* Fallback hard-coded options (prefer non-admin entries) */
                     [
-                      { k: 'Admin', addr: '0xefe483736859b31df0a00da551f829b047d395bf' },
                       { k: 'User1', addr: '0x07d8ca3cd5760f036027493aca0c703d6c937075' },
                       { k: 'User2', addr: '0x4ea05b6fe3dc4c31717786962197f0deb62311fb' },
                     ].map((o) => <option key={o.k} value={o.addr} className="text-black">{o.k} — {shorten(o.addr)}</option>)

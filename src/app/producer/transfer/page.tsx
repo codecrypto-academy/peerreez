@@ -1,12 +1,16 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
 import { useInitiateTransfer } from '../../../hooks/usePendingTransfers';
+import { useEffect } from 'react';
+import { useMemo } from 'react';
 
 interface TransferForm {
   assetId: string;
   recipientMSP: string;
+  recipientIdentity?: string;
   pickupLocation: string;
   transportMethod: string;
   temperature?: number;
@@ -25,7 +29,61 @@ export default function TransferAssetPage() {
     reason: ''
   });
 
-  const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
+  const searchParams = useSearchParams();
+  const ownerParam = searchParams.get('owner') || undefined;
+  // New: try fallback using producer identity CN when owner is an address but chaincode stores CN
+  const [producerIdentities, setProducerIdentities] = useState<{ username: string; address: string; fingerprint: string; certFile: string; cn?: string }[]>([]);
+  const [ownerCandidate, setOwnerCandidate] = useState<string | undefined>(ownerParam);
+
+  useEffect(() => {
+    // initialize candidate from query param
+    setOwnerCandidate(ownerParam || undefined);
+  }, [ownerParam]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/fabric/identity/list?org=producer.supplychain.com');
+        if (!res.ok) return;
+        const js = await res.json();
+        if (!mounted) return;
+        const raw = js?.identities || [];
+        setProducerIdentities((raw as any[])
+          .map((i) => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn }))
+          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'))
+        );
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // If ownerCandidate changes, use it to query assets. If initial query by address returns
+  // no assets and we have a matching producer identity with CN, retry using CN.
+  const assetsQueryKey = useMemo(() => ownerCandidate, [ownerCandidate]);
+  // Re-run the query by passing ownerCandidate into useAssetsByOwner - we will create a local
+  // effect to trigger a retry with CN if needed (see below). For now, get assets using ownerCandidate.
+  const { data: candidateAssets = [], isLoading: candidateLoading } = useAssetsByOwner(ownerCandidate);
+
+  // Displayed assets and loading state (driven by ownerCandidate query)
+  const displayedAssets = candidateAssets;
+  const displayedLoading = candidateLoading;
+
+  useEffect(() => {
+    // if no assets found for the candidate and candidate looks like an address, try fallback CN
+    if (!candidateLoading && ownerCandidate && candidateAssets.length === 0) {
+      const isAddressLike = /^0x[0-9a-fA-F]{8,}$/i.test(ownerCandidate);
+      if (isAddressLike && producerIdentities.length > 0) {
+        const match = producerIdentities.find(pi => pi.address && pi.address.toLowerCase() === ownerCandidate.toLowerCase());
+        if (match && match.cn) {
+          console.warn('[TransferPage] fallback: no assets for address, retrying with CN', { address: ownerCandidate, cn: match.cn });
+          setOwnerCandidate(match.cn);
+        }
+      }
+    }
+  }, [candidateLoading, ownerCandidate, candidateAssets, producerIdentities]);
   // pending transfers UI removed from this route per request
   const { mutateAsync: initiateTransfer, isPending: loading, isError, error, isSuccess: success, reset } = useInitiateTransfer();
 
@@ -35,6 +93,28 @@ export default function TransferAssetPage() {
       [field]: value
     }));
   };
+
+  const [factoryIdentities, setFactoryIdentities] = useState<{ username: string; address: string; fingerprint: string; certFile: string; cn?: string }[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+        if (!res.ok) return;
+        const js = await res.json();
+        if (!mounted) return;
+        const rawF = js?.identities || [];
+        setFactoryIdentities((rawF as any[])
+          .map((i) => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn }))
+          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'))
+        );
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,11 +135,128 @@ export default function TransferAssetPage() {
     };
 
     try {
+      // Determine owner selector (from query param or candidate state)
+      const ownerSelector = ownerCandidate || ownerParam;
+
+      // Pre-submit validation: ensure ownerCandidate resolves to a known username
+      if (ownerSelector) {
+        try {
+          const res = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(ownerSelector)}&org=producer.supplychain.com`);
+          // If server responds with non-2xx, treat as unresolved and block submit
+          if (!res.ok) {
+            let message = `No se pudo resolver la identidad del productor a partir de: ${ownerSelector}.`;
+            try {
+              const body = await res.json();
+              if (body && body.error) message += ` ${body.error}`;
+            } catch {
+              // ignore
+            }
+            alert(`${message} Por favor selecciona la identidad (username) listada en el Wallet.`);
+            return;
+          }
+
+          const js = await res.json();
+          if (!js || !js.success || !js.found || !js.found.username) {
+            alert(`No se pudo resolver la identidad del productor a partir de: ${ownerSelector}. Por favor selecciona la identidad (username) listada en el Wallet.`);
+            return;
+          }
+
+          // Use resolved username as owner selector going forward
+          // This ensures we only send a username that exists on the server
+          // to the backend for per-user submission
+          // Note: producerIdentities local match is still used below as fallback
+          // but we prioritize the server-resolved username
+          // eslint-disable-next-line no-param-reassign
+          // (we'll assign to ownerIdentityToSend later)
+        } catch (err) {
+          console.warn('[TransferPage] identity resolve failed', err);
+          alert(`Error contactando el servidor para resolver la identidad del productor. Intenta de nuevo.`);
+          return;
+        }
+      }
+
+      // find recipientIdentity from selected MSP + dropdown if available (prefer username)
+      const selectedFactory = factoryIdentities.find(id => {
+        const sel = String(formData.recipientIdentity || formData.recipientMSP || '').toLowerCase();
+        return (id.address && id.address.toLowerCase() === sel)
+          || (id.username && id.username.toLowerCase() === sel)
+          || (id.cn && id.cn.toLowerCase() === sel)
+          || (id.certFile && id.certFile.toLowerCase() === sel);
+      });
+      let recipientIdentity = selectedFactory ? selectedFactory.username : (formData.recipientIdentity || undefined);
+
+      // If recipientIdentity is provided but not a known username, try resolving it via server
+      if (recipientIdentity) {
+        const isLikelyUsername = /^[^@\s]+@/.test(recipientIdentity); // simple heuristic: contains '@'
+        if (!isLikelyUsername) {
+          try {
+            const r = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(recipientIdentity)}&org=factory.supplychain.com`);
+            if (r.ok) {
+              const js = await r.json();
+              if (js && js.success && js.found && js.found.username) {
+                recipientIdentity = js.found.username;
+              } else {
+                alert(`No se pudo resolver la identidad del destinatario Factory a partir de: ${recipientIdentity}. Por favor seleccione un usuario de Factory en la lista.`);
+                return;
+              }
+            } else {
+              console.warn('[TransferPage] recipient resolve endpoint returned non-ok', r.status);
+            }
+          } catch (err) {
+            console.warn('[TransferPage] recipient resolve failed', err);
+          }
+        }
+      }
+
+      // Try to resolve owner username from producerIdentities (if we have a matching entry)
+      let ownerIdentityToSend: string | undefined = undefined;
+      if (ownerSelector) {
+        // If we can map locally to a username, prefer that
+        const producerMatch = producerIdentities.find(pi => {
+          const s = ownerSelector.toLowerCase();
+          return (pi.address && pi.address.toLowerCase() === s)
+            || (pi.username && pi.username.toLowerCase() === s)
+            || (pi.cn && pi.cn.toLowerCase() === s)
+            || (pi.certFile && pi.certFile.toLowerCase() === s);
+        });
+        if (producerMatch && producerMatch.username) {
+          ownerIdentityToSend = producerMatch.username;
+        } else {
+          // As we've already performed a server resolve above (and aborted if unresolved),
+          // we can safely pass ownerSelector as it's expected to resolve server-side. However,
+          // to be conservative, prefer to fetch the resolved username from the resolve endpoint
+          try {
+            const r = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(ownerSelector)}&org=producer.supplychain.com`);
+            if (r.ok) {
+              const js = await r.json();
+              if (js && js.success && js.found && js.found.username) {
+                ownerIdentityToSend = js.found.username;
+              } else {
+                // If resolve unexpectedly failed now, abort
+                alert(`No se pudo resolver la identidad del productor a partir de: ${ownerSelector}. Por favor selecciona la identidad (username) listada en el Wallet.`);
+                return;
+              }
+            } else {
+              alert(`No se pudo resolver la identidad del productor a partir de: ${ownerSelector}. Por favor selecciona la identidad (username) listada en el Wallet.`);
+              return;
+            }
+          } catch (err) {
+            console.warn('[TransferPage] owner second-pass resolve failed', err);
+            alert(`Error contactando el servidor para resolver la identidad del productor. Intenta de nuevo.`);
+            return;
+          }
+        }
+      }
+
       await initiateTransfer({
         assetId: formData.assetId,
         recipientMSP: formData.recipientMSP,
-        transferData
-      });
+        transferData,
+        // @ts-ignore - mutate expects recipientIdentity optional param
+        recipientIdentity,
+        // include explicit owner so the server knows which producer is initiating on behalf of
+        ownerIdentity: ownerIdentityToSend
+      } as any);
 
       // Reset form on success
       setFormData({
@@ -73,6 +270,31 @@ export default function TransferAssetPage() {
       });
     } catch (err: unknown) {
       console.error('Transfer initiation failed:', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // Helper: bind provided ownerCandidate (address) to a chosen username from producerIdentities
+  const [binding, setBinding] = useState(false);
+  const bindAddressToUsername = async (username: string) => {
+    if (!ownerCandidate) return;
+    try {
+      setBinding(true);
+      const res = await fetch('/api/fabric/identity/mapping', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ org: 'producer.supplychain.com', selector: ownerCandidate, username })
+      });
+      const js = await res.json();
+      if (res.ok && js && js.success) {
+        alert('Mapping saved. You can now retry the transfer and the server will submit on behalf of the mapped username.');
+      } else {
+        alert('Failed to save mapping: ' + (js?.error || res.status));
+      }
+    } catch (e) {
+      console.error('bind failed', e);
+      alert('Error saving mapping');
+    } finally {
+      setBinding(false);
     }
   };
 
@@ -135,7 +357,7 @@ export default function TransferAssetPage() {
                   <label htmlFor="assetId" className="block text-sm font-semibold text-black mb-3">
                     Choose Asset to Transfer *
                   </label>
-                  {assetsLoading ? (
+                  {displayedLoading ? (
                     <div className="w-full px-4 py-3 bg-gray-200 animate-pulse rounded-xl h-12"></div>
                   ) : (
                     <select
@@ -147,8 +369,8 @@ export default function TransferAssetPage() {
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-black"
                     >
                       <option value="">Choose from your available assets...</option>
-                      {assets.length > 0 ? (
-                        assets.map((asset) => (
+                      {displayedAssets.length > 0 ? (
+                        displayedAssets.map((asset) => (
                           <option key={asset.id} value={asset.id}>
                             {asset.name} - {asset.id} ({asset.category || 'Raw Material'})
                           </option>
@@ -160,6 +382,28 @@ export default function TransferAssetPage() {
                   )}
                   <p className="text-xs text-gray-500 mt-2">💡 Only assets you own can be transferred</p>
                 </div>
+                {/* If ownerCandidate exists but current displayedAssets is empty, offer binding helper */}
+                {ownerCandidate && !displayedLoading && displayedAssets.length === 0 && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-100 rounded-lg">
+                    <p className="text-sm text-yellow-800">No assets were found for the provided owner identifier: <code className="font-mono">{ownerCandidate}</code></p>
+                    <p className="text-xs text-gray-600 mt-2">If this is an address from your wallet, you can bind it to an existing Producer username so the server can submit transactions on your behalf.</p>
+                    <div className="mt-3 flex items-center gap-3">
+                      <select className="px-3 py-2 border rounded" onChange={(e) => { /* noop - handled below */ }} id="bind-username">
+                        <option value="">Select username to bind...</option>
+                        {producerIdentities.map(pi => (
+                          <option key={pi.username} value={pi.username}>{pi.username} — {pi.address}</option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={() => {
+                        const sel = (document.getElementById('bind-username') as HTMLSelectElement)?.value;
+                        if (!sel) return alert('Select a username to bind');
+                        bindAddressToUsername(sel);
+                      }} disabled={binding} className="px-4 py-2 bg-yellow-400 text-black rounded">
+                        {binding ? 'Binding...' : 'Bind address to username'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Destination & Transport Section */}
@@ -193,6 +437,25 @@ export default function TransferAssetPage() {
                       <option value="ConsumerMSP">👤 Consumer (End User)</option>
                     </select>
                     <p className="text-xs text-gray-500 mt-2">⚠️ Producer can only transfer to Factory</p>
+                    {/* If Factory selected, show identity dropdown to pick specific Factory user */}
+                    {formData.recipientMSP === 'FactoryMSP' && (
+                      <div className="mt-4">
+                        <label htmlFor="recipientIdentity" className="block text-sm font-semibold text-gray-800 mb-2">Choose Factory Recipient *</label>
+                        <select
+                          id="recipientIdentity"
+                          name="recipientIdentity"
+                          value={formData.recipientIdentity || ''}
+                          onChange={(e) => handleInputChange('recipientIdentity', e.target.value)}
+                          className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Factory (select user)</option>
+                          {factoryIdentities.map((fi) => (
+                            <option key={fi.address} value={fi.address}>{fi.cn ? `${fi.cn} — ${fi.address}` : fi.address}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-2">Select the specific Factory user who should receive this asset</p>
+                      </div>
+                    )}
                   </div>
 
                   <div>

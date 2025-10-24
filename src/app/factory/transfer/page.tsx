@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAssetsByOwner, useInitiateTransfer } from '../../../hooks/useGatewayAssets';
+import { useWallet } from '@/components/wallet/WalletProvider';
 
 interface TransferForm {
     assetId: string;
@@ -22,7 +23,37 @@ export default function FactoryTransferPage() {
         notes: ''
     });
 
-    const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
+    const { address } = useWallet();
+    const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner(address || undefined);
+
+    // Retailer identity list for recipient selection
+    const [retailerIdentities, setRetailerIdentities] = useState<Array<{ username?: string; address?: string }>>([]);
+    const [retailerLoading, setRetailerLoading] = useState(false);
+
+    React.useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setRetailerLoading(true);
+            try {
+                const res = await fetch('/api/fabric/identity/list?org=retailer.supplychain.com');
+                if (res.ok) {
+                    const js = await res.json();
+                    const ids = js?.identities || [];
+                    // Exclude any admin identities from the selector (case-insensitive)
+                    const filtered = (ids || []).filter((r: any) => {
+                        const v = String(r.username || r.address || '').toLowerCase();
+                        return !v.includes('admin');
+                    });
+                    if (mounted) setRetailerIdentities(filtered);
+                }
+            } catch (err) {
+                // ignore
+            } finally {
+                if (mounted) setRetailerLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
     const { mutate: initiateTransfer, isPending: loading, isError, error, isSuccess: success, reset } = useInitiateTransfer();
 
     // Filter only PRODUCT type assets (manufactured products or pending transfers should still be visible)
@@ -47,6 +78,36 @@ export default function FactoryTransferPage() {
         // MSP destino para Retailer
         const retailerMSP = 'RetailerMSP';
 
+        // Resolve owner identity similar to Producer flow
+        let ownerIdentity: string | undefined = undefined;
+        if (address) {
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match) ownerIdentity = match.username || match.address;
+                }
+            } catch {
+                // fallthrough
+            }
+
+            if (!ownerIdentity) {
+                try {
+                    const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=factory.supplychain.com`);
+                    if (rr.ok) {
+                        const rjs = await rr.json();
+                        if (rjs && rjs.success && rjs.found && rjs.found.username) {
+                            ownerIdentity = rjs.found.username;
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+        }
+
         const transferData = {
             destination: formData.retailerId,
             transportMethod: formData.transportMethod,
@@ -55,12 +116,22 @@ export default function FactoryTransferPage() {
             notes: formData.notes,
             transferType: 'factory-to-retailer' as const
         };
+        // Find the full recipientIdentity (username or address) when possible
+        let recipientIdentity: string | undefined = undefined;
+        if (formData.retailerId) {
+            // If retailerId matches an entry username or address, use that exact identity
+            const match = retailerIdentities.find((r) => r.username === formData.retailerId || r.address === formData.retailerId);
+            if (match) recipientIdentity = match.username || match.address;
+            else recipientIdentity = formData.retailerId;
+        }
 
         initiateTransfer(
             {
                 assetId: formData.assetId,
                 recipientMSP: retailerMSP,
-                transferData
+                transferData,
+                recipientIdentity: recipientIdentity,
+                ownerIdentity: ownerIdentity || address
             },
             {
                 onSuccess: () => {
@@ -191,16 +262,29 @@ export default function FactoryTransferPage() {
                                     <label htmlFor="retailerId" className="block text-sm font-semibold text-gray-800 mb-3 text-black">
                                         Retailer Partner *
                                     </label>
-                                    <select
-                                        id="retailerId"
-                                        value={formData.retailerId}
-                                        onChange={(e) => handleInputChange('retailerId', e.target.value)}
-                                        required
-                                        className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:outline-none transition-colors text-black"
-                                    >
-                                        <option value="">Select retailer...</option>
-                                        <option value="retailer">Main Retailer Network</option>
-                                    </select>
+                                    {retailerLoading ? (
+                                        <div className="text-center py-4">Loading retailers...</div>
+                                    ) : (
+                                        <select
+                                            id="retailerId"
+                                            value={formData.retailerId}
+                                            onChange={(e) => handleInputChange('retailerId', e.target.value)}
+                                            required
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl focus:border-pink-500 focus:outline-none transition-colors text-black"
+                                        >
+                                            <option value="">Select retailer...</option>
+                                            {retailerIdentities.length > 0 ? (
+                                                retailerIdentities.map((r) => (
+                                                    <option key={r.username || r.address} value={r.username || r.address}>
+                                                        {r.username || r.address}
+                                                    </option>
+                                                ))
+                                            ) : (
+                                                // Fallback option if identity list is empty
+                                                <option value="retailer">Main Retailer Network</option>
+                                            )}
+                                        </select>
+                                    )}
                                 </div>
                             </div>
 

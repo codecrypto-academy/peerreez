@@ -9,6 +9,7 @@ import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePending
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import { useState, useEffect } from 'react';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import { PendingTransfer } from '@/types/fabric';
 
 export default function ProducerPage() {
@@ -16,13 +17,20 @@ export default function ProducerPage() {
   const [showHistoryList, setShowHistoryList] = useState(false);
   const [showOutgoingList, setShowOutgoingList] = useState(false);
   const [transferringAssetId, setTransferringAssetId] = useState<string | null>(null);
+  const [showFactoryModal, setShowFactoryModal] = useState(false);
+  const [factoryIdentities, setFactoryIdentities] = useState<any[]>([]);
+  const [selectedFactoryIdentity, setSelectedFactoryIdentity] = useState<string | undefined>(undefined);
+  const [ownerIdentityToSend, setOwnerIdentityToSend] = useState<string | undefined>(undefined);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [showContainerLogs, setShowContainerLogs] = useState(false);
 
   // Using new Gateway hooks with React Query
-  const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner();
-  const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('producer');
+  const { address } = useWallet();
+  const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner(address || undefined);
+  const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('producer', address || undefined);
   const initiateMutation = useInitiateTransfer();
-  const { data: pendingTransfers = [] } = usePendingTransfers();
+  const { data: pendingTransfers = [] } = usePendingTransfers(address || undefined);
   const typedPendingTransfers = (pendingTransfers || []) as PendingTransfer[];
   const refreshAssets = useRefetchAssets();
 
@@ -50,6 +58,34 @@ export default function ProducerPage() {
     error: null
   };
 
+  const handleConfirmFactoryTransfer = async () => {
+    if (!transferringAssetId) return;
+    setModalLoading(true);
+    setModalError(null);
+    try {
+      await initiateMutation.mutateAsync({
+        assetId: transferringAssetId,
+        recipientMSP: 'FactoryMSP',
+        transferData: {
+          pickupLocation: 'Producer Facility',
+          transportMethod: 'Standard Truck',
+          reason: 'Quick transfer to Factory (via modal)'
+        },
+        // @ts-ignore
+        recipientIdentity: selectedFactoryIdentity,
+        ownerIdentity: ownerIdentityToSend || address
+      } as any);
+      // close modal and reset
+      setShowFactoryModal(false);
+      setTransferringAssetId(null);
+      refreshAssets();
+    } catch (err: any) {
+      setModalError(err?.message || String(err));
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   // Siempre usar stats reales para mostrar datos actualizados
   const displayStats = realStats;
 
@@ -67,26 +103,65 @@ export default function ProducerPage() {
 
   // Handle quick transfer request to factory (2-step process)
   const handleQuickTransfer = async (assetId: string) => {
+    // Open modal and preload factory identities + resolve owner identity
     setTransferringAssetId(assetId);
+    setModalError(null);
+    setModalLoading(true);
     initiateMutation.reset(); // Clear previous state
 
     try {
-      await initiateMutation.mutateAsync({
-        assetId,
-        recipientMSP: 'FactoryMSP',
-        transferData: {
-          pickupLocation: 'Producer Facility',
-          transportMethod: 'Standard Truck',
-          reason: 'Quick transfer to Factory',
-          notes: 'Initiated from dashboard quick action'
+      // Load factory identities
+      try {
+        const res = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+        if (res.ok) {
+          const js = await res.json();
+          const ids = js?.identities || [];
+          // filter out admin usernames
+          const filtered = ids.filter((i: any) => !((i.username || '').toLowerCase().includes('admin')));
+          setFactoryIdentities(filtered.length ? filtered : ids);
+          const preferred = (filtered.length ? filtered[0] : ids[0]) || undefined;
+          setSelectedFactoryIdentity(preferred ? (preferred.username || preferred.address) : undefined);
         }
-      });
-      console.log(`Transfer request for ${assetId} initiated successfully - waiting for Factory approval`);
-      // React Query will automatically invalidate and refetch
-    } catch (error) {
-      console.error('Transfer initiation failed:', error);
+      } catch (e) {
+        // ignore - modal will still allow MSP-only transfer
+        setFactoryIdentities([]);
+        setSelectedFactoryIdentity(undefined);
+      }
+
+      // Resolve owner identity for the connected address
+      let resolvedOwner: string | undefined = undefined;
+      if (address) {
+        try {
+          const pres = await fetch('/api/fabric/identity/list?org=producer.supplychain.com');
+          if (pres.ok) {
+            const pjs = await pres.json();
+            const pids = pjs?.identities || [];
+            const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+            if (match) resolvedOwner = match.username || match.address;
+          }
+        } catch {
+          // fallthrough
+        }
+
+        if (!resolvedOwner) {
+          try {
+            const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=producer.supplychain.com`);
+            if (rr.ok) {
+              const rjs = await rr.json();
+              if (rjs && rjs.success && rjs.found && rjs.found.username) {
+                resolvedOwner = rjs.found.username;
+              }
+            }
+          } catch (err) {
+            // ignore - we'll allow owner to default to address in modal
+          }
+        }
+      }
+
+      setOwnerIdentityToSend(resolvedOwner || address || undefined);
+      setShowFactoryModal(true);
     } finally {
-      setTransferringAssetId(null);
+      setModalLoading(false);
     }
   };
 
@@ -284,7 +359,7 @@ export default function ProducerPage() {
               </p>
 
               <a
-                href="/producer/register"
+                href={`/producer/register${address ? `?owner=${encodeURIComponent(address)}` : ''}`}
                 className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +388,7 @@ export default function ProducerPage() {
               </p>
 
               <a
-                href="/producer/transfer"
+                href={`/producer/transfer${address ? `?owner=${encodeURIComponent(address)}` : ''}`}
                 className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -490,7 +565,7 @@ export default function ProducerPage() {
                               </button>
 
                               <a
-                                href={`/producer/transfer?assetId=${asset.id}`}
+                                href={`/producer/transfer?assetId=${asset.id}${address ? `&owner=${encodeURIComponent(address)}` : ''}`}
                                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-all duration-200 border border-gray-300 hover:border-gray-400"
                               >
                                 <svg className="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -532,7 +607,7 @@ export default function ProducerPage() {
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Raw Materials Found</h3>
                     <p className="text-gray-500 mb-4">Create your first raw material to start your supply chain journey.</p>
                     <a
-                      href="/producer/register"
+                      href={`/producer/register${address ? `?owner=${encodeURIComponent(address)}` : ''}`}
                       className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -654,6 +729,60 @@ export default function ProducerPage() {
           )}
         </div>
       </div>
+      {/* Factory selection modal */}
+      {showFactoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-40" onClick={() => { if (!modalLoading) { setShowFactoryModal(false); setTransferringAssetId(null); } }} />
+          <div className="bg-white rounded-lg shadow-xl z-60 w-11/12 max-w-lg p-6">
+            <h3 className="text-lg font-semibold mb-3 text-black">Select Factory recipient</h3>
+            <p className="text-sm text-black mb-4">Choose which Factory user should receive asset <span className="font-mono">{transferringAssetId}</span></p>
+
+            <div className="mb-4">
+              <label className="block text-sm text-black mb-2">Factory User</label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-black"
+                value={selectedFactoryIdentity || ''}
+                onChange={(e) => setSelectedFactoryIdentity(e.target.value || undefined)}
+                disabled={modalLoading}
+              >
+                <option className="text-black" value="">-- Select Factory user (or leave blank to use MSP) --</option>
+                {factoryIdentities.map((f: any) => (
+                  <option className="text-black" key={f.username || f.address} value={f.username || f.address}>
+                    {f.username ? `${f.username} (${f.address || 'addr'})` : f.address}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-black mb-2">Submitting as (owner)</label>
+              <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-black">{ownerIdentityToSend || address || 'Unknown'}</div>
+            </div>
+
+            {modalError && <div className="mb-3 text-sm text-red-700">{modalError}</div>}
+
+            <div className="flex justify-end gap-3">
+              <button className="px-4 py-2 rounded-lg bg-gray-100 text-black" onClick={() => { if (!modalLoading) { setShowFactoryModal(false); setTransferringAssetId(null); } }} disabled={modalLoading}>Cancel</button>
+              <button className="px-4 py-2 rounded-lg bg-gray-100 text-black border border-gray-300" onClick={handleConfirmFactoryTransfer} disabled={modalLoading}>
+                {modalLoading ? 'Sending...' : 'Confirm Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
+
+// Note: Modal markup is appended to the component return via React portal-style in same file
+
+export function ProducerFactoryModalWrapper() {
+  // This wrapper reads nothing; the real stateful modal is rendered in the ProducerPage scope.
+  return null;
+}
+
+// To keep things simple (no portal), append a small modal render function that will be
+// included by the bundler. The actual visibility is controlled by the state in ProducerPage.
+
+// NOTE: We can't directly access the ProducerPage's state from here; the modal JSX was
+// injected inline earlier. If further refactor is needed, we can move modal to its own component.

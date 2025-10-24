@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
 
         console.log(`[API] Initiating transfer: ${assetId} → ${recipientMSP} (by ${role}) [cookie]`);
 
+        // Extract ownerIdentity (if provided) early so we can use it for pre-checks
+        const ownerIdentity = body.ownerIdentity as string | undefined;
+
         // Server-side pre-check: if this is a full-asset transfer (no quantityRequested),
         // ensure there is no existing pending transfer for the same asset to avoid endorsement failure.
         const qtyRequested = transferData && typeof transferData.quantityRequested === 'number'
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
             : undefined;
 
         if (qtyRequested === undefined) {
-            const pendingRes = await gatewayService.getPendingTransfers(role as Role);
+            const pendingRes = await gatewayService.getPendingTransfers(role as Role, ownerIdentity);
             if (!pendingRes.success) {
                 return NextResponse.json({ success: false, error: pendingRes.error || 'Failed to check pending transfers' }, { status: 500 });
             }
@@ -79,19 +82,52 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Call gateway service
-        const result = await gatewayService.initiateTransfer(
-            role as Role,
-            assetId,
-            recipientMSP,
-            transferData || {}
-        );
+        // If caller provided an explicit ownerIdentity (username, CN or derived address)
+        // attempt to submit the transaction as that identity so the chaincode sees the
+        // true owner as the transaction submitter (avoids 'Only the current owner can initiate a transfer').
+
+        // Normalize/merge transferData and ensure recipientIdentity (if provided at top-level)
+        let td: Record<string, unknown> = {};
+        try {
+            if (transferData) td = typeof transferData === 'string' ? JSON.parse(transferData) : transferData as Record<string, unknown>;
+        } catch (e) {
+            td = {};
+        }
+
+        const bodyRecipient = (body as any).recipientIdentity as string | undefined;
+        if (bodyRecipient) {
+            td.recipientIdentity = bodyRecipient;
+        }
+
+        let result;
+        if (ownerIdentity) {
+            console.log(`[API] initiate-transfer using owner identity selector: ${ownerIdentity}`);
+            // Submit the transaction as the explicit owner identity and include merged transferData
+            result = await gatewayService.submitTransactionWithIdentity(
+                role as Role,
+                ownerIdentity,
+                'InitiateTransfer',
+                assetId,
+                recipientMSP,
+                JSON.stringify(td)
+            );
+        } else {
+            // Fallback: submit using the server's configured identity for the role
+            result = await gatewayService.initiateTransfer(
+                role as Role,
+                assetId,
+                recipientMSP,
+                td
+            );
+        }
 
         if (!result.success) {
             return NextResponse.json(result, { status: 500 });
         }
 
         console.log(`[API] Transfer initiated successfully:`, result.data);
+
+        // Chaincode persists recipientIdentity when provided inside transferData; no in-memory index required.
 
         return NextResponse.json(result, { status: 200 });
     } catch (error: unknown) {

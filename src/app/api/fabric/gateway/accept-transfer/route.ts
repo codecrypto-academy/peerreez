@@ -47,8 +47,33 @@ export async function POST(request: NextRequest) {
 
         console.log(`[API] Accepting transfer: ${transferId} (by ${role}) [cookie]`);
 
-        // Call gateway service
-        const result = await gatewayService.acceptTransfer(role as Role, transferId);
+        // Optionally accept using a specific owner identity (full x509/username) provided by client
+        const ownerIdentity = (body.ownerIdentity as string | undefined) || undefined;
+
+        // Pre-check: ensure the pending transfer exists in ledger for this role before submitting Accept
+        try {
+            const pendingRes = await gatewayService.getPendingTransfers(role as Role, ownerIdentity);
+            if (!pendingRes.success) {
+                console.warn('[API] Could not list pending transfers for pre-check', pendingRes.error);
+            } else {
+                const list = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
+                const found = Array.isArray(list) && list.find((t: any) => t.id === transferId);
+                if (!found) {
+                    return NextResponse.json({ success: false, error: `Pending transfer ${transferId} not found for role ${role}` }, { status: 404 });
+                }
+            }
+        } catch (err) {
+            console.warn('[API] Pre-check for pending transfer failed', err);
+        }
+        let result;
+        if (ownerIdentity) {
+            console.log(`[API] Accepting transfer as specific identity: ${ownerIdentity}`);
+            // Use submitTransactionWithIdentity so the Gateway uses the provided user credentials
+            result = await gatewayService.submitTransactionWithIdentity(role as Role, ownerIdentity, 'AcceptTransfer', transferId);
+        } else {
+            // Call gateway service with server-side connection (org-level or cookie-based user)
+            result = await gatewayService.acceptTransfer(role as Role, transferId);
+        }
 
         if (!result.success) {
             return NextResponse.json(result, { status: 500 });

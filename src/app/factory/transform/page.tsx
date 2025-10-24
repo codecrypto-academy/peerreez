@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
+import { useWallet } from '@/components/wallet/WalletProvider';
 
 interface TransformForm {
     rawMaterialIds: string[];
@@ -32,7 +33,50 @@ export default function TransformAssetPage() {
     const [success, setSuccess] = useState(false);
     const [transformLoading, setTransformLoading] = useState(false);
 
-    const { data: assets = [], isLoading: assetsLoading, refetch } = useAssetsByOwner();
+    const { address } = useWallet();
+
+    const [resolvedOwner, setResolvedOwner] = useState<string | undefined>(undefined);
+
+    // Resolve username for the connected wallet address so hooks can filter by user (not org)
+    React.useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setResolvedOwner(undefined);
+            if (!address) return;
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match && mounted) {
+                        setResolvedOwner(match.username || match.address);
+                        return;
+                    }
+                }
+            } catch {
+                // fallthrough
+            }
+
+            try {
+                const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=factory.supplychain.com`);
+                if (rr.ok) {
+                    const rjs = await rr.json();
+                    if (rjs && rjs.success && rjs.found && rjs.found.username && mounted) {
+                        setResolvedOwner(rjs.found.username);
+                        return;
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        })();
+        return () => { mounted = false; };
+    }, [address]);
+
+    // Use resolved owner (username) when available; otherwise fall back to raw address
+    const ownerParam = resolvedOwner || address || undefined;
+    const { data: assets = [], isLoading: assetsLoading, refetch } = useAssetsByOwner(ownerParam);
 
     const handleRawMaterialToggle = (assetId: string) => {
         setForm(prev => {
@@ -133,6 +177,10 @@ export default function TransformAssetPage() {
                         quantity: totalProductQuantity,
                         unit: 'kg'
                     }
+                    ,
+                    // Pass the selected owner identity so the server can submit the transaction
+                    // under the user's certificate. This ensures chaincode ownership checks match.
+                    ownerIdentity: ownerParam
                 })
             });
 

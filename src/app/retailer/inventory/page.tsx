@@ -1,11 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import Layout from '@/components/layout/Layout';
 import { useAssetsByOwner, useDeleteAsset, Asset } from '@/hooks/useGatewayAssets';
 
 export default function InventoryManagementPage() {
-    const { data: assets = [], isLoading, refetch } = useAssetsByOwner();
+    const { address } = useWallet();
+    const [resolvedOwner, setResolvedOwner] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setResolvedOwner(undefined);
+            if (!address) return;
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=retailer.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match && mounted) {
+                        setResolvedOwner(match.username || match.address);
+                        return;
+                    }
+                }
+            } catch { }
+
+            try {
+                const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=retailer.supplychain.com`);
+                if (rr.ok) {
+                    const rjs = await rr.json();
+                    if (rjs && rjs.success && rjs.found && rjs.found.username && mounted) {
+                        setResolvedOwner(rjs.found.username);
+                        return;
+                    }
+                }
+            } catch { }
+        })();
+        return () => { mounted = false; };
+    }, [address]);
+
+    const ownerParam = resolvedOwner || address || undefined;
+
+    const { data: assets = [], isLoading, refetch } = useAssetsByOwner(ownerParam);
     const deleteMutation = useDeleteAsset();
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +97,8 @@ export default function InventoryManagementPage() {
         try {
             const result = await deleteMutation.mutateAsync({
                 assetId,
-                quantityToDelete
+                quantityToDelete,
+                ownerIdentity: ownerParam
             });
 
             // Parse the result data to show appropriate message

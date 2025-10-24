@@ -1,29 +1,92 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import Layout from '@/components/layout/Layout';
 import { useAssetsByOwner, Asset } from '@/hooks/useGatewayAssets';
 import { useInitiateTransfer } from '@/hooks/usePendingTransfers';
 
-// Consumer identity - Single consumer in the system
-const CONSUMER_IDENTITY = 'x509::/C=US/ST=California/L=San Francisco/OU=admin/CN=Admin@consumer.supplychain.com::/C=US/ST=California/L=San Francisco/O=consumer.supplychain.com/CN=ca.consumer.supplychain.com';
+type Identity = { username?: string; address?: string; fingerprint?: string; certFile?: string; cn?: string };
 
 export default function DistributePage() {
-    const { data: assets, isLoading, error } = useAssetsByOwner();
-    // sellMutation is no longer used because Retailer->Consumer sales are now always 2-step
+    const { address } = useWallet();
+    const [resolvedOwner, setResolvedOwner] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setResolvedOwner(undefined);
+            if (!address) return;
+            try {
+                const pres = await fetch('/api/fabric/identity/list?org=retailer.supplychain.com');
+                if (pres.ok) {
+                    const pjs = await pres.json();
+                    const pids = pjs?.identities || [];
+                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    if (match && mounted) {
+                        setResolvedOwner(match.username || match.address);
+                        return;
+                    }
+                }
+            } catch { }
+
+            try {
+                const rr = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(address)}&org=retailer.supplychain.com`);
+                if (rr.ok) {
+                    const rjs = await rr.json();
+                    if (rjs && rjs.success && rjs.found && rjs.found.username && mounted) {
+                        setResolvedOwner(rjs.found.username);
+                        return;
+                    }
+                }
+            } catch { }
+        })();
+        return () => { mounted = false; };
+    }, [address]);
+
+    const ownerParam = resolvedOwner || address || undefined;
+
+    const { data: assets, isLoading, error } = useAssetsByOwner(ownerParam);
 
     const [selectedAsset, setSelectedAsset] = useState<string>('');
     const [quantityToSell, setQuantityToSell] = useState<number>(0);
     const [purchaseLocation, setPurchaseLocation] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('');
     const [notes, setNotes] = useState<string>('');
-    // requireAcceptance state retained for historical reasons but not used; keep as a constant
     const [requireAcceptance] = useState<boolean>(false);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-    // Filter assets that can be distributed to consumers:
-    // - PRODUCT assets that are MANUFACTURED or IN_TRANSIT
-    // - RAW_MATERIAL assets (e.g., bread batches) that are CREATED or MANUFACTURED
+    const [consumerIdentities, setConsumerIdentities] = useState<Identity[]>([]);
+    const [consumerLoading, setConsumerLoading] = useState(false);
+    const [selectedConsumer, setSelectedConsumer] = useState<string>('');
+
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setConsumerLoading(true);
+            try {
+                const res = await fetch('/api/fabric/identity/list?org=consumer.supplychain.com');
+                if (res.ok) {
+                    const js = await res.json();
+                    const ids = js?.identities || [];
+                    const filtered = (ids || []).filter((r: any) => {
+                        const v = String(r.username || r.address || '').toLowerCase();
+                        return !v.includes('admin');
+                    });
+                    if (mounted) {
+                        setConsumerIdentities(filtered);
+                        if (filtered.length > 0) setSelectedConsumer(filtered[0].username || filtered[0].address || '');
+                    }
+                }
+            } catch (err) {
+                // ignore
+            } finally {
+                if (mounted) setConsumerLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
     const availableProducts = assets?.filter(
         (asset: Asset) => (
             (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'IN_TRANSIT')) ||
@@ -31,7 +94,6 @@ export default function DistributePage() {
         )
     ) || [];
 
-    // Values for the currently selected product (render scope)
     const selectedProductInView = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
     const selectedProductQtyInView = selectedProductInView ? (typeof selectedProductInView.quantity === 'number' ? selectedProductInView.quantity : Number(selectedProductInView.quantity) || 0) : 0;
 
@@ -52,14 +114,10 @@ export default function DistributePage() {
             return;
         }
 
-        // Get selected product to validate quantity
         const selectedProduct = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
         const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
         if (selectedProduct && quantityToSell > selectedProductQty) {
-            setNotification({
-                type: 'error',
-                message: `Insufficient quantity. Available: ${selectedProductQty} ${selectedProduct ? ((selectedProduct.unit as string) || 'units') : 'units'}, Requested: ${quantityToSell}`
-            });
+            setNotification({ type: 'error', message: `Insufficient quantity. Available: ${selectedProductQty} ${selectedProduct ? ((selectedProduct.unit as string) || 'units') : 'units'}, Requested: ${quantityToSell}` });
             setTimeout(() => setNotification(null), 5000);
             return;
         }
@@ -74,23 +132,28 @@ export default function DistributePage() {
                 saleDate: new Date().toISOString(),
             };
 
-            // New behavior: All Retailer->Consumer sales are 2-step pending transfers.
-            // Create a pending transfer with the requested quantity; consumer must accept.
             const transferPayload = {
                 ...saleDetails,
-                recipientIdentity: CONSUMER_IDENTITY,
                 quantityRequested: quantityToSell
             };
+
+            const recipientIdentity = selectedConsumer || undefined;
+            if (!recipientIdentity) {
+                setNotification({ type: 'error', message: 'Please select a consumer to receive the sale' });
+                setTimeout(() => setNotification(null), 5000);
+                return;
+            }
 
             await initiateTransfer.mutateAsync({
                 assetId: selectedAsset,
                 recipientMSP: 'ConsumerMSP',
-                transferData: transferPayload
+                transferData: transferPayload,
+                recipientIdentity: recipientIdentity,
+                ownerIdentity: ownerParam
             });
 
             setNotification({ type: 'success', message: 'Transfer initiated. Waiting for consumer to accept or reject the transfer.' });
 
-            // Reset form
             setSelectedAsset('');
             setQuantityToSell(0);
             setPurchaseLocation('');
@@ -100,7 +163,6 @@ export default function DistributePage() {
             setTimeout(() => setNotification(null), 3000);
         } catch (err: unknown) {
             console.error('Distribution error:', err instanceof Error ? err.message : String(err));
-            // Prefer mutation error messages when available
             const msg = err instanceof Error ? err.message : (initiateTransfer.error as unknown as { message?: string })?.message || 'Unknown error';
             setNotification({ type: 'error', message: `Error distributing product: ${msg}` });
             setTimeout(() => setNotification(null), 5000);
@@ -233,7 +295,7 @@ export default function DistributePage() {
                                 )}
                             </div>
 
-                            {/* Automatic Consumer Info */}
+                            {/* Consumer Selector */}
                             <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                                 <div className="flex items-start gap-3">
                                     <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -243,12 +305,28 @@ export default function DistributePage() {
                                     </div>
                                     <div className="flex-1">
                                         <h4 className="text-sm font-semibold text-green-900 mb-1">Destination Consumer</h4>
-                                        <p className="text-sm text-green-800">
-                                            <span className="font-medium">Consumer Central</span> (California)
-                                        </p>
-                                        <p className="text-xs text-green-700 mt-1">
-                                            ✓ Sales are automatically assigned to the registered consumer
-                                        </p>
+                                        <p className="text-sm text-green-800 mb-2">Choose which consumer will receive this sale</p>
+
+                                        {consumerLoading ? (
+                                            <div className="w-full h-10 bg-green-100 animate-pulse rounded" />
+                                        ) : (
+                                            <select
+                                                value={selectedConsumer}
+                                                onChange={(e) => setSelectedConsumer(e.target.value)}
+                                                className="w-full p-3 border-2 border-green-200 rounded-lg bg-white text-black"
+                                            >
+                                                {consumerIdentities.length > 0 ? (
+                                                    consumerIdentities.map((c) => (
+                                                        <option key={c.username || c.address} value={c.username || c.address}>
+                                                            {c.username || c.address}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option value="">Consumer Central</option>
+                                                )}
+                                            </select>
+                                        )}
+
                                     </div>
                                 </div>
                             </div>
@@ -283,9 +361,9 @@ export default function DistributePage() {
                                                             const value = parseFloat(e.target.value) || 0;
                                                             setQuantityToSell(Math.min(value, Number(availableQuantity)));
                                                         }}
-                                                        min="0"
+                                                        min={0}
                                                         max={availableQuantity}
-                                                        step="0.01"
+                                                        step={0.01}
                                                         placeholder="Enter quantity"
                                                         className="flex-1 px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-black"
                                                         required

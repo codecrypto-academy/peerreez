@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Layout from '../../components/layout/Layout';
 import RetailerWalletControls from '@/components/wallet/RetailerWalletControls';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import { PendingTransfer, Asset } from '@/types/fabric';
@@ -11,9 +12,11 @@ import { useTransferHistory } from '../../hooks/useTransferHistory';
 import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 
 export default function RetailerPage() {
-    const { data: assets = [], isLoading: assetsLoading, refetch } = useAssetsByOwner();
-    const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('retailer');
-    const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers();
+    const { address } = useWallet();
+
+    const { data: assets = [], isLoading: assetsLoading, refetch } = useAssetsByOwner(address || undefined);
+    const { data: transferHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useTransferHistory('retailer', address || undefined);
+    const { data: pendingTransfers = [], isLoading: pendingLoading } = usePendingTransfers(address || undefined);
 
     // Estados para controlar dropdowns
     const [showInventoryList, setShowInventoryList] = useState(false);
@@ -455,6 +458,7 @@ export default function RetailerPage() {
                                                 <PendingTransferCard
                                                     key={transfer.id}
                                                     transfer={transfer}
+                                                    ownerIdentity={address || undefined}
                                                     onSuccess={() => {
                                                         refetchAll();
                                                         setNotification({

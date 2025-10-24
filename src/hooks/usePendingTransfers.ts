@@ -33,25 +33,27 @@ function toGatewayRole(userRole: UserRole): Role {
  */
 export const pendingTransferKeys = {
     all: ['pendingTransfers'] as const,
-    byRole: (role: Role) => [...pendingTransferKeys.all, 'role', role] as const,
+    // Include optional ownerIdentity in the cache key so queries vary per selected user
+    byRole: (role: Role, ownerIdentity?: string) => [...pendingTransferKeys.all, 'role', role, ownerIdentity || ''] as const,
 };
 
 /**
  * Hook to query pending transfers with React Query caching
  * Returns both incoming and outgoing pending transfers for the current user
  */
-export function usePendingTransfers() {
+export function usePendingTransfers(ownerAddress?: string) {
     const user = useCurrentUser();
     const gatewayRole = user ? toGatewayRole(user.role) : 'Producer';
 
     return useQuery({
-        queryKey: pendingTransferKeys.byRole(gatewayRole),
+        // include ownerAddress in the cache key so the query re-runs when the selected user changes
+        queryKey: pendingTransferKeys.byRole(gatewayRole, ownerAddress),
         queryFn: async () => {
             if (!user) {
                 throw new Error('User not authenticated');
             }
 
-            const result = await gatewayHttpService.getPendingTransfers(toGatewayRole(user.role));
+            const result = await gatewayHttpService.getPendingTransfers(toGatewayRole(user.role), ownerAddress);
 
             if (!result.success) {
                 throw new Error(result.error || 'Failed to get pending transfers');
@@ -67,6 +69,37 @@ export function usePendingTransfers() {
         gcTime: 5 * 60 * 1000, // 5 minutes
         refetchOnWindowFocus: true,
         refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
+        select: (data: PendingTransfer[]) => {
+            // If no ownerAddress provided, return all pending transfers (caller will show org-level)
+            if (!ownerAddress) return data;
+
+            const addr = String(ownerAddress).toLowerCase();
+            const normalize = (s?: unknown) => (s && typeof s === 'string' ? s.toLowerCase() : '');
+
+            return data.filter((t) => {
+                const from = normalize(t.from);
+                const to = normalize(t.to);
+                const toIdentity = normalize((t as any).toIdentity);
+                const tdRecipient = normalize(t.transferData && (t.transferData as any).recipientIdentity);
+
+                // Direct matches: from/to/toIdentity
+                if (from === addr || to === addr || toIdentity === addr) return true;
+
+                // Match email-like local part (user@org -> user)
+                const localFrom = from.includes('@') ? from.split('@')[0] : '';
+                const localTo = (toIdentity || to).includes('@') ? (toIdentity || to).split('@')[0] : '';
+                if (localFrom === addr || localTo === addr) return true;
+
+                // Match transferData.recipientIdentity if present
+                if (tdRecipient && tdRecipient === addr) return true;
+
+                // Containment heuristics (cover some x509 vs short address variants)
+                if ((from && from.includes(addr)) || (to && to.includes(addr)) || (toIdentity && toIdentity.includes(addr)) || (addr.includes(from) && from.length > 0) || (addr.includes(to) && to.length > 0) || (toIdentity && addr.includes(toIdentity) && toIdentity.length > 0)) return true;
+
+                // Do not include org-level toMSP matches when a specific ownerAddress is provided
+                return false;
+            });
+        }
     });
 }
 
@@ -83,10 +116,14 @@ export function useInitiateTransfer() {
             assetId,
             recipientMSP,
             transferData,
+            recipientIdentity,
+            ownerIdentity,
         }: {
             assetId: string;
             recipientMSP: string; // Changed from recipientIdentity to recipientMSP
             transferData?: InitiateTransferParams['transferData'];
+            recipientIdentity?: string;
+            ownerIdentity?: string;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
@@ -116,7 +153,9 @@ export function useInitiateTransfer() {
                 toGatewayRole(user.role),
                 assetId,
                 recipientMSP,
-                transferData
+                transferData,
+                recipientIdentity,
+                ownerIdentity
             );
 
             if (!result.success) {
@@ -128,8 +167,10 @@ export function useInitiateTransfer() {
         onSuccess: (_, variables) => {
             // Invalidate pending transfers and asset queries
             if (user) {
-                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
-                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                // Invalidate all pending transfer queries for this role (including owner-specific variants)
+                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)), exact: false });
+                // Clear all asset caches for this role (owner-specific keys are part of the cache)
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)), exact: false });
                 const _assetId = getAssetIdFromVariables(variables);
                 if (_assetId) queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
             }
@@ -147,17 +188,19 @@ export function useAcceptTransfer() {
     return useMutation({
         mutationFn: async ({
             transferId,
+            ownerIdentity,
         }: {
             transferId: string;
+            ownerIdentity?: string;
             assetId?: string;
         }) => {
             if (!user) {
                 throw new Error('User not authenticated');
             }
-
             const result = await gatewayHttpService.acceptTransfer(
                 toGatewayRole(user.role),
-                transferId
+                transferId,
+                ownerIdentity
             );
 
             if (!result.success) {
@@ -169,8 +212,8 @@ export function useAcceptTransfer() {
         onSuccess: (_, variables) => {
             // Invalidate pending transfers and asset queries
             if (user) {
-                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
-                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)), exact: false });
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)), exact: false });
                 const _assetId = getAssetIdFromVariables(variables);
                 if (_assetId) {
                     queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
@@ -216,8 +259,8 @@ export function useRejectTransfer() {
         onSuccess: (_, variables) => {
             // Invalidate pending transfers and asset queries
             if (user) {
-                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
-                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)), exact: false });
+                queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)), exact: false });
                 const _assetId = getAssetIdFromVariables(variables);
                 if (_assetId) {
                     queryClient.invalidateQueries({ queryKey: assetKeys.detail(_assetId) });
@@ -255,7 +298,7 @@ export function useCancelTransfer() {
         },
         onSuccess: (_, variables) => {
             if (user) {
-                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
+                queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)), exact: false });
                 queryClient.invalidateQueries({ queryKey: assetKeys.byOwner(toGatewayRole(user.role)) });
                 const _assetId = getAssetIdFromVariables(variables);
                 if (_assetId) {
@@ -276,7 +319,7 @@ export function useRefetchPendingTransfers() {
 
     return () => {
         if (user) {
-            queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)) });
+            queryClient.invalidateQueries({ queryKey: pendingTransferKeys.byRole(toGatewayRole(user.role)), exact: false });
         }
     };
 }

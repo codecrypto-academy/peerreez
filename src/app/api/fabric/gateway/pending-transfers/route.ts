@@ -44,8 +44,10 @@ export async function GET(request: NextRequest) {
 
         console.log(`[API] Getting pending transfers - queryRole: ${queryRole}, cookieRole: ${cookieRole}, resolvedRole: ${resolvedRole}`);
 
-        // Call gateway service
-        const result = await gatewayService.getPendingTransfers(resolvedRole as Role);
+        // Call gateway service. If caller provided ownerIdentity, forward it so the
+        // gateway can evaluate GetPendingTransfers as that user (returns user-scoped pending transfers).
+        const ownerIdentity = request.nextUrl.searchParams.get('ownerIdentity') || undefined;
+        const result = await gatewayService.getPendingTransfers(resolvedRole as Role, ownerIdentity);
 
         if (!result.success) {
             return NextResponse.json(result, { status: 500 });
@@ -53,10 +55,17 @@ export async function GET(request: NextRequest) {
 
         console.log(`[API] Found ${Array.isArray(result.data) ? result.data.length : 0} pending transfers for ${resolvedRole}`);
 
-        // Return the gateway result but include the resolved role for easier debugging
+        // Chaincode now persists recipientIdentity (toIdentity) inside pending transfers
+        // when provided. Return the chaincode response directly; client can filter by
+        // the `toIdentity` field when an ownerIdentity is selected. We still include
+        // the ownerIdentity in the response for debugging.
+        let data = result.data;
+
+        // Return the (possibly filtered) gateway result but include the resolved role for easier debugging
         return NextResponse.json(
             {
                 ...result,
+                data,
                 resolvedRole,
                 queryRole,
                 cookieRole,

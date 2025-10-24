@@ -1,10 +1,13 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Layout from '../../../components/layout/Layout';
 import RoleGuard from '../../../components/auth/RoleGuard';
+import { useWallet } from '../../../components/wallet/WalletProvider';
 
 export default function RegisterAssetPage() {
+  const { address, availableIdentities } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,6 +24,31 @@ export default function RegisterAssetPage() {
 
   // UI state
   const [success, setSuccess] = useState(false);
+
+  // Owner selection (choose which identity will be recorded as createdBy/currentOwner)
+  const [ownerSelection, setOwnerSelection] = useState<string | undefined>(address || undefined);
+  const searchParams = useSearchParams();
+  const ownerFromQuery = searchParams.get('owner') || undefined;
+  const isOwnerLocked = !!ownerFromQuery;
+
+  // Keep ownerSelection in sync when wallet/available identities change or when ownerFromQuery is present
+  React.useEffect(() => {
+    if (ownerFromQuery) {
+      setOwnerSelection(ownerFromQuery);
+      return;
+    }
+
+    if (address) {
+      setOwnerSelection(address);
+      return;
+    }
+
+    if (availableIdentities && availableIdentities.length > 0) {
+      // prefer a non-admin identity
+      const nonAdmin = availableIdentities.find(i => i.username && !/^admin$/i.test(i.username));
+      setOwnerSelection(nonAdmin ? nonAdmin.address : availableIdentities[0].address);
+    }
+  }, [address, availableIdentities, ownerFromQuery]);
 
   // Available options
   const categories = ['Grains', 'Fruits', 'Vegetables', 'Dairy', 'Meat', 'Other'];
@@ -66,7 +94,18 @@ export default function RegisterAssetPage() {
         certifications: formData.certifications.length > 0 ? formData.certifications : undefined
       };
 
-      // Call Gateway API
+      // Ensure an owner identity was explicitly chosen
+      if (!ownerSelection) {
+        setError('Seleccione una identidad de propietario antes de registrar');
+        setLoading(false);
+        return;
+      }
+
+      // Call Gateway API - include ownerIdentity (selected wallet address) so asset is associated to that address
+      const ownerIdentity = ownerSelection;
+
+      // DEBUG: trace ownerIdentity at client side before sending
+      console.debug('[RegisterAsset] ownerIdentity being sent:', ownerIdentity);
       const response = await fetch('/api/fabric/gateway', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,7 +116,8 @@ export default function RegisterAssetPage() {
           assetType: formData.name,
           quantity: formData.quantity,
           unit: 'kg',
-          metadata
+          metadata,
+          ownerIdentity
         })
       });
 
@@ -143,6 +183,16 @@ export default function RegisterAssetPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Basic Information</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">Owner</label>
+                    <div className="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-black font-mono">
+                      {ownerSelection ? (
+                        ownerSelection.startsWith('x509:') ? ownerSelection.slice(0, 48) : `${String(ownerSelection).slice(0, 6)}...${String(ownerSelection).slice(-4)}`
+                      ) : (
+                        <span className="text-gray-500">No owner selected</span>
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">
                       Asset ID (optional)
