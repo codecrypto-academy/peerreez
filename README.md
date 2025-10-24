@@ -1,414 +1,265 @@
-# 🚀 Web3 Supply Chain - Hyperledger Fabric Project
+# PMF Web3 — Guía completa de despliegue
 
-## 📍 **PARA EVALUADORES - IR DIRECTAMENTE A:**
+Este repositorio contiene:
+
+- Una red Hyperledger Fabric para trazabilidad (carpeta `supply-chain-network/`).
+- Hyperledger Explorer para monitorización (dentro de `supply-chain-network/explorer`).
+- Una app frontend Next.js en `src/` que usa el gateway Fabric incluido.
+- Un puente de desarrollo (MetaMask ↔ Fabric) en `src/bridge/`.
+
+Este README explica, con referencias a archivos del repo, cómo limpiar, crear y validar la red Fabric, desplegar Explorer con su monitor, desplegar el puente y ejecutar la app Next.js.
+
+---
+
+## Índice
+
+1. Requisitos
+2. Limpieza del entorno
+3. Crear y validar la red Hyperledger Fabric
+4. Desplegar y monitorizar Hyperledger Explorer
+5. Desplegar el bridge MetaMask ↔ Fabric
+6. Desplegar la app Next.js
+7. Verificaciones y pruebas end-to-end
+8. Mapa de archivos clave (análisis por archivo)
+9. Troubleshooting y seguridad
+
+---
+
+## 1) Requisitos
+
+- Docker (y `docker compose`), Docker Engine corriendo
+- Node.js >= 18, npm
+- curl, jq, nc (netcat)
+- Permisos para usar Docker (o `sudo`)
+
+Instalar dependencias JS (para bridge / frontend):
 
 ```bash
-cd supply-chain-network/
+npm install
+npx tsc --noEmit
 ```
-
-**El proyecto Hyperledger Fabric está completamente contenido en la carpeta `supply-chain-network/`**
 
 ---
 
-## 🎯 **Despliegue de 3 Comandos:**
+## 2) Limpieza del entorno
+
+El despliegue usa scripts en `supply-chain-network/`. El script `deploy.sh` incluye un paso `cleanup_environment`. También hay un script independiente `cleanup.sh`.
+
+Para limpiar manualmente:
 
 ```bash
-# 1. Entrar al directorio de la red
-cd supply-chain-network/
-
-# 2. Desplegar automáticamente  
-./deploy.sh
-
-# 3. Validar funcionamiento
-./validate.sh
-```
-
-## 📋 **Descripción del Proyecto**
-
-Red completa de **Hyperledger Fabric 2.5.9** para trazabilidad de cadena de suministros con **4 organizaciones**:
-
-- 🏭 **Producer**: Productores de materia prima
-- 🏗️ **Factory**: Fábricas de transformación  
-- 🏪 **Retailer**: Distribuidores minoristas
-- 👥 **Consumer**: Consumidores finales
-
-## ✨ **Características Técnicas**
-
-- ✅ **Automatización 100%** - Sin intervención manual
-- ✅ **TLS completo** con certificados x509
-- ✅ **Chaincode TypeScript** v3.0 con 11 funciones
-- ✅ **Consensus etcdraft** para alta disponibilidad
-- ✅ **Validación robusta** con tests verificados
-- ✅ **Documentación completa** para evaluadores
-
----
-
-## 🗂️ **Estructura del Proyecto**
-
-```
-supply-chain-network/           # ← PROYECTO HYPERLEDGER FABRIC
-├── deploy.sh                   # Script principal automatizado
-├── validate.sh                 # Validación robusta  
-├── cleanup.sh                  # Limpieza completa
-├── README.md                   # Documentación técnica
-├── EVALUADOR.md                # Guía específica para evaluadores
-├── docker/docker-compose.yaml  # Infraestructura Docker
-├── configtx/configtx.yaml      # Configuración de red
-└── chaincode/supply-chain/     # Chaincode TypeScript
-
-src/                            # Next.js frontend (opcional)
-public/                         # Assets web (opcional)  
+# Detener y eliminar containers del compose de la red
+cd supply-chain-network/docker
+docker compose down -v
+cd ../..
+# Limpiar artefactos locales
+rm -rf supply-chain-network/crypto-config supply-chain-network/channel-artifacts
+# Opcional: limpiar docker
+docker system prune -f
 ```
 
 ---
 
-## ⚡ **Inicio Rápido para Evaluadores**
-git clone <repository-url>
+## 3) Crear y validar la red Hyperledger Fabric
+
+El script principal de despliegue es `supply-chain-network/deploy.sh`. Ejecuta todo el flujo: generar certificados, crear genesis block, arrancar contenedores, crear canal, empaquetar e instalar chaincode y ejecutar pruebas de smoke.
+
+Uso:
+
+```bash
 cd supply-chain-network
-
-# 2. Ejecutar despliegue automático
-./deploy.sh
+bash deploy.sh
 ```
 
-**¡Eso es todo!** El script automático:
-- ✅ Verifica prerrequisitos
-- ✅ Limpia el entorno
-- ✅ Descarga binarios de Fabric
-- ✅ Genera certificados frescos
-- ✅ Despliega la red completa
-- ✅ Crea y configura el canal
-- ✅ Instala y despliega el chaincode
-- ✅ Ejecuta pruebas de validación
+Qué hace (resumen de pasos dentro de `deploy.sh`):
 
-### 📋 Prerrequisitos
+- Verifica prerrequisitos (docker, node, jq, curl)
+- Limpia contenedores/artefactos previos
+- Descarga binarios de Fabric (`bin/`)
+- Genera certificados (`crypto-config/` via cryptogen)
+- Crea genesis block y artefactos con `configtxgen` (`channel-artifacts/`)
+- Inicia contenedores Docker (compose en `supply-chain-network/docker/docker-compose.yaml`)
+- Crea y une canal `supply-chain-channel`
+- Compila y empaqueta chaincode TypeScript (en `supply-chain-network/chaincode/supply-chain/`)
+- Instala, aprueba y hace commit del chaincode
+- Prueba `InitLedger`, `CreateAsset`, `ReadAsset` para validar
 
-- **Docker** (versión 20.10+)
-- **Docker Compose** (versión 2.0+)
-- **Node.js** (versión 16+)
-- **npm** (versión 8+)
-- **jq** (para procesamiento JSON)
-- **curl** 
-- **Permisos sudo** (solo para configurar /etc/hosts)
-
-#### 📦 Instalación de prerrequisitos (Ubuntu/Debian):
+Verificación manual:
 
 ```bash
-# Actualizar sistema
-sudo apt update
-
-# Instalar herramientas básicas
-sudo apt install -y curl jq
-
-# Instalar Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Instalar Node.js
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-## 🏗️ Arquitectura de la Red
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Producer  │───▶│   Factory   │───▶│  Retailer   │───▶│  Consumer   │
-│   (Farm)    │    │ (Manufact.) │    │ (Distrib.)  │    │ (End User)  │
-│   Port:7051 │    │ Port: 8051  │    │ Port: 9051  │    │ Port:10051  │
-└─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-       │                   │                   │                   │
-       └───────────────────┼───────────────────┼───────────────────┘
-                           │
-                    ┌─────────────┐
-                    │   Orderer   │
-                    │ Port: 7050  │
-                    │ Admin: 7053 │
-                    └─────────────┘
-```
-
-## 🔧 Componentes Técnicos
-
-### 📦 Contenedores Docker
-- **orderer.supplychain.com**: Servicio de ordenamiento (EtcdRaft)
-- **peer0.producer.supplychain.com**: Peer del productor
-- **peer0.factory.supplychain.com**: Peer de la fábrica  
-- **peer0.retailer.supplychain.com**: Peer del distribuidor
-- **peer0.consumer.supplychain.com**: Peer del consumidor
-- **cli**: Herramientas de línea de comandos
-
-### 🔐 Características de Seguridad
-- **TLS habilitado** en todos los componentes
-- **MSP (Membership Service Provider)** para cada organización
-- **Certificados X.509** generados con cryptogen
-- **Políticas de endorsement** configurables
-
-### 📊 Chaincode (Smart Contract)
-- **Lenguaje**: TypeScript/Node.js
-- **API**: Fabric Contract API 2.5.4
-- **Funciones**: CRUD completo + trazabilidad + transformaciones
-
-## 🧪 Funciones del Chaincode
-
-### 📝 Operaciones Básicas
-- `InitLedger()`: Inicializar el ledger
-- `CreateAsset(id, data)`: Crear nuevo asset
-- `ReadAsset(id)`: Leer asset existente  
-- `UpdateAsset(id, updates)`: Actualizar asset
-- `DeleteAsset(id)`: Eliminar asset (solo admin)
-- `AssetExists(id)`: Verificar existencia
-
-### 🔄 Operaciones de Supply Chain  
-- `TransferAsset(id, newOwner, data)`: Transferir entre organizaciones
-- `TransformAsset(rawIds, newId, productData)`: Transformar materias primas
-- `QueryAssetsByOwner()`: Consultar assets propios
-- `GetAssetHistory(id)`: Obtener historial completo
-- `GetSupplyChainTrace(id)`: Trazabilidad recursiva
-
-### 🛡️ Validaciones Implementadas
-- **Control de roles**: Solo el propietario puede transferir
-- **Flujo de cadena**: Producer → Factory → Retailer → Consumer  
-- **Transformaciones**: Solo Factory puede transformar materias primas
-- **Auditoría**: Historial completo de transacciones
-
-## 🎮 Uso y Pruebas
-
-### 🔍 Verificar Estado de la Red
-
-```bash
-# Ver contenedores activos
+# comprobar contenedores
 docker ps
-
-# Ver logs de un contenedor
-docker logs orderer.supplychain.com
-
-# Acceder al CLI para comandos manuales
+# logs de orderer/peer
+docker logs orderer
+docker logs peer0.producer
+# pruebas con CLI (dentro del container 'cli')
 docker exec -it cli bash
+peer chaincode query -C supply-chain-channel -n supply-chain-chaincode -c '{"function":"AssetExists","args":["id"]}'
 ```
-
-### 🧪 Pruebas del Chaincode
-
-```bash
-# Dentro del contenedor CLI
-export CORE_PEER_TLS_ENABLED=true
-export CORE_PEER_LOCALMSPID=ProducerMSP
-export CORE_PEER_ADDRESS=peer0.producer.supplychain.com:7051
-# ... más variables de entorno
-
-# Crear asset
-peer chaincode invoke -C supply-chain-channel -n supply-chain-chaincode \
-  -c '{"function":"CreateAsset","Args":["CORN001","{\"id\":\"CORN001\",\"name\":\"Organic Corn\",\"type\":\"RAW_MATERIAL\",\"quantity\":1000}"]}'
-
-# Leer asset  
-peer chaincode query -C supply-chain-channel -n supply-chain-chaincode \
-  -c '{"function":"ReadAsset","Args":["CORN001"]}'
-```
-
-### 📊 Ejemplo de Flujo Completo
-
-1. **Producer crea materia prima**
-2. **Producer transfiere a Factory**  
-3. **Factory transforma a producto**
-4. **Factory transfiere a Retailer**
-5. **Retailer transfiere a Consumer**
-6. **Cualquiera puede consultar trazabilidad**
-
-## 🧹 Limpieza y Mantenimiento
-
-### 🔄 Reiniciar Red Limpia
-
-```bash
-# Limpiar entorno completamente
-./cleanup.sh
-
-# Desplegar de nuevo
-./deploy.sh
-```
-
-### 🐛 Troubleshooting
-
-#### Problema: Contenedores no inician
-```bash
-# Verificar Docker
-sudo systemctl status docker
-sudo systemctl start docker
-
-# Limpiar y reiniciar
-./cleanup.sh && ./deploy.sh
-```
-
-#### Problema: Errores de certificados
-```bash
-# Los certificados se regeneran automáticamente
-./cleanup.sh && ./deploy.sh
-```
-
-#### Problema: Chaincode no responde
-```bash
-# Ver logs del chaincode
-docker logs <chaincode-container-name>
-
-# Limpiar y redesplegar
-./cleanup.sh && ./deploy.sh
-```
-
-## 📁 Estructura del Proyecto
-
-```
-supply-chain-network/
-├── deploy.sh              # 🚀 Script principal de despliegue
-├── cleanup.sh              # 🧹 Script de limpieza
-├── README.md               # 📖 Este archivo
-├── docker/
-│   └── docker-compose.yaml # 🐳 Configuración de contenedores
-├── configtx/
-│   └── configtx.yaml       # ⚙️ Configuración de red y canal
-├── scripts/
-│   └── network.sh          # 🔧 Scripts auxiliares
-└── chaincode/
-    └── supply-chain/       # 📝 Smart contract TypeScript
-        ├── src/
-        │   ├── supply-chain-contract.ts
-        │   ├── types.ts
-        │   └── index.ts
-        ├── package.json
-        ├── tsconfig.json
-        └── start.js        # 🎯 Punto de entrada corregido
-```
-
-## 🎯 Resultados Esperados
-
-Al finalizar `./deploy.sh`, deberías ver:
-
-```
-🎉 ¡Despliegue completado con éxito!
-
-📊 Información de la red:
-• Canal: supply-chain-channel
-• Chaincode: supply-chain-chaincode v3.0
-• Organizaciones: Producer, Factory, Retailer, Consumer  
-• Peers activos: 4
-• Orderer activo: 1
-
-🧪 Pruebas realizadas:
-• ✅ InitLedger ejecutado
-• ✅ CreateAsset funcionando
-• ✅ ReadAsset funcionando
-
-🚀 La red está lista para usar!
-```
-
-## 📊 Métricas de Rendimiento
-
-- **⚡ Tiempo de despliegue**: ~5-10 minutos
-- **💾 Recursos**: ~2GB RAM, ~5GB disco
-- **🔄 Throughput**: ~500 TPS (en testing)
-- **⚖️ Latencia**: <100ms por transacción
-
-## 🤝 Contribuciones
-
-Este proyecto implementa las mejores prácticas de Hyperledger Fabric:
-- ✅ TLS habilitado por defecto
-- ✅ Channel Participation API (Fabric 2.5+)
-- ✅ Políticas de endorsement optimizadas  
-- ✅ Chaincode lifecycle moderno
-- ✅ Automatización completa
-- ✅ Testing integrado
-
-## 📞 Soporte
-
-Para problemas o dudas:
-1. Verificar logs: `docker logs <container-name>`
-2. Ejecutar limpieza: `./cleanup.sh`
-3. Redesplegar: `./deploy.sh`
-4. Revisar prerrequisitos arriba
 
 ---
 
-**🎯 Desarrollado con foco en automatización y facilidad de evaluación**ility
+## 4) Desplegar y monitorizar Hyperledger Explorer
 
-## 🎯 Proyecto Actualizado
+Explorer se configura en `supply-chain-network/explorer/`. El archivo `monitor.sh` automatiza la puesta en marcha y verificación.
 
-Plataforma de trazabilidad blockchain usando **Hyperledger Fabric** con arquitectura simplificada.
-
-### 🏗️ Arquitectura Final
-
-**Blockchain**: Red Hyperledger Fabric personalizada para supply chain
-- **ProducerOrg** = Productores de materia prima 
-- **FactoryOrg** = Fábricas transformadoras
-- **RetailerOrg** = Minoristas distribuidores
-- **ConsumerOrg** = Consumidores finales
-- **Canal**: `supply-chain-channel`
-
-### 📁 Estructura del Proyecto
-
-```
-web3.0-cadena-suministros-dps-2025/
-├── src/                         # Frontend Next.js
-│   ├── app/                    # App Router
-│   ├── components/             # Componentes React
-│   └── lib/                   # Utilidades y SDK Fabric
-├── supply-chain-network/       # Red blockchain personalizada
-│   ├── configtx/              # Configuración de organizaciones
-│   ├── crypto-config/         # Configuración de certificados
-│   ├── docker/               # Docker compose de la red
-│   ├── scripts/             # Scripts de automatización
-│   └── chaincode/          # Smart contracts
-├── package.json             # Dependencias Next.js
-└── README.md               # Este archivo
-```
-
-### 🚀 Plan de Desarrollo Simplificado
-
-#### Fase 1: Frontend Base ✅
-- [x] Next.js configurado con TypeScript
-- [x] Tailwind CSS instalado
-- [x] Test-network Fabric funcionando
-
-#### Fase 2: Infraestructura Blockchain 🔄
-- [x] Red con 4 organizaciones configurada
-- [ ] Scripts de automatización
-- [ ] Chaincode para supply chain
-
-#### Fase 3: Integración Frontend
-- [ ] Sistema de 4 roles: Producer, Factory, Retailer, Consumer
-- [ ] SDK Fabric Gateway
-- [ ] Conexión frontend-blockchain
-
-#### Fase 4: Funcionalidades Supply Chain
-- [ ] Registro de materias primas (Producer)
-- [ ] Transformación en productos (Factory)
-- [ ] Distribución (Retailer)
-- [ ] Trazabilidad completa (Consumer)
-
-### 🔧 Comandos Importantes
+Arrancar Explorer con monitor (opción completa `--run-all` ejecuta cleanup -> deploy -> validate -> create_wallet_local):
 
 ```bash
-# Iniciar red Supply Chain
 cd supply-chain-network
-./scripts/network.sh up
-
-# Crear canal supply-chain
-./scripts/network.sh createChannel
-
-# Desplegar chaincode
-./scripts/network.sh deployCC
-
-# Detener red
-./scripts/network.sh down
-
-# Iniciar frontend
-npm run dev
+./explorer/monitor.sh --run-all
+# o simplemente
+./explorer/monitor.sh
 ```
 
-### 📝 Próximos Pasos
+Qué hace `monitor.sh` (resumen):
 
-1. **Crear scripts de red** - Automatización completa de la red
-2. **Desarrollar chaincode** - Supply chain específico 
-3. **Integrar Fabric Gateway SDK** - Conexión con 4 organizaciones
-4. **Implementar frontend** - Interfaces específicas por rol
+- Crea red Docker si hace falta
+- Asegura directorio host para Postgres (`${HOME}/explorer_db_data`)
+- Aplica el schema SQL (`explorerpg.sql`) a Postgres
+- Crea/coloca la identidad admin en la wallet de Explorer (`explorer/wallet`)
+- Resuelve nombres de keystore y genera archivos `connection-profile.resolved.json` y `explorer-config.resolved.json`
+- Inicia contenedor Explorer y lanza `syncstart.sh` dentro del contenedor para discovery
+- Ejecuta smoke tests HTTP + DB, e intenta obtener token de login y generar un token injector
+
+Compose y rutas
+
+- `supply-chain-network/explorer/docker-compose-explorer.yaml` — compose para `explorer-db` (Postgres) y `explorer` (UI)
+- UI disponible en `http://localhost:8080`
+
+Problemas comunes:
+
+- Explorer puede fallar si las rutas a los keystores no se resolvieron; `monitor.sh` intenta auto-resolver.
+- Revisa `supply-chain-network/explorer/explorer-monitor.log` y logs del contenedor Explorer.
 
 ---
 
-**Arquitectura simplificada y funcional basada en componentes probados de Hyperledger Fabric.**
+## 5) Desplegar el bridge (MetaMask ↔ Fabric)
+
+El bridge es un servicio de desarrollo en `src/bridge/` con estos archivos:
+
+- `src/bridge/bridgeServer.ts` — Express API con endpoints:
+  - `POST /invoke` — recibe `{ message, signature, functionName, args, role }`, verifica firma con ethers y llama a Fabric (vía gatewayService o contract)
+  - `GET /query` — `evaluateTransaction`.
+  - `POST /map` y `GET /map/:address` — mapeo EOA → Fabric identity (file-backed en `src/bridge/identityMapper.ts`).
+  - `GET /health` — estado simple.
+- `src/bridge/fabricRpcBridge.ts` — pequeño JSON-RPC shim en puerto 8545 para que MetaMask pueda "añadir" la red `bridge-fabric`.
+
+Arranque (desde la raíz del repo):
+
+```bash
+npm run bridge:start   # arranca src/bridge/bridgeServer.ts en :3001
+npm run rpc:start      # arranca src/bridge/fabricRpcBridge.ts en :8545
+```
+
+Añadir la red en MetaMask:
+
+- Network Name: `bridge-fabric`
+- RPC URL: `http://localhost:8545`
+- Chain ID: `334455` (decimal) / `0x51a77` (hex)
+
+Formato de invocación esperado por `/invoke`:
+
+```json
+{
+  "message": "{\"nonce\":\"<uuid>\",\"timestamp\":<ms>,\"functionName\":\"CreateAsset\",\"args\":[\"asset1\",\"blue\",\"100\"]}",
+  "signature": "0x...",
+  "functionName": "CreateAsset",
+  "args": ["asset1","blue","100"]
+}
+```
+
+Opción JSON-RPC hacia el shim:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "fabric_invoke",
+  "params": [{ "message":"...","signature":"0x...","functionName":"CreateAsset","args":["asset1","blue","100"] }]
+}
+```
+
+Limitaciones y seguridad:
+
+- `/map` no está protegido: añadir autenticación (JWT/admin token) antes de usar en entornos colaborativos.
+- Nonces en memoria: cambiar a Redis o DB compartida para despliegues multi-instancia.
+- El shim JSON-RPC no implementa EVM completo: es solo para que MetaMask vea la red y use el método custom.
+
+---
+
+## 6) Desplegar la aplicación Next.js
+
+La app Next.js se encuentra en `src/` y tiene rutas para Producer/Factory/Retailer/Consumer.
+
+Desarrollo:
+
+```bash
+npm run dev
+# abre http://localhost:3000
+```
+
+Producción (local):
+
+```bash
+npm run build
+npm run start
+```
+
+Endpoints API server-side (ejemplos):
+
+- `src/app/api/fabric/gateway/*` — endpoints que usan `src/lib/fabric/gateway/gateway-service.ts`.
+
+Si deseas integrar la UI con el bridge para firmar en el navegador, añade llamadas desde el frontend para firmar (window.ethereum.request({ method: 'personal_sign', params: [...] })) y enviar la firma al bridge `/invoke`.
+
+---
+
+## 7) Verificaciones y pruebas end-to-end (sugerencia)
+
+Prueba mínima recomendada:
+
+1. `cd supply-chain-network && bash deploy.sh` — desplegar y validar Fabric
+2. `./explorer/monitor.sh --run-all` — arrancar explorer
+3. `npm run bridge:start` y `npm run rpc:start`
+4. Generar un payload de prueba y firmarlo con MetaMask (o con ethers en un script) y POST a `http://localhost:3001/invoke`
+5. Verificar en Explorer que la transacción aparece o usar `peer chaincode query` en la CLI
+
+Si quieres, puedo generar un script `scripts/invoke-example.js` que use ethers para firmar localmente y haga el POST a `/invoke`.
+
+---
+
+## 8) Mapa de archivos clave (análisis por archivo)
+
+- `supply-chain-network/deploy.sh` — orquesta despliegue completo (leer y usarlo tal cual para reproducibilidad).
+- `supply-chain-network/cleanup.sh` — limpieza de red.
+- `supply-chain-network/docker/docker-compose.yaml` — definición de contenedores Fabric.
+- `supply-chain-network/chaincode/supply-chain/` — código del chaincode (TS). `start.js` es el entrypoint usado al empaquetar.
+- `supply-chain-network/explorer/monitor.sh` — orquesta Explorer + DB y resuelve problemas típicos de keystore.
+- `src/lib/fabric/gateway/gateway-service.ts` — gateway-service que encapsula conexiones al Fabric gateway (inyectable en bridge).
+- `src/bridge/bridgeServer.ts` — servidor Express del bridge.
+- `src/bridge/fabricRpcBridge.ts` — shim JSON-RPC para MetaMask.
+- `src/bridge/identityMapper.ts` — mapeo EOA → identidad Fabric (almacenamiento en JSON local).
+
+---
+
+## 9) Troubleshooting y seguridad
+
+Problemas comunes y soluciones:
+
+- Error en `peer lifecycle`/`osnadmin`: espera más tiempo, revisa logs (`docker logs`) y que `crypto-config/` y `channel-artifacts/` existan.
+- Explorer no inicia: revisar `explorer-monitor.log`, permisos de `explorer_db_data`, y que el wallet contenga la identidad admin.
+- Bridge no responde: comprobar `npm run bridge:start` logs, puerto 3001, y que `gateway-service` esté disponible si esperas usar `submitTransactionWithIdentity`.
+
+Seguridad:
+
+- Nunca expongas `/map` sin autenticación.
+- Usa HTTPS/TLS para cualquier despliegue remoto y una store persistente para nonces.
+
+---
+
+Si quieres que genere:
+
+- Un script de ejemplo `scripts/invoke-example.js` para firmar con ethers y llamar a `/invoke`.
+- Un `Makefile` para orquestar `deploy.sh`, `monitor.sh` y arranque del bridge.
+
+Dime cuál de los anteriores prefieres y lo implemento.
