@@ -51,3 +51,5 @@ explorer_db_data
 # Docker volumes and temporary files
 *.log
 supply-chain-network/explorer/token_inject.html
+supply-chain-network/explorer/explore-config.resolved.json
+supply-chain-network/explorer/connection-profile.resolved.json
