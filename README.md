@@ -143,19 +143,19 @@ El bridge es un servicio de desarrollo en `src/bridge/` con estos archivos:
   - `GET /query` — `evaluateTransaction`.
   - `POST /map` y `GET /map/:address` — mapeo EOA → Fabric identity (file-backed en `src/bridge/identityMapper.ts`).
   - `GET /health` — estado simple.
-- `src/bridge/fabricRpcBridge.ts` — pequeño JSON-RPC shim en puerto 8545 para que MetaMask pueda "añadir" la red `bridge-fabric`.
+- `src/bridge/fabricRpcBridge.ts` — pequeño JSON-RPC shim en puerto 7844 para que MetaMask pueda "añadir" la red `bridge-fabric`.
 
 Arranque (desde la raíz del repo):
 
 ```bash
 npm run bridge:start   # arranca src/bridge/bridgeServer.ts en :3001
-npm run rpc:start      # arranca src/bridge/fabricRpcBridge.ts en :8545
+npm run rpc:start      # arranca src/bridge/fabricRpcBridge.ts en :7844
 ```
 
 Añadir la red en MetaMask:
 
 - Network Name: `bridge-fabric`
-- RPC URL: `http://localhost:8545`
+- RPC URL: `http://localhost:7844`
 - Chain ID: `334455` (decimal) / `0x51a77` (hex)
 
 Formato de invocación esperado por `/invoke`:

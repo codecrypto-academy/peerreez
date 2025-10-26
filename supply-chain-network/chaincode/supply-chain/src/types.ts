@@ -1,3 +1,8 @@
+// Estructura simple para balance de cuentas
+export interface AccountBalance {
+    account: string; // nombre de usuario o dirección
+    balance: string; // string para soportar valores grandes
+}
 /*
  * SPDX-License-Identifier: Apache-2.0
  */

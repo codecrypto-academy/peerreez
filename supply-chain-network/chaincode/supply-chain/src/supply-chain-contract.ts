@@ -5,14 +5,81 @@
 import { Context, Contract, Info, Returns, Transaction } from 'fabric-contract-api';
 import { Asset, AssetHistory, AssetTransfer, PendingTransfer } from './types';
 
+import { AccountBalance } from './types';
+
 @Info({ title: 'SupplyChainContract', description: 'Smart contract for supply chain traceability' })
 export class SupplyChainContract extends Contract {
+
+    // Clave de prefijo para almacenar balances
+    private BALANCE_PREFIX = 'BALANCE-';
 
     // Initialize ledger with sample data (optional)
     @Transaction()
     public async InitLedger(ctx: Context): Promise<void> {
         console.info('============= START : Initialize Ledger ===========');
+
+        // Lista de cuentas a precargar por rol
+        const roles = ['producer', 'factory', 'retailer', 'consumer'];
+        const users = ['Admin', 'User1', 'User2'];
+        const initialBalance = '0x20000000000000000000000000000000000000000000000000000000000000';
+
+        for (const role of roles) {
+            for (const user of users) {
+                const account = `${user.toLowerCase()}@${role}.supplychain.com`;
+                const key = this.BALANCE_PREFIX + account;
+                const balanceObj: AccountBalance = {
+                    account,
+                    balance: initialBalance
+                };
+                await ctx.stub.putState(key, Buffer.from(JSON.stringify(balanceObj)));
+            }
+        }
+
+        console.info('Balances precargados para todas las cuentas de cada rol.');
         console.info('============= END : Initialize Ledger ===========');
+    }
+    // Consultar balance de una cuenta
+    @Transaction(false)
+    @Returns('string')
+    public async GetBalance(ctx: Context, account: string): Promise<string> {
+        const key = this.BALANCE_PREFIX + account.toLowerCase();
+        const balanceBytes = await ctx.stub.getState(key);
+        if (!balanceBytes || balanceBytes.length === 0) {
+            throw new Error(`No existe balance para la cuenta ${account}`);
+        }
+        return balanceBytes.toString();
+    }
+
+    // Transferir saldo entre cuentas
+    @Transaction()
+    public async TransferBalance(ctx: Context, from: string, to: string, amount: string): Promise<void> {
+        const fromKey = this.BALANCE_PREFIX + from.toLowerCase();
+        const toKey = this.BALANCE_PREFIX + to.toLowerCase();
+
+        const fromBytes = await ctx.stub.getState(fromKey);
+        if (!fromBytes || fromBytes.length === 0) {
+            throw new Error(`No existe balance para la cuenta origen ${from}`);
+        }
+        const fromBalanceObj: AccountBalance = JSON.parse(fromBytes.toString());
+
+        const toBytes = await ctx.stub.getState(toKey);
+        if (!toBytes || toBytes.length === 0) {
+            throw new Error(`No existe balance para la cuenta destino ${to}`);
+        }
+        const toBalanceObj: AccountBalance = JSON.parse(toBytes.toString());
+
+        // Sumar y restar usando BigInt para soportar valores grandes
+        const fromBal = BigInt(fromBalanceObj.balance);
+        const toBal = BigInt(toBalanceObj.balance);
+        const amt = BigInt(amount);
+        if (fromBal < amt) {
+            throw new Error('Fondos insuficientes');
+        }
+        fromBalanceObj.balance = '0x' + (fromBal - amt).toString(16);
+        toBalanceObj.balance = '0x' + (toBal + amt).toString(16);
+
+        await ctx.stub.putState(fromKey, Buffer.from(JSON.stringify(fromBalanceObj)));
+        await ctx.stub.putState(toKey, Buffer.from(JSON.stringify(toBalanceObj)));
     }
 
     // Helper function to find all pending transfers for a given asset ID
