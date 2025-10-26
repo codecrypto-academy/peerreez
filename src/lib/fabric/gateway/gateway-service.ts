@@ -558,7 +558,10 @@ export class GatewayService {
                 }
 
                 if (!found) {
-                    return { success: false, error: `Could not find identity for selector: ${ownerIdentity}` };
+                    // If the selector cannot be resolved, don't fail the whole API —
+                    // fall back to evaluating QueryTransferHistory as the server role.
+                    console.warn(`[Gateway] queryTransferHistory: could not find identity for selector ${ownerIdentity}; falling back to server role evaluation`);
+                    return await this.evaluateTransaction(role, 'QueryTransferHistory');
                 }
 
                 // Use evaluateTransactionAsUser to perform a readonly query as that user
@@ -664,7 +667,11 @@ export class GatewayService {
                 }
 
                 if (!found) {
-                    return { success: false, error: `Could not find identity for selector: ${ownerIdentity}` };
+                    // If the selector cannot be resolved, don't return an error — fall back
+                    // to evaluating GetPendingTransfers with the server role connection so the
+                    // API remains usable even when mappings are missing.
+                    console.warn(`[Gateway] getPendingTransfers: could not find identity for selector ${ownerIdentity}; falling back to server role evaluation`);
+                    return await this.evaluateTransaction(role, 'GetPendingTransfers');
                 }
 
                 // Evaluate the GetPendingTransfers function as the discovered user

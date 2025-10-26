@@ -2,6 +2,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as crypto from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { getMapping } from '../../../bridge/identityMapper';
 
 export interface Identity {
     mspId: string;
@@ -73,35 +74,56 @@ export class IdentityManager {
      * Find an identity by selector (username, CN or derived address) under a role's users directory
      */
     public async findIdentity(role: Role, selector: string): Promise<{ username: string; identity: Identity } | null> {
-        // First check runtime mappings (e.g., address -> username) so operators can map external
-        // wallet addresses to existing Fabric usernames without changing crypto-config.
+        // First check in-memory/runtime mappings (bridge) so wallet addresses can be
+        // mapped to Fabric usernames without needing on-disk JSON mappings.
         try {
-            const mappings = await this.loadMappings();
-            const orgName = this.getOrgName(role);
-            const selLower = selector.toLowerCase();
-            const possibleKeys = [
-                `${orgName}:${selLower}`,
-                `${orgName}.supplychain.com:${selLower}`,
-                `${orgName}:0x${selLower.replace(/^0x/, '')}`,
-                `${orgName}.supplychain.com:0x${selLower.replace(/^0x/, '')}`,
-            ];
-            let mappedUsername: string | undefined;
-            for (const k of possibleKeys) {
-                if (mappings && mappings[k]) {
-                    mappedUsername = mappings[k];
-                    break;
-                }
-            }
-            if (mappedUsername) {
+            // Try several normalized selector variants when consulting runtime mapping
+            const selLower = (selector || '').toLowerCase();
+            const no0x = selLower.replace(/^0x/, '');
+            const variants = [selLower, no0x, `0x${no0x}`].filter(Boolean);
+            let mapped: string | null = null;
+            for (const v of variants) {
                 try {
-                    const ident = await this.loadIdentityForUser(role, mappedUsername);
-                    return { username: mappedUsername, identity: ident };
-                } catch (e) {
-                    // if the mapped username doesn't exist on disk, continue to disk search
+                    mapped = await getMapping(v);
+                    if (mapped) break;
+                } catch {
+                    // ignore per-variant errors
                 }
             }
-        } catch (e) {
-            // ignore mapping errors and continue to disk search
+
+            // Also consult file-backed mappings (loadMappings) for flexible key formats
+            if (!mapped) {
+                try {
+                    const fileMaps = await this.loadMappings();
+                    // try exact match
+                    if (fileMaps[selLower]) mapped = fileMaps[selLower];
+                    // try without 0x
+                    if (!mapped && fileMaps[no0x]) mapped = fileMaps[no0x];
+                    // try keys that end with the selector (e.g., 'producer:0xabc...')
+                    if (!mapped) {
+                        for (const k of Object.keys(fileMaps)) {
+                            const kk = k.toLowerCase();
+                            if (kk.endsWith(`:${selLower}`) || kk.endsWith(`:${no0x}`) || kk === selLower) {
+                                mapped = fileMaps[k];
+                                break;
+                            }
+                        }
+                    }
+                } catch {
+                    // ignore
+                }
+            }
+
+            if (mapped) {
+                try {
+                    const ident = await this.loadIdentityForUser(role, mapped);
+                    return { username: mapped, identity: ident };
+                } catch {
+                    // If the mapped username doesn't exist under this role, fall through
+                }
+            }
+        } catch {
+            // ignore mapping errors and continue to disk discovery
         }
         const orgName = this.getOrgName(role);
         const usersDir = path.join(this.cryptoBasePath, `${orgName}.supplychain.com`, 'users');
@@ -140,8 +162,22 @@ export class IdentityManager {
      * Load mappings from JSON file. Returns an object with keys like 'producer:0xabc...': 'User1@producer.supplychain.com'
      */
     private async loadMappings(): Promise<Record<string, string>> {
-        // Mappings disabled: always return empty mapping so callers fall back to disk discovery
-        return {};
+        // Try to load a file-backed mapping (addressToFabric.json) located next to the bridge
+        // This allows mappings created via the bridge `/map` endpoint or a local file to be
+        // visible to the Next.js server process.
+        try {
+            const file = path.join(__dirname, '..', '..', '..', 'bridge', 'addressToFabric.json');
+            const raw = await fs.readFile(file, 'utf8').catch(() => '');
+            if (!raw) return {};
+            const parsed = JSON.parse(raw || '{}') as Record<string, string>;
+            const normalized: Record<string, string> = {};
+            for (const k of Object.keys(parsed)) {
+                normalized[k.toLowerCase()] = parsed[k];
+            }
+            return normalized;
+        } catch (e) {
+            return {};
+        }
     }
 
     /**
