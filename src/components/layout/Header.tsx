@@ -98,6 +98,17 @@ export default function Header() {
                             </div>
                             Consumer
                         </Link>
+
+                        {/* Admin link: always visible button */}
+                        <Link
+                            href="/admin"
+                            className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 hover:text-black hover:bg-gray-50 rounded-lg transition-all duration-200"
+                        >
+                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                                <span className="text-lg">🛠️</span>
+                            </div>
+                            Admin
+                        </Link>
                     </nav>
 
                     {/* Right area: user badge + login popover */}
