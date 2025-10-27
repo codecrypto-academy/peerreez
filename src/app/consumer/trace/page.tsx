@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
 import TimelineItem from '../../../components/transfers/TimelineItem';
@@ -84,6 +84,85 @@ export default function TracePage() {
     };
     const traceData = rawTraceData as TraceData | undefined;
 
+    // Identity details fetched from server for display (username, role, org, address, cn, fingerprint)
+    type IdentityDetail = {
+        selector: string;
+        username?: string;
+        role?: string;
+        org?: string;
+        fingerprint?: string;
+        address?: string;
+        cn?: string;
+    };
+
+    const [identityDetails, setIdentityDetails] = useState<Record<string, IdentityDetail>>({});
+
+    // Extract unique identity selectors from trace data and fetch details
+    // Extract unique identity selectors from trace data and fetch details (bulk)
+    useEffect(() => {
+        if (!traceData) return;
+
+        const ids = new Set<string>();
+        // asset owners
+        if (traceData.asset?.createdBy) ids.add(String(traceData.asset.createdBy));
+        if (traceData.asset?.currentOwner) ids.add(String(traceData.asset.currentOwner));
+
+        // raw materials owners and their events
+        if (Array.isArray(traceData.rawMaterialsTrace)) {
+            for (const rt of traceData.rawMaterialsTrace) {
+                if (rt.asset?.createdBy) ids.add(String(rt.asset.createdBy));
+                if (rt.asset?.currentOwner) ids.add(String(rt.asset.currentOwner));
+                if (Array.isArray(rt.history)) {
+                    for (const ev of rt.history as TraceEvent[]) {
+                        if (ev.submittedBy) ids.add(String(ev.submittedBy));
+                        if (ev.actor) ids.add(String(ev.actor));
+                    }
+                }
+            }
+        }
+
+        // merged history actors/owners
+        const merged = getMergedHistory();
+        for (const ev of merged) {
+            if (ev.submittedBy) ids.add(String(ev.submittedBy));
+            if (ev.actor) ids.add(String(ev.actor));
+            if (ev.previousOwner) ids.add(String(ev.previousOwner));
+            if (ev.newOwner) ids.add(String(ev.newOwner));
+        }
+
+        // remove empty selectors
+        ids.delete('');
+
+        const unique = Array.from(ids).filter(Boolean).slice(0, 200); // limit
+
+        if (unique.length === 0) return;
+
+        let mounted = true;
+        (async () => {
+            try {
+                const res = await fetch('/api/fabric/identity/bulk-detail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selectors: unique })
+                });
+                if (!res.ok) return;
+                const json = await res.json();
+                if (json && json.success && json.data) {
+                    const map: Record<string, IdentityDetail> = {};
+                    for (const k of Object.keys(json.data)) {
+                        const v = json.data[k];
+                        if (v && !v.error) map[k] = { selector: k, ...(v as IdentityDetail) };
+                    }
+                    if (mounted) setIdentityDetails(prev => ({ ...prev, ...map }));
+                }
+            } catch (e) {
+                // ignore
+            }
+        })();
+
+        return () => { mounted = false; };
+    }, [traceData]);
+
     // Prepare a merged history (chronological) that includes:
     //  - raw materials histories (producer events)
     //  - any fetched parent/ancestor histories (splits)
@@ -116,10 +195,10 @@ export default function TracePage() {
             for (const ev of traceData.history as TraceEvent[]) events.push({ ...ev, origin: 'asset' });
         }
 
-        // sort chronologically using txTimestamp if present
+        // sort chronologically using txTimestamp if present (safe parse)
         return events.sort((a: TraceEvent, b: TraceEvent) => {
-            const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-            const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
+            const ta = parseTimestampSafe(a.txTimestamp || a.timestamp);
+            const tb = parseTimestampSafe(b.txTimestamp || b.timestamp);
             return ta - tb;
         });
     };
@@ -286,11 +365,90 @@ export default function TracePage() {
     };
 
     // merged history used by metrics and timeline
-    const mergedHistory = getMergedHistory();
+    // Robust timestamp parser: returns epoch ms or 0 for invalid values
+    const parseTimestampSafe = (t?: string | number) => {
+        try {
+            const s = t === undefined || t === null ? '' : String(t);
+            const v = Date.parse(s);
+            return Number.isNaN(v) ? 0 : v;
+        } catch {
+            return 0;
+        }
+    };
+
+    // Memoize merged history to avoid recalculating on unrelated state updates
+    const mergedHistory = useMemo(() => getMergedHistory(), [traceData, parentTraces]);
+
+    // Helper component: Participant card — declared outside of JSX to avoid TSX parse issues
+    const [toast, setToast] = useState<string | null>(null);
+
+    // auto-clear toast
+    useEffect(() => {
+        if (!toast) return;
+        const t = setTimeout(() => setToast(null), 3000);
+        return () => clearTimeout(t);
+    }, [toast]);
+
+    const ParticipantCard = ({ title, selector, info, onCopy }: { title?: string; selector: string; info?: any; onCopy?: (s: string) => void }) => {
+        const displayName = info?.username || info?.cn || extractOrgFromIdentity(selector) || selector;
+        const roleLabel = info?.role || (info?.org ? `${info.org}` : 'Participant');
+        const address = info?.address || '';
+        const shortAddr = address ? `${address.slice(0, 8)}...${address.slice(-6)}` : selector.length > 40 ? `${selector.slice(0, 18)}...${selector.slice(-18)}` : selector;
+
+        const badgeColor = (() => {
+            const r = (info?.role || '').toLowerCase() || '';
+            if (r.includes('producer')) return 'from-amber-400 to-amber-500 text-amber-900';
+            if (r.includes('factory')) return 'from-blue-400 to-cyan-500 text-white';
+            if (r.includes('retailer')) return 'from-green-400 to-emerald-500 text-white';
+            if (r.includes('consumer')) return 'from-violet-400 to-indigo-500 text-white';
+            return 'from-slate-100 to-slate-200 text-slate-800';
+        })();
+
+        const copy = async () => {
+            try {
+                await navigator.clipboard.writeText(selector);
+                if (onCopy) onCopy(selector);
+            } catch {
+                if (onCopy) onCopy('failed');
+            }
+        };
+
+        return (
+            <div className="p-4 rounded-xl bg-white/70 border border-gray-100 flex flex-col justify-between break-words">
+                <div>
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <div className="text-xs text-gray-500">{title}</div>
+                            <div className="font-semibold text-gray-900 mt-1 truncate" title={String(displayName)}>{displayName}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className={`px-2 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${badgeColor}`}>{roleLabel}</div>
+                            <button type="button" onClick={copy} className="text-gray-500 hover:text-gray-700 text-sm" title="Copy full selector">Copy</button>
+                        </div>
+                    </div>
+
+                    {info?.cn && <div className="mt-2 text-xs text-gray-600">CN: <span className="font-medium">{info.cn}</span></div>}
+                    <div className="mt-2 text-xs text-gray-500 font-mono">{shortAddr}</div>
+                    {info?.fingerprint && (
+                        <div className="mt-2 text-xs text-gray-400">FP: <span className="font-mono">{String(info.fingerprint).slice(0, 8)}…{String(info.fingerprint).slice(-6)}</span></div>
+                    )}
+                    <div className="mt-2 text-xs text-gray-400 break-all" title={String(selector)}>
+                        {String(selector)}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 text-black">
             <div className="container mx-auto px-6 py-8">
+                {/* Toast */}
+                {toast && (
+                    <div className="fixed right-6 bottom-6 z-50">
+                        <div className="bg-black/80 text-white px-4 py-2 rounded-lg shadow-lg">{toast}</div>
+                    </div>
+                )}
                 {/* Header */}
                 <div className="mb-8">
                     <div className="flex items-center mb-4">
@@ -409,6 +567,169 @@ export default function TracePage() {
                                     <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-400 text-white">
                                         <div className="text-xs">Last Updated</div>
                                         <div className="font-bold mt-1">{formatTimestamp(traceData.asset.updatedAt)}</div>
+                                    </div>
+                                </div>
+                                {/* Resolved participant details (username, role, address) - improved visuals */}
+                                <div className="mt-6">
+                                    <h4 className="text-sm text-gray-600 mb-3">Participants (resolved)</h4>
+
+                                    {/* Participant cards rendered below */}
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {/* Primary roles: creator and current owner */}
+                                        {([traceData.asset.createdBy, traceData.asset.currentOwner] as Array<string | undefined>).map((sel, idx) => {
+                                            if (!sel) return null;
+                                            const info = identityDetails[String(sel)];
+                                            return <ParticipantCard key={idx} title={idx === 0 ? 'Created By' : 'Current Owner'} selector={String(sel)} info={info} onCopy={(s) => setToast('Selector copiado')} />;
+                                        })}
+
+                                        {/* Additional resolved identities: only those referenced in the trace, exclude MSP/CA entries, dedupe by address/fingerprint */}
+                                        {(() => {
+                                            const primaries = new Set([String(traceData.asset.createdBy), String(traceData.asset.currentOwner)]);
+
+                                            // Build a set of selectors that actually appear in the merged history or asset fields
+                                            const referenced = new Set<string>();
+                                            if (traceData.asset?.createdBy) referenced.add(String(traceData.asset.createdBy));
+                                            if (traceData.asset?.currentOwner) referenced.add(String(traceData.asset.currentOwner));
+                                            if (Array.isArray(traceData.rawMaterialsTrace)) {
+                                                for (const rt of traceData.rawMaterialsTrace) {
+                                                    if (rt.asset?.createdBy) referenced.add(String(rt.asset.createdBy));
+                                                    if (rt.asset?.currentOwner) referenced.add(String(rt.asset.currentOwner));
+                                                    if (Array.isArray(rt.history)) {
+                                                        for (const ev of rt.history) {
+                                                            if (ev.submittedBy) referenced.add(String(ev.submittedBy));
+                                                            if (ev.actor) referenced.add(String(ev.actor));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            for (const ev of mergedHistory) {
+                                                if (ev.submittedBy) referenced.add(String(ev.submittedBy));
+                                                if (ev.actor) referenced.add(String(ev.actor));
+                                                if (ev.previousOwner) referenced.add(String(ev.previousOwner));
+                                                if (ev.newOwner) referenced.add(String(ev.newOwner));
+                                            }
+
+                                            // Filter identityDetails to those referenced and not MSP/CA
+                                            const raw = Object.entries(identityDetails)
+                                                .filter(([k, v]) => {
+                                                    if (!k || !v) return false;
+                                                    // only show selectors that are referenced in the trace
+                                                    if (!referenced.has(k)) return false;
+                                                    // exclude primary cards (createdBy / currentOwner) to avoid duplication
+                                                    if (primaries.has(k)) return false;
+                                                    // exclude MSP constants like FactoryMSP
+                                                    if (/MSP$/i.test(String(k))) return false;
+                                                    // exclude CA or cert-authority entries
+                                                    const role = (v?.role || '').toString().toLowerCase();
+                                                    if (role === 'ca') return false;
+                                                    if (String(v?.cn || '').toLowerCase().startsWith('ca.')) return false;
+                                                    return true;
+                                                }) as Array<[string, any]>;
+
+                                            // Deduplicate by normalized identity key (address > fingerprint > normalized selector)
+                                            const normalizeKey = (sel: string, v: any) => {
+                                                if (v?.address) return String(v.address).toLowerCase();
+                                                if (v?.fingerprint) return String(v.fingerprint).toLowerCase();
+                                                // try to extract CN from x509 style selectors (CN=...)
+                                                try {
+                                                    const s = String(sel || '');
+                                                    const m = s.match(/CN=([^,/]+)/i);
+                                                    if (m && m[1]) return String(m[1]).toLowerCase();
+                                                    // fallback to username part before @
+                                                    const at = s.indexOf('@');
+                                                    if (at > 0) return s.slice(0, at).toLowerCase();
+                                                    return s.toLowerCase();
+                                                } catch {
+                                                    return String(sel).toLowerCase();
+                                                }
+                                            };
+
+                                            // count how often a selector appears in the merged history (used to choose a representative)
+                                            const countReferences = (selector: string) => {
+                                                let count = 0;
+                                                for (const ev of mergedHistory) {
+                                                    if (!ev) continue;
+                                                    const fields = [ev.submittedBy, ev.actor, ev.previousOwner, ev.newOwner];
+                                                    for (const f of fields) {
+                                                        if (!f) continue;
+                                                        try {
+                                                            if (String(f) === selector) count++;
+                                                        } catch { }
+                                                    }
+                                                }
+                                                // also check rawMaterialsTrace histories
+                                                if (Array.isArray(traceData.rawMaterialsTrace)) {
+                                                    for (const rt of traceData.rawMaterialsTrace) {
+                                                        if (rt.asset?.createdBy && String(rt.asset.createdBy) === selector) count++;
+                                                        if (rt.asset?.currentOwner && String(rt.asset.currentOwner) === selector) count++;
+                                                        if (Array.isArray(rt.history)) {
+                                                            for (const ev of rt.history) {
+                                                                if (ev.submittedBy && String(ev.submittedBy) === selector) count++;
+                                                                if (ev.actor && String(ev.actor) === selector) count++;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                // asset-level fields
+                                                if (traceData.asset?.createdBy && String(traceData.asset.createdBy) === selector) count += 3; // bias creators
+                                                if (traceData.asset?.currentOwner && String(traceData.asset.currentOwner) === selector) count += 2;
+                                                return count;
+                                            };
+
+                                            const seen = new Set<string>();
+                                            const participants: Array<{ selector: string; info: any; refs: number }> = [];
+                                            for (const [k, v] of raw) {
+                                                const key = normalizeKey(k, v);
+                                                if (seen.has(key)) continue;
+                                                seen.add(key);
+                                                participants.push({ selector: k, info: v, refs: countReferences(k) });
+                                            }
+
+                                            // sort participants by desired descending role order: producer, factory, retailer, consumer
+                                            const priority = (r?: string) => {
+                                                if (!r) return 99;
+                                                const rr = String(r).toLowerCase();
+                                                if (rr.includes('producer')) return 1;
+                                                if (rr.includes('factory')) return 2;
+                                                if (rr.includes('retailer')) return 3;
+                                                if (rr.includes('consumer')) return 4;
+                                                return 10;
+                                            };
+
+                                            participants.sort((a, b) => {
+                                                const pr = priority(a.info?.role) - priority(b.info?.role);
+                                                if (pr !== 0) return pr;
+                                                return (b.refs || 0) - (a.refs || 0);
+                                            });
+
+                                            // If there are multiple 'Producer' participants, collapse to a single representative
+                                            const collapseRoles = ['producer'];
+                                            const finalParticipants: Array<{ selector: string; info: any }> = [];
+                                            const byRole = new Map<string, Array<{ selector: string; info: any; refs: number }>>();
+                                            for (const p of participants) {
+                                                const role = String(p.info?.role || '').toLowerCase() || 'unknown';
+                                                if (!byRole.has(role)) byRole.set(role, []);
+                                                byRole.get(role)!.push(p);
+                                            }
+
+                                            for (const [role, items] of byRole.entries()) {
+                                                if (collapseRoles.includes(role) && items.length > 1) {
+                                                    // prefer the asset creator or current owner if present
+                                                    let chosen = items.find(i => String(i.selector) === String(traceData.asset?.createdBy))
+                                                        || items.find(i => String(i.selector) === String(traceData.asset?.currentOwner))
+                                                        || items.reduce((a, b) => (b.refs > a.refs ? b : a));
+                                                    if (chosen) finalParticipants.push({ selector: chosen.selector, info: chosen.info });
+                                                } else {
+                                                    // keep all others in priority order
+                                                    for (const it of items) finalParticipants.push({ selector: it.selector, info: it.info });
+                                                }
+                                            }
+
+                                            return finalParticipants.slice(0, 6).map((p, i) => (
+                                                <ParticipantCard key={`add-${i}`} title={`Participant`} selector={p.selector} info={p.info} onCopy={(s) => setToast('Selector copiado')} />
+                                            ));
+                                        })()}
                                     </div>
                                 </div>
                             </div>
