@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import TimelineItem from '../../../components/transfers/TimelineItem';
 import { extractOrgFromIdentity } from '../../../lib/traceHelpers';
 
@@ -96,6 +97,22 @@ export default function TracePage() {
     };
 
     const [identityDetails, setIdentityDetails] = useState<Record<string, IdentityDetail>>({});
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // If the page is loaded with ?assetId=..., trigger the trace automatically
+    useEffect(() => {
+        try {
+            const urlId = searchParams?.get?.('assetId');
+            if (urlId && urlId !== '') {
+                setAssetId(urlId);
+                setSearchId(urlId);
+            }
+        } catch {
+            // ignore
+        }
+        // we intentionally only want to run when searchParams changes
+    }, [searchParams]);
 
     // Extract unique identity selectors from trace data and fetch details
     // Extract unique identity selectors from trace data and fetch details (bulk)
@@ -419,7 +436,6 @@ export default function TracePage() {
                     <div className="flex items-start justify-between gap-3">
                         <div>
                             <div className="text-xs text-gray-500">{title}</div>
-                            <div className="font-semibold text-gray-900 mt-1 truncate" title={String(displayName)}>{displayName}</div>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className={`px-2 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${badgeColor}`}>{roleLabel}</div>
@@ -800,10 +816,28 @@ export default function TracePage() {
                                             <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
                                                 <span className="mr-2">🌱</span>
                                                 {rawTrace.asset.name}
-                                                <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">
-                                                    ID: {rawTrace.asset.id}
-                                                </span>
+                                                <span className="ml-2 px-2 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-semibold">ID: {rawTrace.asset.id}</span>
                                             </h3>
+
+                                            <div className="flex items-center gap-3 mb-4">
+                                                {rawTrace.asset.id && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const id = String(rawTrace.asset.id);
+                                                                setAssetId(id);
+                                                                setSearchId(id);
+                                                                try { router.push(`/consumer/trace?assetId=${encodeURIComponent(id)}`); } catch { }
+                                                            }}
+                                                            className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:brightness-95"
+                                                        >
+                                                            Ver traza
+                                                        </button>
+                                                        <a href={`/consumer/trace?assetId=${encodeURIComponent(String(rawTrace.asset.id))}`} target="_blank" rel="noopener noreferrer" className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50">Abrir en nueva pestaña</a>
+                                                    </>
+                                                )}
+                                            </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                                 <div className="bg-white/50 rounded-lg p-3">
@@ -811,31 +845,21 @@ export default function TracePage() {
                                                     <p className="text-sm"><strong>Category:</strong> {rawTrace.asset.category}</p>
                                                 </div>
                                                 <div className="bg-white/50 rounded-lg p-3">
-                                                    <p className="text-sm"><strong>Quantity:</strong> {rawTrace.asset.quantity} {rawTrace.asset.unit || 'units'}</p>
+                                                    <p className="text-sm"><strong>Available:</strong> {rawTrace.asset.quantity ?? 'N/A'} {rawTrace.asset.unit || 'units'}</p>
+                                                    <p className="text-sm"><strong>Consumed for this product:</strong> {traceData.asset.rawMaterialsUsed ? String(traceData.asset.rawMaterialsUsed[String(rawTrace.asset.id)] ?? 'N/A') : 'N/A'} {traceData.asset.unit || rawTrace.asset.unit || 'units'}</p>
                                                     <p className="text-sm"><strong>Batch:</strong> {rawTrace.asset.batchNumber || 'N/A'}</p>
                                                 </div>
                                                 <div className="bg-white/50 rounded-lg p-3">
                                                     <p className="text-sm"><strong>Status:</strong> <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs font-semibold">{rawTrace.asset.status}</span></p>
-                                                    {rawTrace.asset.certifications && rawTrace.asset.certifications.length > 0 && (
-                                                        <p className="text-sm"><strong>Certs:</strong> {rawTrace.asset.certifications.join(', ')}</p>
-                                                    )}
+                                                    {rawTrace.asset.certifications && rawTrace.asset.certifications.length > 0 && (<p className="text-sm"><strong>Certs:</strong> {rawTrace.asset.certifications.join(', ')}</p>)}
                                                 </div>
                                             </div>
 
                                             <div className="space-y-2">
-                                                <h4 className="font-semibold text-gray-700 flex items-center">
-                                                    <span className="mr-2">📅</span>
-                                                    Timeline:
-                                                </h4>
-                                                {([...rawTrace.history].sort((a: TraceEvent, b: TraceEvent) => {
-                                                    const ta = new Date(String(a.txTimestamp || a.timestamp || 0)).getTime();
-                                                    const tb = new Date(String(b.txTimestamp || b.timestamp || 0)).getTime();
-                                                    return ta - tb;
-                                                })).map((event: TraceEvent, eventIndex: number) => (
+                                                <h4 className="font-semibold text-gray-700 flex items-center"><span className="mr-2">📅</span>Timeline:</h4>
+                                                {([...rawTrace.history].sort((a: TraceEvent, b: TraceEvent) => new Date(String(a.txTimestamp || a.timestamp || 0)).getTime() - new Date(String(b.txTimestamp || b.timestamp || 0)).getTime())).map((event: TraceEvent, eventIndex: number) => (
                                                     <div key={eventIndex} className="flex items-center space-x-3 text-sm bg-white/50 rounded-lg p-3">
-                                                        <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                                            {eventIndex + 1}
-                                                        </div>
+                                                        <div className="w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{eventIndex + 1}</div>
                                                         <div className="flex-1">
                                                             <span className="font-semibold">{getActionIcon(event.action)} {event.action}</span>
                                                             <span className="text-gray-600"> - {formatTimestamp(event.txTimestamp || event.timestamp || '')}</span>

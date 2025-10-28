@@ -21,7 +21,7 @@ interface TransferForm {
 export default function TransferAssetPage() {
   const [formData, setFormData] = useState<TransferForm>({
     assetId: '',
-    recipientMSP: '',
+    recipientMSP: 'FactoryMSP',
     pickupLocation: '',
     transportMethod: '',
     temperature: undefined,
@@ -431,10 +431,8 @@ export default function TransferAssetPage() {
                       onChange={(e) => handleInputChange('recipientMSP', e.target.value)}
                       className="w-full px-4 py-3 bg-white/70 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     >
-                      <option value="">Select recipient...</option>
+                      {/* Only allow Factory as recipient for Producer transfers */}
                       <option value="FactoryMSP">🏭 Factory (Manufacturing)</option>
-                      <option value="RetailerMSP">� Retailer (Distribution)</option>
-                      <option value="ConsumerMSP">👤 Consumer (End User)</option>
                     </select>
                     <p className="text-xs text-gray-500 mt-2">⚠️ Producer can only transfer to Factory</p>
                     {/* If Factory selected, show identity dropdown to pick specific Factory user */}

@@ -27,11 +27,104 @@ print_warning() {
     echo -e "${YELLOW}⚠️  $1${NC}"
 }
 
+# Check local host ports referenced by docker compose and try to free them if occupied
+check_and_free_ports() {
+    COMPOSE_FILE="docker/docker-compose.yaml"
+    if [ ! -f "$COMPOSE_FILE" ]; then
+        print_warning "No se encontró $COMPOSE_FILE, omitiendo comprobación de puertos"
+        return
+    fi
+
+    echo "Analizando puertos en $COMPOSE_FILE..."
+
+    # Extract host ports from explicit docker-compose list entries like:
+    #   - 7050:7050
+    #   - "7050:7050"
+    # This avoids picking up IP:port occurrences like 0.0.0.0:7053 inside env vars.
+    ports=$(grep -E '^[[:space:]]*-[[:space:]]*"?[0-9]+:[0-9]+' "$COMPOSE_FILE" | sed -E 's/^[[:space:]"-]*//' | awk -F: '{print $1}' | sort -un)
+
+    if [ -z "$ports" ]; then
+        print_warning "No se detectaron puertos expuestos en $COMPOSE_FILE"
+        return
+    fi
+
+    for p in $ports; do
+        # skip empty
+        [ -z "$p" ] && continue
+
+        echo "Comprobando puerto $p..."
+
+        # Prefer lsof if disponible
+        if command -v lsof >/dev/null 2>&1; then
+            pids=$(lsof -t -iTCP:${p} -sTCP:LISTEN 2>/dev/null || true)
+        else
+            # fallback a ss+awk (may require root to show pids)
+            pids=$(ss -ltnp 2>/dev/null | awk -v PORT=":${p}" '$0 ~ PORT { if (match($0, /pid=([0-9]+)/, a)) print a[1] }' | sort -u)
+        fi
+
+        if [ -z "$pids" ]; then
+            echo "Puerto $p libre"
+            continue
+        fi
+
+        for pid in $pids; do
+            [ -z "$pid" ] && continue
+            # Get command name
+            proc=$(ps -p $pid -o comm= 2>/dev/null || true)
+            echo "Puerto $p está en uso por PID $pid ($proc)"
+
+            # If it's a docker-related process, try to find and stop the container first
+            if echo "$proc" | grep -Eiq "docker|containerd|dockerd|docker-proxy"; then
+                echo "Proceso docker-detectado ($proc). Buscando contenedor que publica el puerto $p..."
+                # Try to find container that maps this host port (heurística sobre 'docker ps' output)
+                cid=$(docker ps --format '{{.ID}} {{.Names}} {{.Ports}}' 2>/dev/null | grep -E "[: ]${p}->|:${p}(,|$)" | awk '{print $1}' | head -n1 || true)
+                if [ -n "$cid" ]; then
+                    cname=$(docker ps --filter "id=$cid" --format '{{.Names}}' 2>/dev/null || true)
+                    echo "Deteniendo contenedor $cname ($cid) que publica el puerto $p..."
+                    docker rm -f "$cid" >/dev/null 2>&1 || docker stop "$cid" >/dev/null 2>&1 || true
+                    sleep 1
+                else
+                    echo "No se encontró contenedor explícito que publique $p. Intentando terminar PID $pid..."
+                fi
+            fi
+
+            # Attempt graceful stop, then force
+            if kill -0 $pid 2>/dev/null; then
+                echo "Enviando SIGTERM a PID $pid..."
+                kill -15 $pid 2>/dev/null || true
+                # wait a bit
+                for i in 1 2 3 4 5; do
+                    if ! kill -0 $pid 2>/dev/null; then
+                        echo "PID $pid terminado"
+                        break
+                    fi
+                    sleep 1
+                done
+                if kill -0 $pid 2>/dev/null; then
+                    echo "PID $pid sigue vivo, enviando SIGKILL..."
+                    kill -9 $pid 2>/dev/null || true
+                    sleep 1
+                fi
+            fi
+
+            if ! kill -0 $pid 2>/dev/null; then
+                echo "PID $pid liberado (puerto $p)"
+            else
+                print_warning "No se pudo liberar PID $pid del puerto $p (chequear permisos)"
+            fi
+        done
+    done
+}
+
 echo -e "${BLUE}"
 echo "================================================================================"
 echo "  LIMPIEZA COMPLETA - SUPPLY CHAIN NETWORK"
 echo "================================================================================"
 echo -e "${NC}"
+
+# Antes de detener contenedores, comprobar puertos locales y liberar si es necesario
+print_step "Comprobando puertos locales en uso y liberando si es necesario..."
+check_and_free_ports
 
 print_step "Deteniendo contenedores..."
 if [ -f "docker/docker-compose.yaml" ]; then

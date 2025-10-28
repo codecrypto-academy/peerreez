@@ -87,10 +87,13 @@ export default function DistributePage() {
         return () => { mounted = false; };
     }, []);
 
+    // Exclude items with zero quantity so products with stock 0 do not appear on the Distribute page
     const availableProducts = assets?.filter(
         (asset: Asset) => (
-            (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'IN_TRANSIT')) ||
-            (asset.type === 'RAW_MATERIAL' && (asset.status === 'CREATED' || asset.status === 'MANUFACTURED'))
+            (
+                (asset.type === 'PRODUCT' && (asset.status === 'MANUFACTURED' || asset.status === 'IN_TRANSIT')) ||
+                (asset.type === 'RAW_MATERIAL' && (asset.status === 'CREATED' || asset.status === 'MANUFACTURED'))
+            ) && Number(asset.quantity ?? 0) > 0
         )
     ) || [];
 
@@ -116,10 +119,13 @@ export default function DistributePage() {
 
         const selectedProduct = availableProducts.find((asset: Asset) => asset.id === selectedAsset);
         const selectedProductQty = selectedProduct ? (typeof selectedProduct.quantity === 'number' ? selectedProduct.quantity : Number(selectedProduct.quantity) || 0) : 0;
+
+        // Option A: allow selling even when requested quantity is greater than available stock
         if (selectedProduct && quantityToSell > selectedProductQty) {
-            setNotification({ type: 'error', message: `Insufficient quantity. Available: ${selectedProductQty} ${selectedProduct ? ((selectedProduct.unit as string) || 'units') : 'units'}, Requested: ${quantityToSell}` });
-            setTimeout(() => setNotification(null), 5000);
-            return;
+            // show a non-blocking warning to inform the retailer
+            setNotification({ type: 'error', message: `Requested ${quantityToSell} but only ${selectedProductQty} available — initiating sale will create a backorder/negative available quantity.` });
+            setTimeout(() => setNotification(null), 6000);
+            // continue and attempt the transfer (server-side may accept or reject)
         }
 
         try {
@@ -285,6 +291,9 @@ export default function DistributePage() {
                                                         {asset.quantity !== undefined && (
                                                             <p className="text-sm text-black mt-2">
                                                                 Quantity: {typeof asset.quantity === 'number' ? asset.quantity : Number(asset.quantity || 0)} {typeof asset.unit === 'string' ? asset.unit : 'units'}
+                                                                {Number(asset.quantity || 0) === 0 && (
+                                                                    <span className="ml-3 inline-block px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">OUT OF STOCK</span>
+                                                                )}
                                                             </p>
                                                         )}
                                                     </div>
@@ -359,10 +368,10 @@ export default function DistributePage() {
                                                         value={quantityToSell || ''}
                                                         onChange={(e) => {
                                                             const value = parseFloat(e.target.value) || 0;
-                                                            setQuantityToSell(Math.min(value, Number(availableQuantity)));
+                                                            // Allow entering a quantity greater than available (Option A: allow backorders / sales when stock is 0)
+                                                            setQuantityToSell(value);
                                                         }}
                                                         min={0}
-                                                        max={availableQuantity}
                                                         step={0.01}
                                                         placeholder="Enter quantity"
                                                         className="flex-1 px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-semibold text-black"
@@ -383,8 +392,8 @@ export default function DistributePage() {
                                                     </p>
                                                 )}
                                                 {quantityToSell > availableQuantity && (
-                                                    <p className="text-sm text-red-600 mt-2 font-semibold">
-                                                        ⚠️ Quantity exceeds available stock
+                                                    <p className="text-sm text-amber-700 mt-2 font-semibold">
+                                                        ⚠️ Quantity exceeds available stock — sale will be allowed (backorder)
                                                     </p>
                                                 )}
                                             </div>

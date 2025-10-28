@@ -301,35 +301,44 @@ export default function RetailerPage() {
                                             <span className="text-gray-600 ml-3">Loading inventory...</span>
                                         </div>
                                     ) : productsInStock.length > 0 ? (
-                                        productsInStock.map((asset) => (
-                                            <div key={asset.id} className="flex items-center justify-between p-6 bg-white rounded-xl border border-indigo-200 hover:shadow-lg transition-all duration-200">
-                                                <div className="flex items-center space-x-4">
-                                                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
-                                                        <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                                        </svg>
+                                        productsInStock.map((asset) => {
+                                            const isOutOfStock = Number(asset.quantity ?? 0) === 0;
+                                            return (
+                                                <div
+                                                    key={asset.id}
+                                                    title={isOutOfStock ? 'Blocked - stock is 0' : undefined}
+                                                    className={`flex items-center justify-between p-6 bg-white rounded-xl border border-indigo-200 transition-all duration-200 ${isOutOfStock ? 'opacity-60 pointer-events-none' : 'hover:shadow-lg'}`}>
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                                                            <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                            </svg>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-semibold text-gray-900">{asset.name}</h3>
+                                                            <p className="text-sm text-gray-600">ID: {asset.id}</p>
+                                                            <p className="text-sm text-gray-500">
+                                                                Category: {asset.category} • Raw Materials: {Array.isArray(asset.rawMaterials) ? asset.rawMaterials.length : 0}
+                                                            </p>
+                                                            <p className="text-sm font-bold text-indigo-600 mt-1">
+                                                                📦 Stock: {String(asset.quantity ?? 0)} {String(asset.unit ?? 'kg')}
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-semibold text-gray-900">{asset.name}</h3>
-                                                        <p className="text-sm text-gray-600">ID: {asset.id}</p>
-                                                        <p className="text-sm text-gray-500">
-                                                            Category: {asset.category} • Raw Materials: {Array.isArray(asset.rawMaterials) ? asset.rawMaterials.length : 0}
+                                                    <div className="text-right">
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-800'}`}>
+                                                            {isOutOfStock ? 'OUT OF STOCK' : 'AVAILABLE'}
+                                                        </span>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            Received: {new Date(asset.createdAt).toLocaleDateString()}
                                                         </p>
-                                                        <p className="text-sm font-bold text-indigo-600 mt-1">
-                                                            📦 Stock: {String(asset.quantity ?? 0)} {String(asset.unit ?? 'kg')}
-                                                        </p>
+                                                        {isOutOfStock && (
+                                                            <p className="text-xs text-red-600 mt-2">This product is blocked for use (zero stock)</p>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                        AVAILABLE
-                                                    </span>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        Received: {new Date(asset.createdAt).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     ) : (
                                         <div className="text-center py-12">
                                             <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
