@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -114,77 +114,22 @@ export default function TracePage() {
         // we intentionally only want to run when searchParams changes
     }, [searchParams]);
 
-    // Extract unique identity selectors from trace data and fetch details
-    // Extract unique identity selectors from trace data and fetch details (bulk)
-    useEffect(() => {
-        if (!traceData) return;
-
-        const ids = new Set<string>();
-        // asset owners
-        if (traceData.asset?.createdBy) ids.add(String(traceData.asset.createdBy));
-        if (traceData.asset?.currentOwner) ids.add(String(traceData.asset.currentOwner));
-
-        // raw materials owners and their events
-        if (Array.isArray(traceData.rawMaterialsTrace)) {
-            for (const rt of traceData.rawMaterialsTrace) {
-                if (rt.asset?.createdBy) ids.add(String(rt.asset.createdBy));
-                if (rt.asset?.currentOwner) ids.add(String(rt.asset.currentOwner));
-                if (Array.isArray(rt.history)) {
-                    for (const ev of rt.history as TraceEvent[]) {
-                        if (ev.submittedBy) ids.add(String(ev.submittedBy));
-                        if (ev.actor) ids.add(String(ev.actor));
-                    }
-                }
-            }
+    // Robust timestamp parser: returns epoch ms or 0 for invalid values
+    const parseTimestampSafe = (t?: string | number) => {
+        try {
+            const s = t === undefined || t === null ? '' : String(t);
+            const v = Date.parse(s);
+            return Number.isNaN(v) ? 0 : v;
+        } catch {
+            return 0;
         }
-
-        // merged history actors/owners
-        const merged = getMergedHistory();
-        for (const ev of merged) {
-            if (ev.submittedBy) ids.add(String(ev.submittedBy));
-            if (ev.actor) ids.add(String(ev.actor));
-            if (ev.previousOwner) ids.add(String(ev.previousOwner));
-            if (ev.newOwner) ids.add(String(ev.newOwner));
-        }
-
-        // remove empty selectors
-        ids.delete('');
-
-        const unique = Array.from(ids).filter(Boolean).slice(0, 200); // limit
-
-        if (unique.length === 0) return;
-
-        let mounted = true;
-        (async () => {
-            try {
-                const res = await fetch('/api/fabric/identity/bulk-detail', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ selectors: unique })
-                });
-                if (!res.ok) return;
-                const json = await res.json();
-                if (json && json.success && json.data) {
-                    const map: Record<string, IdentityDetail> = {};
-                    for (const k of Object.keys(json.data)) {
-                        const v = json.data[k];
-                        if (v && !v.error) map[k] = { selector: k, ...(v as IdentityDetail) };
-                    }
-                    if (mounted) setIdentityDetails(prev => ({ ...prev, ...map }));
-                }
-            } catch (e) {
-                // ignore
-            }
-        })();
-
-        return () => { mounted = false; };
-    }, [traceData]);
+    };
 
     // Prepare a merged history (chronological) that includes:
     //  - raw materials histories (producer events)
     //  - any fetched parent/ancestor histories (splits)
     //  - the current asset's own history
-    const getMergedHistory = () => {
+    const getMergedHistory = useCallback(() => {
         const events: TraceEvent[] = [];
 
         // raw materials histories (producer -> factory)
@@ -218,7 +163,75 @@ export default function TracePage() {
             const tb = parseTimestampSafe(b.txTimestamp || b.timestamp);
             return ta - tb;
         });
-    };
+    }, [traceData, parentTraces]);
+
+    const mergedHistory = useMemo(() => getMergedHistory(), [getMergedHistory]);
+
+    // Extract unique identity selectors from trace data and fetch details
+    // Extract unique identity selectors from trace data and fetch details (bulk)
+    useEffect(() => {
+        if (!traceData) return;
+
+        const ids = new Set<string>();
+        // asset owners
+        if (traceData.asset?.createdBy) ids.add(String(traceData.asset.createdBy));
+        if (traceData.asset?.currentOwner) ids.add(String(traceData.asset.currentOwner));
+
+        // raw materials owners and their events
+        if (Array.isArray(traceData.rawMaterialsTrace)) {
+            for (const rt of traceData.rawMaterialsTrace) {
+                if (rt.asset?.createdBy) ids.add(String(rt.asset.createdBy));
+                if (rt.asset?.currentOwner) ids.add(String(rt.asset.currentOwner));
+                if (Array.isArray(rt.history)) {
+                    for (const ev of rt.history as TraceEvent[]) {
+                        if (ev.submittedBy) ids.add(String(ev.submittedBy));
+                        if (ev.actor) ids.add(String(ev.actor));
+                    }
+                }
+            }
+        }
+
+        // merged history actors/owners
+        const merged = mergedHistory;
+        for (const ev of merged) {
+            if (ev.submittedBy) ids.add(String(ev.submittedBy));
+            if (ev.actor) ids.add(String(ev.actor));
+            if (ev.previousOwner) ids.add(String(ev.previousOwner));
+            if (ev.newOwner) ids.add(String(ev.newOwner));
+        }
+
+        // remove empty selectors
+        ids.delete('');
+
+        const unique = Array.from(ids).filter(Boolean).slice(0, 200); // limit
+
+        if (unique.length === 0) return;
+
+        let mounted = true;
+        (async () => {
+            try {
+                const res = await fetch('/api/fabric/identity/bulk-detail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selectors: unique })
+                });
+                if (!res.ok) return;
+                const json = await res.json();
+                if (json && json.success && json.data) {
+                    const map: Record<string, IdentityDetail> = {};
+                    for (const k of Object.keys(json.data)) {
+                        const v = json.data[k];
+                        if (v && !v.error) map[k] = { selector: k, ...(v as IdentityDetail) };
+                    }
+                    if (mounted) setIdentityDetails(prev => ({ ...prev, ...map }));
+                }
+            } catch {
+                // ignore
+            }
+        })();
+
+        return () => { mounted = false; };
+    }, [mergedHistory, traceData]);
 
     // When we receive traceData, detect parent IDs (split origin or originalProductId)
     // and fetch their traces recursively up to a depth limit, avoiding cycles.
@@ -382,19 +395,9 @@ export default function TracePage() {
     };
 
     // merged history used by metrics and timeline
-    // Robust timestamp parser: returns epoch ms or 0 for invalid values
-    const parseTimestampSafe = (t?: string | number) => {
-        try {
-            const s = t === undefined || t === null ? '' : String(t);
-            const v = Date.parse(s);
-            return Number.isNaN(v) ? 0 : v;
-        } catch {
-            return 0;
-        }
-    };
+
 
     // Memoize merged history to avoid recalculating on unrelated state updates
-    const mergedHistory = useMemo(() => getMergedHistory(), [traceData, parentTraces]);
 
     // Helper component: Participant card — declared outside of JSX to avoid TSX parse issues
     const [toast, setToast] = useState<string | null>(null);
@@ -406,8 +409,7 @@ export default function TracePage() {
         return () => clearTimeout(t);
     }, [toast]);
 
-    const ParticipantCard = ({ title, selector, info, onCopy }: { title?: string; selector: string; info?: any; onCopy?: (s: string) => void }) => {
-        const displayName = info?.username || info?.cn || extractOrgFromIdentity(selector) || selector;
+    const ParticipantCard = ({ title, selector, info, onCopy }: { title?: string; selector: string; info?: IdentityDetail | undefined; onCopy?: (s: string) => void }) => {
         const roleLabel = info?.role || (info?.org ? `${info.org}` : 'Participant');
         const address = info?.address || '';
         const shortAddr = address ? `${address.slice(0, 8)}...${address.slice(-6)}` : selector.length > 40 ? `${selector.slice(0, 18)}...${selector.slice(-18)}` : selector;
@@ -596,7 +598,7 @@ export default function TracePage() {
                                         {([traceData.asset.createdBy, traceData.asset.currentOwner] as Array<string | undefined>).map((sel, idx) => {
                                             if (!sel) return null;
                                             const info = identityDetails[String(sel)];
-                                            return <ParticipantCard key={idx} title={idx === 0 ? 'Created By' : 'Current Owner'} selector={String(sel)} info={info} onCopy={(s) => setToast('Selector copiado')} />;
+                                            return <ParticipantCard key={idx} title={idx === 0 ? 'Created By' : 'Current Owner'} selector={String(sel)} info={info} onCopy={() => setToast('Selector copiado')} />;
                                         })}
 
                                         {/* Additional resolved identities: only those referenced in the trace, exclude MSP/CA entries, dedupe by address/fingerprint */}
@@ -641,10 +643,10 @@ export default function TracePage() {
                                                     if (role === 'ca') return false;
                                                     if (String(v?.cn || '').toLowerCase().startsWith('ca.')) return false;
                                                     return true;
-                                                }) as Array<[string, any]>;
+                                                }) as Array<[string, IdentityDetail | undefined]>;
 
                                             // Deduplicate by normalized identity key (address > fingerprint > normalized selector)
-                                            const normalizeKey = (sel: string, v: any) => {
+                                            const normalizeKey = (sel: string, v: IdentityDetail | undefined) => {
                                                 if (v?.address) return String(v.address).toLowerCase();
                                                 if (v?.fingerprint) return String(v.fingerprint).toLowerCase();
                                                 // try to extract CN from x509 style selectors (CN=...)
@@ -694,7 +696,7 @@ export default function TracePage() {
                                             };
 
                                             const seen = new Set<string>();
-                                            const participants: Array<{ selector: string; info: any; refs: number }> = [];
+                                            const participants: Array<{ selector: string; info: IdentityDetail | undefined; refs: number }> = [];
                                             for (const [k, v] of raw) {
                                                 const key = normalizeKey(k, v);
                                                 if (seen.has(key)) continue;
@@ -721,8 +723,8 @@ export default function TracePage() {
 
                                             // If there are multiple 'Producer' participants, collapse to a single representative
                                             const collapseRoles = ['producer'];
-                                            const finalParticipants: Array<{ selector: string; info: any }> = [];
-                                            const byRole = new Map<string, Array<{ selector: string; info: any; refs: number }>>();
+                                            const finalParticipants: Array<{ selector: string; info: IdentityDetail | undefined }> = [];
+                                            const byRole = new Map<string, Array<{ selector: string; info: IdentityDetail | undefined; refs: number }>>();
                                             for (const p of participants) {
                                                 const role = String(p.info?.role || '').toLowerCase() || 'unknown';
                                                 if (!byRole.has(role)) byRole.set(role, []);
@@ -732,7 +734,7 @@ export default function TracePage() {
                                             for (const [role, items] of byRole.entries()) {
                                                 if (collapseRoles.includes(role) && items.length > 1) {
                                                     // prefer the asset creator or current owner if present
-                                                    let chosen = items.find(i => String(i.selector) === String(traceData.asset?.createdBy))
+                                                    const chosen = items.find(i => String(i.selector) === String(traceData.asset?.createdBy))
                                                         || items.find(i => String(i.selector) === String(traceData.asset?.currentOwner))
                                                         || items.reduce((a, b) => (b.refs > a.refs ? b : a));
                                                     if (chosen) finalParticipants.push({ selector: chosen.selector, info: chosen.info });
@@ -743,7 +745,7 @@ export default function TracePage() {
                                             }
 
                                             return finalParticipants.slice(0, 6).map((p, i) => (
-                                                <ParticipantCard key={`add-${i}`} title={`Participant`} selector={p.selector} info={p.info} onCopy={(s) => setToast('Selector copiado')} />
+                                                <ParticipantCard key={`add-${i}`} title={`Participant`} selector={p.selector} info={p.info} onCopy={() => setToast('Selector copiado')} />
                                             ));
                                         })()}
                                     </div>

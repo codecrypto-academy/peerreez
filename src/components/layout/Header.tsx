@@ -6,7 +6,7 @@ import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import LoginForm from '@/components/auth/LoginForm';
 import { useAuth } from '@/components/auth/AuthProvider';
-import WalletButton from '@/components/wallet/WalletButton';
+// WalletButton intentionally removed from header (account UI shown elsewhere)
 
 export default function Header() {
     const [showLogin, setShowLogin] = useState(false);

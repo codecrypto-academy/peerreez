@@ -29,7 +29,7 @@ export default function RegisterAssetPage() {
   const [ownerSelection, setOwnerSelection] = useState<string | undefined>(address || undefined);
   const searchParams = useSearchParams();
   const ownerFromQuery = searchParams.get('owner') || undefined;
-  const isOwnerLocked = !!ownerFromQuery;
+
 
   // Keep ownerSelection in sync when wallet/available identities change or when ownerFromQuery is present
   React.useEffect(() => {

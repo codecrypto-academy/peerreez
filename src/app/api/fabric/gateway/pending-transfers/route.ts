@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         // when provided. Return the chaincode response directly; client can filter by
         // the `toIdentity` field when an ownerIdentity is selected. We still include
         // the ownerIdentity in the response for debugging.
-        let data = result.data;
+        const data = result.data;
 
         // Return the (possibly filtered) gateway result but include the resolved role for easier debugging
         return NextResponse.json(

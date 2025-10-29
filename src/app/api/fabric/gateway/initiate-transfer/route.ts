@@ -10,8 +10,12 @@ import { TransactionResult, PendingTransfer } from '@/types/fabric';
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { role: bodyRole, assetId, recipientMSP, transferData } = body;
+        const body = await request.json() as unknown;
+        const b = (body as Record<string, unknown> | null) || null;
+        const bodyRole = typeof b?.role === 'string' ? String(b.role) : undefined;
+        const assetId = typeof b?.assetId === 'string' ? String(b.assetId) : undefined;
+        const recipientMSP = typeof b?.recipientMSP === 'string' ? String(b.recipientMSP) : undefined;
+        const transferData = b?.transferData;
 
         // Require role cookie set by RoleGuard to avoid body spoofing
         const cookieRole = request.cookies.get('userRole')?.value;
@@ -61,12 +65,12 @@ export async function POST(request: NextRequest) {
         console.log(`[API] Initiating transfer: ${assetId} → ${recipientMSP} (by ${role}) [cookie]`);
 
         // Extract ownerIdentity (if provided) early so we can use it for pre-checks
-        const ownerIdentity = body.ownerIdentity as string | undefined;
+        const ownerIdentity = typeof b?.ownerIdentity === 'string' ? String(b.ownerIdentity) : undefined;
 
         // Server-side pre-check: if this is a full-asset transfer (no quantityRequested),
         // ensure there is no existing pending transfer for the same asset to avoid endorsement failure.
-        const qtyRequested = transferData && typeof transferData.quantityRequested === 'number'
-            ? transferData.quantityRequested
+        const qtyRequested = transferData && typeof (transferData as Record<string, unknown>)['quantityRequested'] === 'number'
+            ? (transferData as Record<string, unknown>)['quantityRequested'] as number
             : undefined;
 
         if (qtyRequested === undefined) {
@@ -89,15 +93,13 @@ export async function POST(request: NextRequest) {
         // Normalize/merge transferData and ensure recipientIdentity (if provided at top-level)
         let td: Record<string, unknown> = {};
         try {
-            if (transferData) td = typeof transferData === 'string' ? JSON.parse(transferData) : transferData as Record<string, unknown>;
-        } catch (e) {
+            if (transferData) td = typeof transferData === 'string' ? JSON.parse(String(transferData)) : (transferData as Record<string, unknown>);
+        } catch {
             td = {};
         }
 
-        const bodyRecipient = (body as any).recipientIdentity as string | undefined;
-        if (bodyRecipient) {
-            td.recipientIdentity = bodyRecipient;
-        }
+        const bodyRecipient = typeof (b && b['recipientIdentity']) === 'string' ? String(b!['recipientIdentity']) : undefined;
+        if (bodyRecipient) td.recipientIdentity = bodyRecipient;
 
         let result;
         if (ownerIdentity) {

@@ -40,13 +40,14 @@ export default function FactoryTransferPage() {
                     const js = await res.json();
                     const ids = js?.identities || [];
                     // Exclude any admin identities from the selector (case-insensitive)
-                    const filtered = (ids || []).filter((r: any) => {
-                        const v = String(r.username || r.address || '').toLowerCase();
+                    const filtered = (ids || []).filter((r: unknown) => {
+                        const rec = r as Record<string, unknown>;
+                        const v = String(rec['username'] ?? rec['address'] ?? '').toLowerCase();
                         return !v.includes('admin');
                     });
-                    if (mounted) setRetailerIdentities(filtered);
+                    if (mounted) setRetailerIdentities(filtered as Array<{ username?: string; address?: string }>);
                 }
-            } catch (err) {
+            } catch {
                 // ignore
             } finally {
                 if (mounted) setRetailerLoading(false);
@@ -86,8 +87,15 @@ export default function FactoryTransferPage() {
                 if (pres.ok) {
                     const pjs = await pres.json();
                     const pids = pjs?.identities || [];
-                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
-                    if (match) ownerIdentity = match.username || match.address;
+                    const match = pids.find((p: unknown) => {
+                        const rec = p as Record<string, unknown>;
+                        const addr = rec['address'];
+                        return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                    });
+                    if (match) {
+                        const mrec = match as Record<string, unknown>;
+                        ownerIdentity = String(mrec['username'] ?? mrec['address']);
+                    }
                 }
             } catch {
                 // fallthrough

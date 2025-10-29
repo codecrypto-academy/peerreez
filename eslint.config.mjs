@@ -20,6 +20,13 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  // Allow server-only CommonJS require() usage in the bridge and compiled chaincode dist
+  {
+    files: ['src/bridge/**', 'supply-chain-network/**/dist/**'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off'
+    }
+  },
 ];
 
 export default eslintConfig;

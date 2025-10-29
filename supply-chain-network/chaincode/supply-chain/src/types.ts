@@ -37,7 +37,7 @@ export interface Asset {
     transfers?: AssetTransfer[];
 
     // Custom properties
-    properties?: { [key: string]: any };
+    properties?: Record<string, unknown>;
 }
 
 export interface AssetTransfer {
@@ -57,7 +57,7 @@ export interface AssetHistory {
     actor: string;
     previousOwner: string;
     newOwner: string;
-    data: any;
+    data: unknown;
     // Optional transaction metadata for auditability
     txId?: string;
     txTimestamp?: string;
@@ -91,7 +91,7 @@ export interface PendingTransfer {
     toMSP: string;                 // MSP ID of recipient (e.g., "FactoryMSP")
     initiatedAt: string;           // ISO timestamp when transfer was initiated
     status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED';
-    transferData: any;             // Additional transfer information (location, transport, etc.)
+    transferData: unknown;             // Additional transfer information (location, transport, etc.)
     previousStatus?: Asset['status'];       // Preserve asset status before initiating transfer
     // Optional: the explicit recipient identity (full x509) when known. If present, AcceptTransfer
     // will set the asset owner to this identity instead of deriving an identity from MSP.

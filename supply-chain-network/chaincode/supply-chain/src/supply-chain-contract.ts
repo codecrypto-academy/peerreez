@@ -3,9 +3,25 @@
  */
 
 import { Context, Contract, Info, Returns, Transaction } from 'fabric-contract-api';
-import { Asset, AssetHistory, AssetTransfer, PendingTransfer } from './types';
+import { Asset, AssetHistory, AssetTransfer, PendingTransfer, SupplyChainTrace } from './types';
 
 import { AccountBalance } from './types';
+
+// Local helper type for parsed transfer data (avoid use of `any`)
+type TransferData = {
+    location?: string;
+    transportMethod?: string;
+    paymentMethod?: string;
+    purchaseLocation?: string;
+    notes?: string;
+    temperature?: number;
+    recipientIdentity?: string;
+    quantityRequested?: number;
+    [key: string]: unknown;
+};
+
+// Type used for returned transferred assets (avoid any[] usage)
+type TransferredAsset = Asset & { transferHistory: AssetHistory[] };
 
 @Info({ title: 'SupplyChainContract', description: 'Smart contract for supply chain traceability' })
 export class SupplyChainContract extends Contract {
@@ -97,7 +113,7 @@ export class SupplyChainContract extends Contract {
                     if (transfer.assetId === assetId && transfer.status === 'PENDING') {
                         pending.push(transfer);
                     }
-                } catch (err) {
+                } catch {
                     // skip invalid entries
                 }
             }
@@ -420,7 +436,7 @@ export class SupplyChainContract extends Contract {
         }
 
         // Parse transfer data
-        const transfer: any = JSON.parse(transferData);
+        const transfer: TransferData = JSON.parse(transferData) as TransferData;
         const timestamp = new Date().toISOString();
 
         // Case 1: Selling entire product (complete transfer)
@@ -587,13 +603,13 @@ export class SupplyChainContract extends Contract {
                     if (record && storedOwner === clientId && record.id) {
                         ownedAssets.push(record);
                     }
-                } catch (errInner) {
+                } catch {
                     // fallback to legacy equality
                     if (record && record.currentOwner === clientId && record.id) {
                         ownedAssets.push(record);
                     }
                 }
-            } catch (err) {
+            } catch {
                 // Skip non-asset entries (like history records)
                 console.log(`Skipping non-asset entry: ${result.value.key}`);
             }
@@ -631,7 +647,7 @@ export class SupplyChainContract extends Contract {
                 if (record && (storedCurrent === normProvided || storedCreated === normProvided || record.currentOwner === ownerIdentity || record.createdBy === ownerIdentity) && record.id) {
                     ownedAssets.push(record);
                 }
-            } catch (err) {
+            } catch {
                 // Skip non-asset entries
             }
 
@@ -653,7 +669,7 @@ export class SupplyChainContract extends Contract {
         console.log(`Querying transfer history (normalized) for: ${clientId}`);
 
         const resultsIterator = await ctx.stub.getStateByRange('', '');
-        const transferredAssets: any[] = [];
+        const transferredAssets: TransferredAsset[] = [];
         const processedAssets = new Set<string>(); // Track assets to avoid duplicates
 
         let result = await resultsIterator.next();
@@ -677,7 +693,7 @@ export class SupplyChainContract extends Contract {
                             const isTransfer = (record.action === 'TRANSFER' && prevNorm === clientId);
                             const isCreateForBuyer = (record.action === 'CREATE' && prevNorm === clientId && newNorm !== clientId);
                             return isTransfer || isCreateForBuyer;
-                        } catch (err) {
+                        } catch {
                             return false;
                         }
                     });
@@ -701,13 +717,13 @@ export class SupplyChainContract extends Contract {
                                         transferHistory: transferRecords
                                     });
                                 }
-                            } catch (err) {
+                            } catch {
                                 console.log(`Asset ${assetId} no longer exists, but was transferred`);
                             }
                         }
                     }
-                } catch (err) {
-                    console.log(`Error parsing history for key ${key}: ${err}`);
+                } catch (_err) {
+                    console.log(`Error parsing history for key ${key}: ${_err}`);
                 }
             }
 
@@ -742,7 +758,7 @@ export class SupplyChainContract extends Contract {
         const assetString = await this.ReadAsset(ctx, assetId);
         const asset: Asset = JSON.parse(assetString);
 
-        const trace: any = {
+        const trace: SupplyChainTrace = {
             asset,
             history: [],
             rawMaterialsTrace: []
@@ -922,7 +938,7 @@ export class SupplyChainContract extends Contract {
 
         // 4. Parse transferData to inspect quantityRequested and check existing pending transfers for this asset
         // Parse transferData early so we can validate requested quantity against existing pending ones
-        const tdObj: any = JSON.parse(transferData);
+        const tdObj: TransferData = JSON.parse(transferData) as TransferData;
         const newQtyRequested = typeof tdObj.quantityRequested === 'number' ? tdObj.quantityRequested : undefined;
 
         // Allow multiple pending transfers only when they are partial (quantityRequested present).
@@ -998,7 +1014,7 @@ export class SupplyChainContract extends Contract {
         };
 
         // If transferData includes an explicit recipient identity (full X.509 string), store it
-        const td = pendingTransfer.transferData || {};
+        const td = (pendingTransfer.transferData as unknown as TransferData) || {};
         if (td.recipientIdentity && typeof td.recipientIdentity === 'string') {
             pendingTransfer.toIdentity = td.recipientIdentity;
         }
@@ -1062,6 +1078,9 @@ export class SupplyChainContract extends Contract {
         const assetString = await this.ReadAsset(ctx, pendingTransfer.assetId);
         const asset: Asset = JSON.parse(assetString);
 
+        // Normalize transferData into a typed object for safe access
+        const pendingTd: TransferData = pendingTransfer.transferData as unknown as TransferData;
+
         // Handle quantityRequested (if present) — perform partial transfer on accept
         const previousOwner = asset.currentOwner;
         const qtyReq = pendingTransfer.quantityRequested;
@@ -1091,9 +1110,9 @@ export class SupplyChainContract extends Contract {
                     from: previousOwner,
                     to: clientId,
                     timestamp: now,
-                    location: pendingTransfer.transferData?.location,
-                    transportMethod: pendingTransfer.transferData?.transportMethod,
-                    notes: pendingTransfer.transferData?.notes || 'Accepted partial transfer'
+                    location: pendingTd.location,
+                    transportMethod: pendingTd.transportMethod,
+                    notes: pendingTd.notes || 'Accepted partial transfer'
                 }]
             };
 
@@ -1115,9 +1134,9 @@ export class SupplyChainContract extends Contract {
                 from: previousOwner,
                 to: pendingTransfer.toIdentity || clientId,
                 timestamp: now,
-                location: pendingTransfer.transferData?.location,
-                transportMethod: pendingTransfer.transferData?.transportMethod,
-                notes: pendingTransfer.transferData?.notes || `Accepted partial transfer (${qtyReq})`
+                location: pendingTd.location,
+                transportMethod: pendingTd.transportMethod,
+                notes: pendingTd.notes || `Accepted partial transfer (${qtyReq})`
             });
 
             // Save both assets (update seller with remaining quantity and restored status)
@@ -1176,10 +1195,10 @@ export class SupplyChainContract extends Contract {
                 from: previousOwner,
                 to: newOwnerIdentity,
                 timestamp: now,
-                location: pendingTransfer.transferData?.location,
-                transportMethod: pendingTransfer.transferData?.transportMethod,
-                temperature: pendingTransfer.transferData?.temperature,
-                notes: pendingTransfer.transferData?.notes || 'Transfer accepted'
+                location: pendingTd.location,
+                transportMethod: pendingTd.transportMethod,
+                temperature: pendingTd.temperature,
+                notes: pendingTd.notes || 'Transfer accepted'
             });
 
             await ctx.stub.putState(pendingTransfer.assetId, Buffer.from(JSON.stringify(asset)));
@@ -1320,9 +1339,9 @@ export class SupplyChainContract extends Contract {
                 asset.updatedAt = new Date().toISOString();
                 await ctx.stub.putState(asset.id, Buffer.from(JSON.stringify(asset)));
             }
-        } catch (err) {
+        } catch (_err) {
             // If asset read fails, continue — cancellation should still proceed; log for debug
-            console.debug(`Warning: could not read asset ${pendingTransfer.assetId} while cancelling transfer ${transferId}: ${err}`);
+            console.debug(`Warning: could not read asset ${pendingTransfer.assetId} while cancelling transfer ${transferId}: ${_err}`);
         }
 
         // 5. Update PendingTransfer status to CANCELLED and add cancellation metadata
@@ -1359,10 +1378,8 @@ export class SupplyChainContract extends Contract {
     @Returns('string')
     public async GetPendingTransfers(ctx: Context): Promise<string> {
         console.info(`============= START : GetPendingTransfers ===========`);
-
-        const clientId = this.getClientIdentity(ctx);
         const clientMSP = this.getClientMSP(ctx);
-        const pendingTransfers: any[] = [];
+        const pendingTransfers: Array<PendingTransfer & { direction: string }> = [];
 
         // Iterate through all state entries
         const iterator = await ctx.stub.getStateByRange('', '');
@@ -1393,8 +1410,8 @@ export class SupplyChainContract extends Contract {
                             });
                         }
                     }
-                } catch (err) {
-                    console.log(`Error parsing transfer ${key}: ${err}`);
+                } catch (_err) {
+                    console.log(`Error parsing transfer ${key}: ${_err}`);
                 }
             }
 
@@ -1419,6 +1436,7 @@ export class SupplyChainContract extends Contract {
 
     // Helper methods
     private validateAsset(asset: Asset, ctx: Context): void {
+        void ctx;
         if (!asset.name || !asset.type) {
             throw new Error('Asset must have name and type');
         }
@@ -1459,26 +1477,28 @@ export class SupplyChainContract extends Contract {
             // getTxTimestamp returns a protobuf Timestamp - convert to JS ISO string if available
             let txTimestampIso = '';
             try {
-                const txTimestamp: any = ctx.stub.getTxTimestamp();
-                // txTimestamp has { seconds, nanos } depending on the stub implementation
-                if (txTimestamp && (txTimestamp.seconds || txTimestamp.seconds === 0)) {
-                    const seconds = typeof txTimestamp.seconds === 'object' ? Number(txTimestamp.seconds.low || txTimestamp.seconds) : Number(txTimestamp.seconds);
+                // Some stub implementations return a protobuf Timestamp-like object with `seconds`.
+                type TxTimestampLike = { seconds: { low?: number } | number; nanos?: number };
+                const txTimestamp = ctx.stub.getTxTimestamp() as unknown as TxTimestampLike | undefined;
+                if (txTimestamp && (txTimestamp as TxTimestampLike).seconds !== undefined) {
+                    const secondsProp = (txTimestamp as TxTimestampLike).seconds;
+                    const seconds = typeof secondsProp === 'object' ? Number((secondsProp as { low?: number }).low || secondsProp) : Number(secondsProp);
                     txTimestampIso = new Date(seconds * 1000).toISOString();
                 }
-            } catch (err) {
+            } catch {
                 // ignore timestamp conversion errors
             }
 
             entry.txId = txId;
             if (txTimestampIso) entry.txTimestamp = txTimestampIso;
-        } catch (err) {
+        } catch {
             // ignore if stub methods not available in certain test environments
         }
 
         // Add the explicit submitter identity when available
         try {
             entry.submittedBy = ctx.clientIdentity ? ctx.clientIdentity.getID() : undefined;
-        } catch (err) {
+        } catch {
             // ignore
         }
 
@@ -1504,7 +1524,7 @@ export class SupplyChainContract extends Contract {
         try {
             const id = ctx.clientIdentity.getID();
             return this.normalizeIdentityString(id);
-        } catch (err) {
+        } catch {
             return '';
         }
     }
@@ -1558,7 +1578,7 @@ export class SupplyChainContract extends Contract {
                         await iterator.close();
                         return transfer;
                     }
-                } catch (err) {
+                } catch {
                     // Skip invalid entries
                 }
             }
@@ -1570,13 +1590,17 @@ export class SupplyChainContract extends Contract {
         return null;
     }
 
-    private async getAllResults(iterator: any, isHistory: boolean = false): Promise<any[]> {
-        const results = [];
-        let res = await iterator.next();
+    // The iterator result shape depends on the fabric shim implementation. We keep the body
+    // implementation as-is but limit the `any` linter rule for this helper.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private async getAllResults(iterator: any, isHistory: boolean = false): Promise<Record<string, unknown>[]> {
+        const results: Record<string, unknown>[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let res: any = await iterator.next();
 
         while (!res.done) {
             if (res.value && res.value.value.toString()) {
-                let jsonRes: any = {};
+                const jsonRes: Record<string, unknown> = {};
 
                 if (isHistory && res.value.value && res.value.timestamp) {
                     jsonRes.TxId = res.value.tx_id;
@@ -1584,17 +1608,17 @@ export class SupplyChainContract extends Contract {
                     jsonRes.IsDelete = res.value.is_delete.toString();
 
                     try {
-                        jsonRes.Value = JSON.parse(res.value.value.toString('utf8'));
-                    } catch (err) {
-                        jsonRes.Value = res.value.value.toString('utf8');
+                        (jsonRes as Record<string, unknown>)['Value'] = JSON.parse(res.value.value.toString('utf8'));
+                    } catch {
+                        (jsonRes as Record<string, unknown>)['Value'] = res.value.value.toString('utf8');
                     }
                 } else {
                     jsonRes.Key = res.value.key;
 
                     try {
-                        jsonRes.Record = JSON.parse(res.value.value.toString('utf8'));
-                    } catch (err) {
-                        jsonRes.Record = res.value.value.toString('utf8');
+                        (jsonRes as Record<string, unknown>)['Record'] = JSON.parse(res.value.value.toString('utf8'));
+                    } catch {
+                        (jsonRes as Record<string, unknown>)['Record'] = res.value.value.toString('utf8');
                     }
                 }
 

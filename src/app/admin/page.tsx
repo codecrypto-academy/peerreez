@@ -42,8 +42,10 @@ export default function AdminPage() {
                     outRef.current.scrollTop = outRef.current.scrollHeight;
                 }
             }
-        } catch (err: any) {
-            setOutput((s) => s + `\nError: ${err.message || String(err)}`);
+        } catch (err: unknown) {
+            // Narrow unknown to Error when possible, otherwise stringify
+            const msg = err instanceof Error ? err.message : String(err);
+            setOutput((s) => s + `\nError: ${msg}`);
         } finally {
             setRunning(false);
         }
@@ -93,7 +95,7 @@ export default function AdminPage() {
                                     </div>
                                 </div>
 
-                                <p className="text-sm text-gray-600 mt-3">Scripts are executed from the project's <code className="font-mono">supply-chain-network</code> directory to avoid creating files in wrong locations.</p>
+                                <p className="text-sm text-gray-600 mt-3">Scripts are executed from the project&apos;s <code className="font-mono">supply-chain-network</code> directory to avoid creating files in wrong locations.</p>
                             </div>
                         </div>
 

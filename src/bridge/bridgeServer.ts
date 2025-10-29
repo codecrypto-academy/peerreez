@@ -9,9 +9,9 @@ import type { Contract } from '@hyperledger/fabric-network';
 
 // Lightweight interface for the parts of gatewayService we use
 interface IGatewayService {
-    submitTransactionWithIdentity?: (role: string, identitySelector: string, functionName: string, ...args: string[]) => Promise<any>;
-    submitTransaction?: (role: string, functionName: string, ...args: string[]) => Promise<any>;
-    evaluateTransaction?: (role: string, functionName: string, ...args: string[]) => Promise<any>;
+    submitTransactionWithIdentity?: (role: string, identitySelector: string, functionName: string, ...args: string[]) => Promise<unknown>;
+    submitTransaction?: (role: string, functionName: string, ...args: string[]) => Promise<unknown>;
+    evaluateTransaction?: (role: string, functionName: string, ...args: string[]) => Promise<unknown>;
     closeAllConnections?: () => void;
 }
 
@@ -35,13 +35,13 @@ setInterval(() => {
 // Attempt to auto-load the project's gatewayService if available at runtime.
 try {
     // NOTE: when this file is located at src/bridge, the gateway service is at ../lib/...
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+
     const gs = require('../lib/fabric/gateway/gateway-service');
     if (gs && gs.gatewayService) {
         gatewayService = gs.gatewayService as IGatewayService;
         console.log('[bridgeServer] Loaded gatewayService from src/lib/fabric/gateway/gateway-service');
     }
-} catch (err) {
+} catch {
     // ignore - can be injected later via setGatewayService
 }
 
@@ -79,11 +79,15 @@ app.post('/invoke', async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: 'Invalid signature' });
         }
 
-        let signedPayload: any = null;
+        let signedPayload: unknown = null;
         try { signedPayload = JSON.parse(message); } catch { signedPayload = null; }
 
         if (signedPayload && typeof signedPayload === 'object') {
-            const { nonce, timestamp, functionName: fnInMsg, args: argsInMsg } = signedPayload;
+            const sp = signedPayload as Record<string, unknown>;
+            const nonce = sp['nonce'];
+            const timestamp = sp['timestamp'];
+            const fnInMsg = sp['functionName'];
+            const argsInMsg = sp['args'];
             if (typeof timestamp === 'number') {
                 const now = Date.now();
                 const age = Math.abs(now - timestamp);
@@ -101,14 +105,16 @@ app.post('/invoke', async (req: Request, res: Response) => {
         if (mappedIdentity && gatewayService && typeof gatewayService.submitTransactionWithIdentity === 'function') {
             console.log('[bridgeServer] Using mapped identity', mappedIdentity);
             const txResult = await gatewayService.submitTransactionWithIdentity(role, mappedIdentity, functionName, ...args);
-            if (!txResult || typeof txResult !== 'object') return res.status(500).json({ success: false, error: 'gatewayService returned unexpected result' });
-            if (!txResult.success) return res.status(500).json({ success: false, error: txResult.error || 'Transaction failed' });
-            return res.json({ success: true, data: txResult.data, signer: signerAddress, usedIdentity: mappedIdentity });
+            const tx = txResult as { success?: boolean; error?: string; data?: unknown };
+            if (!tx || typeof tx !== 'object') return res.status(500).json({ success: false, error: 'gatewayService returned unexpected result' });
+            if (!tx.success) return res.status(500).json({ success: false, error: tx.error || 'Transaction failed' });
+            return res.json({ success: true, data: tx.data, signer: signerAddress, usedIdentity: mappedIdentity });
         }
 
-        if (contract && typeof contract.submitTransaction === 'function') {
-            const resultBytes = await contract.submitTransaction(functionName, ...args);
-            const resultString = Buffer.from(resultBytes || '').toString('utf8');
+        const c = contract as { submitTransaction?: (...args: string[]) => Promise<unknown> } | null;
+        if (c && typeof c.submitTransaction === 'function') {
+            const resultBytes = await c.submitTransaction(functionName, ...args);
+            const resultString = Buffer.from(resultBytes as string | ArrayLike<number> || '').toString('utf8');
             let data: unknown; try { data = JSON.parse(resultString); } catch { data = resultString; }
             return res.json({ success: true, data, signer: signerAddress });
         }
@@ -157,13 +163,15 @@ app.get('/query', async (req: Request, res: Response) => {
         if (!Array.isArray(args)) args = [];
         if (gatewayService && typeof gatewayService.evaluateTransaction === 'function') {
             const txResult = await gatewayService.evaluateTransaction(role, functionName, ...(args as string[]));
-            if (!txResult || typeof txResult !== 'object') return res.status(500).json({ success: false, error: 'gatewayService returned unexpected result' });
-            if (!txResult.success) return res.status(500).json({ success: false, error: txResult.error || 'Query failed' });
-            return res.json({ success: true, data: txResult.data });
+            const txq = txResult as { success?: boolean; error?: string; data?: unknown };
+            if (!txq || typeof txq !== 'object') return res.status(500).json({ success: false, error: 'gatewayService returned unexpected result' });
+            if (!txq.success) return res.status(500).json({ success: false, error: txq.error || 'Query failed' });
+            return res.json({ success: true, data: txq.data });
         }
-        if (contract && typeof contract.evaluateTransaction === 'function') {
-            const resultBytes = await contract.evaluateTransaction(functionName, ...(args as string[]));
-            const resultString = Buffer.from(resultBytes || '').toString('utf8');
+        const c2 = contract as { evaluateTransaction?: (...args: string[]) => Promise<unknown> } | null;
+        if (c2 && typeof c2.evaluateTransaction === 'function') {
+            const resultBytes = await c2.evaluateTransaction(functionName, ...(args as string[]));
+            const resultString = Buffer.from(resultBytes as string | ArrayLike<number> || '').toString('utf8');
             let data: unknown; try { data = JSON.parse(resultString); } catch { data = resultString; }
             return res.json({ success: true, data });
         }
@@ -183,7 +191,7 @@ export function closeServer(done?: () => void) {
     server.close(() => {
         console.log('[bridgeServer] Server closed');
         if (gatewayService && typeof gatewayService.closeAllConnections === 'function') {
-            try { gatewayService.closeAllConnections(); } catch (e) { /* ignore */ }
+            try { gatewayService.closeAllConnections(); } catch { /* ignore */ }
         }
         if (done) done();
     });

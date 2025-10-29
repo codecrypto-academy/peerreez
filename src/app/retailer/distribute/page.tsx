@@ -22,9 +22,14 @@ export default function DistributePage() {
                 if (pres.ok) {
                     const pjs = await pres.json();
                     const pids = pjs?.identities || [];
-                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    const match = pids.find((p: unknown) => {
+                        const rec = p as Record<string, unknown>;
+                        const addr = rec['address'];
+                        return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                    });
                     if (match && mounted) {
-                        setResolvedOwner(match.username || match.address);
+                        const mrec = match as Record<string, unknown>;
+                        setResolvedOwner(String(mrec['username'] ?? mrec['address']));
                         return;
                     }
                 }
@@ -69,16 +74,20 @@ export default function DistributePage() {
                 if (res.ok) {
                     const js = await res.json();
                     const ids = js?.identities || [];
-                    const filtered = (ids || []).filter((r: any) => {
-                        const v = String(r.username || r.address || '').toLowerCase();
+                    const filtered = (ids || []).filter((r: unknown) => {
+                        const rec = r as Record<string, unknown>;
+                        const v = String(rec['username'] ?? rec['address'] ?? '').toLowerCase();
                         return !v.includes('admin');
                     });
                     if (mounted) {
-                        setConsumerIdentities(filtered);
-                        if (filtered.length > 0) setSelectedConsumer(filtered[0].username || filtered[0].address || '');
+                        setConsumerIdentities(filtered as Identity[]);
+                        if (filtered.length > 0) {
+                            const first = filtered[0] as Record<string, unknown>;
+                            setSelectedConsumer(String(first['username'] ?? first['address'] ?? ''));
+                        }
                     }
                 }
-            } catch (err) {
+            } catch {
                 // ignore
             } finally {
                 if (mounted) setConsumerLoading(false);

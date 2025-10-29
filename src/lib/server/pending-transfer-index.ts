@@ -19,11 +19,12 @@ export function dumpAllEntries(): Record<string, string> {
     return out;
 }
 
-export function filterTransfersByOwner(transfers: any[], ownerIdentity: string) {
+export function filterTransfersByOwner(transfers: Array<Record<string, unknown>>, ownerIdentity: string) {
     if (!ownerIdentity) return [];
     const owner = ownerIdentity.toLowerCase();
-    return transfers.filter((t: any) => {
-        const mapped = getRecipientForTransfer(t.id);
+    return transfers.filter((t: Record<string, unknown>) => {
+        const id = t['id'];
+        const mapped = getRecipientForTransfer(String(id || ''));
         if (!mapped) return false;
         return String(mapped).toLowerCase() === owner;
     });
@@ -33,9 +34,11 @@ export function clearIndex() {
     transferToRecipient.clear();
 }
 
-export default {
+const pendingTransferIndex = {
     addPendingTransferIndex,
     getRecipientForTransfer,
     filterTransfersByOwner,
     clearIndex,
 };
+
+export default pendingTransferIndex;

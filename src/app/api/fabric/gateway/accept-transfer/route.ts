@@ -10,8 +10,10 @@ import { TransactionResult } from '@/types/fabric';
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
-        const { role: bodyRole, transferId } = body;
+        const body = await request.json() as unknown;
+        const b = (body as Record<string, unknown> | null) || null;
+        const bodyRole = typeof b?.role === 'string' ? String(b.role) : undefined;
+        const transferId = typeof b?.transferId === 'string' ? String(b.transferId) : undefined;
 
         // Require role cookie set by RoleGuard to avoid body spoofing
         const cookieRole = request.cookies.get('userRole')?.value;
@@ -48,7 +50,8 @@ export async function POST(request: NextRequest) {
         console.log(`[API] Accepting transfer: ${transferId} (by ${role}) [cookie]`);
 
         // Optionally accept using a specific owner identity (full x509/username) provided by client
-        const ownerIdentity = (body.ownerIdentity as string | undefined) || undefined;
+        // Body was parsed into `b` (Record<string, unknown> | null) above; access ownerIdentity safely
+        const ownerIdentity = typeof b?.ownerIdentity === 'string' ? String(b.ownerIdentity) : undefined;
 
         // Pre-check: ensure the pending transfer exists in ledger for this role before submitting Accept
         try {
@@ -57,7 +60,10 @@ export async function POST(request: NextRequest) {
                 console.warn('[API] Could not list pending transfers for pre-check', pendingRes.error);
             } else {
                 const list = typeof pendingRes.data === 'string' ? JSON.parse(pendingRes.data) : (pendingRes.data || []);
-                const found = Array.isArray(list) && list.find((t: any) => t.id === transferId);
+                const found = Array.isArray(list) && list.find((t: unknown) => {
+                    const tt = t as Record<string, unknown>;
+                    return String(tt['id']) === String(transferId);
+                });
                 if (!found) {
                     return NextResponse.json({ success: false, error: `Pending transfer ${transferId} not found for role ${role}` }, { status: 404 });
                 }

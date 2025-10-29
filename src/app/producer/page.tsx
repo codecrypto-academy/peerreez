@@ -1,14 +1,13 @@
 'use client';
 
 import Layout from '../../components/layout/Layout';
-import dynamic from 'next/dynamic';
 import ProducerWalletControls from '@/components/wallet/ProducerWalletControls';
 import { useAssetsByOwner, useRefetchAssets, Asset } from '../../hooks/useGatewayAssets';
 import { useTransferHistory, TransferHistoryAsset } from '../../hooks/useTransferHistory';
 import { useInitiateTransfer, usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { PendingTransfer } from '@/types/fabric';
 
@@ -18,13 +17,15 @@ export default function ProducerPage() {
   const [showOutgoingList, setShowOutgoingList] = useState(false);
   const [transferringAssetId, setTransferringAssetId] = useState<string | null>(null);
   const [showFactoryModal, setShowFactoryModal] = useState(false);
-  const [factoryIdentities, setFactoryIdentities] = useState<any[]>([]);
-  const [selectedFactoryIdentity, setSelectedFactoryIdentity] = useState<string | undefined>(undefined);
-  const [ownerIdentityToSend, setOwnerIdentityToSend] = useState<string | undefined>(undefined);
+
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [showContainerLogs, setShowContainerLogs] = useState(false);
 
+  // conservative typing for identities coming from server: unknown records
+  const [factoryIdentities, setFactoryIdentities] = useState<Array<Record<string, unknown>>>([]);
+  const [selectedFactoryIdentity, setSelectedFactoryIdentity] = useState<string | undefined>(undefined);
+  const [ownerIdentityToSend, setOwnerIdentityToSend] = useState<string | undefined>(undefined);
   // Using new Gateway hooks with React Query
   const { address } = useWallet();
   const { data: assets = [], isLoading: assetsLoading } = useAssetsByOwner(address || undefined);
@@ -71,16 +72,16 @@ export default function ProducerPage() {
           transportMethod: 'Standard Truck',
           reason: 'Quick transfer to Factory (via modal)'
         },
-        // @ts-ignore
         recipientIdentity: selectedFactoryIdentity,
         ownerIdentity: ownerIdentityToSend || address
-      } as any);
+      });
       // close modal and reset
       setShowFactoryModal(false);
       setTransferringAssetId(null);
       refreshAssets();
-    } catch (err: any) {
-      setModalError(err?.message || String(err));
+    } catch (err: unknown) {
+      // Preserve behavior: extract message if Error, otherwise stringify
+      setModalError(err instanceof Error ? err.message : String(err));
     } finally {
       setModalLoading(false);
     }
@@ -110,19 +111,23 @@ export default function ProducerPage() {
     initiateMutation.reset(); // Clear previous state
 
     try {
-      // Load factory identities
+      // Load factory identities (conservative unknown->Record narrowing)
       try {
         const res = await fetch('/api/fabric/identity/list?org=factory.supplychain.com');
         if (res.ok) {
           const js = await res.json();
-          const ids = js?.identities || [];
+          const ids: unknown[] = js?.identities || [];
           // filter out admin usernames
-          const filtered = ids.filter((i: any) => !((i.username || '').toLowerCase().includes('admin')));
-          setFactoryIdentities(filtered.length ? filtered : ids);
-          const preferred = (filtered.length ? filtered[0] : ids[0]) || undefined;
-          setSelectedFactoryIdentity(preferred ? (preferred.username || preferred.address) : undefined);
+          const filtered = ids.filter((i: unknown) => {
+            const obj = i as Record<string, unknown>;
+            const uname = String(obj['username'] || obj['address'] || '');
+            return !uname.toLowerCase().includes('admin');
+          }) as Array<Record<string, unknown>>;
+          setFactoryIdentities(filtered.length ? filtered : (ids as Array<Record<string, unknown>>));
+          const preferred = (filtered.length ? filtered[0] : (ids[0] as Record<string, unknown>)) || undefined;
+          setSelectedFactoryIdentity(preferred ? String(preferred['username'] || preferred['address'] || '') : undefined);
         }
-      } catch (e) {
+      } catch {
         // ignore - modal will still allow MSP-only transfer
         setFactoryIdentities([]);
         setSelectedFactoryIdentity(undefined);
@@ -135,9 +140,13 @@ export default function ProducerPage() {
           const pres = await fetch('/api/fabric/identity/list?org=producer.supplychain.com');
           if (pres.ok) {
             const pjs = await pres.json();
-            const pids = pjs?.identities || [];
-            const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
-            if (match) resolvedOwner = match.username || match.address;
+            const pids: unknown[] = pjs?.identities || [];
+            const match = pids.find((p: unknown) => {
+              const pp = p as Record<string, unknown>;
+              const addr = pp['address'];
+              return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+            }) as Record<string, unknown> | undefined;
+            if (match) resolvedOwner = String(match['username'] || match['address'] || undefined);
           }
         } catch {
           // fallthrough
@@ -152,7 +161,7 @@ export default function ProducerPage() {
                 resolvedOwner = rjs.found.username;
               }
             }
-          } catch (err) {
+          } catch {
             // ignore - we'll allow owner to default to address in modal
           }
         }
@@ -746,9 +755,9 @@ export default function ProducerPage() {
                 disabled={modalLoading}
               >
                 <option className="text-black" value="">-- Select Factory user (or leave blank to use MSP) --</option>
-                {factoryIdentities.map((f: any) => (
-                  <option className="text-black" key={f.username || f.address} value={f.username || f.address}>
-                    {f.username ? `${f.username} (${f.address || 'addr'})` : f.address}
+                {factoryIdentities.map((f: Record<string, unknown>) => (
+                  <option className="text-black" key={String(f['username'] || f['address'] || '')} value={String(f['username'] || f['address'] || '')}>
+                    {f['username'] ? `${String(f['username'])} (${String(f['address'] || 'addr')})` : String(f['address'] || '')}
                   </option>
                 ))}
               </select>

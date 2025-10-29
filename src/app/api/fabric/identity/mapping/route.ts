@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { identityManager } from '@/lib/fabric/identity/identity-manager';
 
 export async function POST(req: NextRequest) {
     try {
@@ -22,7 +21,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         // mappings disabled — return empty object and informative message
         return NextResponse.json({ success: true, mappings: {}, message: 'Identity mappings are disabled on this server.' });

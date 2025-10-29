@@ -7,7 +7,7 @@ import { usePendingTransfers } from '../../hooks/usePendingTransfers';
 import { PendingTransferCard } from '../../components/transfers/PendingTransferCard';
 import ContainerLogsCard from '../../components/producer/ContainerLogsCard';
 import FactoryWalletControls from '@/components/wallet/FactoryWalletControls';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { PendingTransfer } from '@/types/fabric';
 import { Asset } from '../../hooks/useGatewayAssets';
@@ -20,7 +20,7 @@ export default function FactoryPage() {
     const [showContainerLogs, setShowContainerLogs] = useState(false);
     const [transferringProductId, setTransferringProductId] = useState<string | null>(null);
     const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-    const [retailers, setRetailers] = useState<Array<any>>([]);
+    const [retailers, setRetailers] = useState<Array<Record<string, unknown>>>([]);
     const [selectingRetailerFor, setSelectingRetailerFor] = useState<string | null>(null);
     const [selectedRetailer, setSelectedRetailer] = useState<string | undefined>(undefined);
     const [loadingRetailers, setLoadingRetailers] = useState(false);
@@ -42,9 +42,14 @@ export default function FactoryPage() {
                 if (pres.ok) {
                     const pjs = await pres.json();
                     const pids = pjs?.identities || [];
-                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    const match = pids.find((p: unknown) => {
+                        const rec = p as Record<string, unknown>;
+                        const addr = rec['address'];
+                        return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                    });
                     if (match && mounted) {
-                        setResolvedOwner(match.username || match.address);
+                        const mrec = match as Record<string, unknown>;
+                        setResolvedOwner(String(mrec['username'] ?? mrec['address']));
                         return;
                     }
                 }
@@ -180,9 +185,17 @@ export default function FactoryPage() {
                     const js = await res.json();
                     const ids = js?.identities || [];
                     // Filter out admin entries
-                    const filtered = ids.filter((i: any) => i.username && !String(i.username).toLowerCase().includes('admin'));
+                    const filtered = (ids || []).map((i: unknown) => i as Record<string, unknown>).filter((rec) => {
+                        const u = rec['username'] ?? rec['address'];
+                        return typeof u === 'string' && !String(u).toLowerCase().includes('admin');
+                    });
                     setRetailers(filtered);
-                    if (filtered.length > 0) setSelectedRetailer(filtered[0].username || filtered[0].address);
+                    if (filtered.length > 0) {
+                        const first = filtered[0] as Record<string, unknown>;
+                        const cand = first['username'] ?? first['address'];
+                        // coerce to string only when present; prefer undefined when missing
+                        setSelectedRetailer(typeof cand === 'string' ? cand : (cand != null ? String(cand) : undefined));
+                    }
                 } else {
                     setNotification({ type: 'error', message: 'Failed to load retailer identities' });
                     setTimeout(() => setNotification(null), 4000);
@@ -196,7 +209,11 @@ export default function FactoryPage() {
             }
         } else {
             // Preselect first available if exists
-            if (!selectedRetailer && retailers.length > 0) setSelectedRetailer(retailers[0].username || retailers[0].address);
+            if (!selectedRetailer && retailers.length > 0) {
+                const first = retailers[0] as Record<string, unknown>;
+                const cand = first['username'] ?? first['address'];
+                setSelectedRetailer(typeof cand === 'string' ? cand : (cand != null ? String(cand) : undefined));
+            }
         }
     };
 
@@ -224,8 +241,15 @@ export default function FactoryPage() {
                     if (pres.ok) {
                         const pjs = await pres.json();
                         const pids = pjs?.identities || [];
-                        const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
-                        if (match) ownerIdentity = match.username || match.address;
+                        const match = pids.find((p: unknown) => {
+                            const rec = p as Record<string, unknown>;
+                            const addr = rec['address'];
+                            return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                        });
+                        if (match) {
+                            const mrec = match as Record<string, unknown>;
+                            ownerIdentity = String(mrec['username'] ?? mrec['address']);
+                        }
                     }
                 } catch {
                     // fallthrough
@@ -958,9 +982,9 @@ export default function FactoryPage() {
                                     <div className="space-y-4">
                                         <label className="text-sm text-black">Retailer</label>
                                         <select value={selectedRetailer} onChange={(e) => setSelectedRetailer(e.target.value)} className="w-full border p-2 rounded text-black">
-                                            {retailers.map((r: any) => (
-                                                <option className="text-black" key={r.username || r.address} value={r.username || r.address}>
-                                                    {r.username || r.address}
+                                            {retailers.map((r) => (
+                                                <option className="text-black" key={String((r as Record<string, unknown>)['username'] ?? (r as Record<string, unknown>)['address'])} value={String((r as Record<string, unknown>)['username'] ?? (r as Record<string, unknown>)['address'])}>
+                                                    {String((r as Record<string, unknown>)['username'] ?? (r as Record<string, unknown>)['address'])}
                                                 </option>
                                             ))}
                                         </select>
@@ -980,7 +1004,6 @@ export default function FactoryPage() {
                             <ContainerLogsCard containerName="peer0.factory.supplychain.com" />
                         </div>
                     )}
-
                 </div>
             </div>
         </Layout>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
+import type { ExecFileOptions } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 
@@ -19,9 +20,10 @@ const ALLOWED: Record<string, { cmd: string; args?: string[] }> = {
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const script: string = body?.script;
-        const args: string[] = Array.isArray(body?.args) ? body.args : [];
+        const body = await req.json() as unknown;
+        const b = (body as Record<string, unknown> | null) || null;
+        const script = typeof b?.script === 'string' ? String(b.script) : '';
+        const args = Array.isArray(b?.args) ? (b.args as unknown[]).map(String) : [];
 
         if (!script || !(script in ALLOWED)) {
             return NextResponse.json({ error: 'Invalid or missing script name' }, { status: 400 });
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
         }
 
         // Execute in the supply-chain-network directory
-        const options = { cwd: SCRIPTS_ROOT, maxBuffer: 10 * 1024 * 1024 } as any;
+        const options: ExecFileOptions = { cwd: SCRIPTS_ROOT, maxBuffer: 10 * 1024 * 1024 };
 
         // Run the command
         const { stdout, stderr } = await execFileAsync(cmd, finalArgs, options);
@@ -50,7 +52,8 @@ export async function POST(req: Request) {
         const output = `${stdout || ''}\n${stderr || ''}`.trim();
 
         return NextResponse.json({ output });
-    } catch (err: any) {
-        return NextResponse.json({ error: String(err.message || err) }, { status: 500 });
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

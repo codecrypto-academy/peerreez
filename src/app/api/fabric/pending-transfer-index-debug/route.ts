@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
     try {
         const { dumpAllEntries } = await import('@/lib/server/pending-transfer-index');
         return NextResponse.json({ success: true, data: dumpAllEntries() });

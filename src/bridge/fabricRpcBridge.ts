@@ -30,30 +30,30 @@ const NETWORK_NAME = 'bridge-fabric';
 
 const BRIDGE_URL = process.env.BRIDGE_URL || 'http://localhost:3001';
 
-async function fetchJson(url: string, opts: any = {}) {
+async function fetchJson(url: string, opts: Record<string, unknown> = {}) {
     // Use global fetch (Node 18+) when available
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fn: any = (globalThis as any).fetch || (globalThis as any).nodeFetch;
+    const gw = globalThis as unknown as { fetch?: (...args: unknown[]) => Promise<unknown>, nodeFetch?: (...args: unknown[]) => Promise<unknown> };
+    const fn = gw.fetch || gw.nodeFetch;
     if (!fn) throw new Error('fetch is not available in this Node runtime');
-    const r = await fn(url, opts);
-    return r.json();
+    const r = await (fn as (...args: unknown[]) => Promise<unknown>)(url, opts);
+    return (r as { json: () => Promise<unknown> }).json();
 }
 
 // Helper to query the bridge for mapped Fabric identity
 async function resolveMapping(address: string): Promise<string | null> {
     try {
         const url = `${BRIDGE_URL}/map/${encodeURIComponent(address)}`;
-        const json = await fetchJson(url, { method: 'GET' });
-        if (json && json.success && json.fabricIdentity) return json.fabricIdentity;
+        const json = await fetchJson(url, { method: 'GET' }) as Record<string, unknown> | null;
+        if (json && json['success'] && json['fabricIdentity']) return String(json['fabricIdentity']);
         // Some bridge versions return { success:true, fabricIdentity: <string> }
-        if (json && json.success && json.address && json.fabricIdentity) return json.fabricIdentity;
+        if (json && json['success'] && json['address'] && json['fabricIdentity']) return String(json['fabricIdentity']);
     } catch (err) {
         console.warn('[fabricRpcBridge] resolveMapping (bridge) error', String(err));
     }
 
     // Fallback: try to read local addressToFabric.json (useful in single-machine dev setups)
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+
         const fs = require('fs');
         const path = require('path');
         const file = path.join(__dirname, 'addressToFabric.json');
@@ -63,7 +63,7 @@ async function resolveMapping(address: string): Promise<string | null> {
             const key = (address || '').toLowerCase();
             if (parsed && parsed[key]) return parsed[key];
         }
-    } catch (err) {
+    } catch {
         // ignore
     }
 
@@ -114,7 +114,7 @@ app.post('/', async (req: Request, res: Response) => {
                 if (!fabricIdentity) {
                     // Try a direct local-file lookup as a last resort (dev convenience)
                     try {
-                        // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+
                         const fs = require('fs');
                         const path = require('path');
                         const file = path.join(__dirname, 'addressToFabric.json');
@@ -124,19 +124,19 @@ app.post('/', async (req: Request, res: Response) => {
                             const key = (address || '').toLowerCase();
                             if (parsed && parsed[key]) fabricIdentity = parsed[key];
                         }
-                    } catch (err) { /* ignore */ }
+                    } catch { /* ignore */ }
                 }
                 if (!fabricIdentity) {
                     // mapping not found -> zero balance
                     return res.json({ jsonrpc: '2.0', id, result: '0x0' });
                 }
                 // Query GetBalance for the resolved fabric identity
-                const q = await queryBridge('GetBalance', [fabricIdentity]);
-                if (!q || !q.success) return res.json({ jsonrpc: '2.0', id, result: '0x0' });
+                const q = await queryBridge('GetBalance', [fabricIdentity]) as Record<string, unknown> | null;
+                if (!q || !q['success']) return res.json({ jsonrpc: '2.0', id, result: '0x0' });
                 // Expect q.data to be a numeric string or number (token units)
                 let balanceToken: bigint = BigInt(0);
                 try {
-                    const raw = q.data ?? q.result ?? q.payload ?? null;
+                    const raw = q['data'] ?? q['result'] ?? q['payload'] ?? null;
                     const s = String(raw);
                     // allow JSON objects like { balance: '10' }
                     try {
@@ -150,7 +150,7 @@ app.post('/', async (req: Request, res: Response) => {
                         const candidate = s.replace(/[^0-9-]/g, '');
                         if (candidate.length > 0) balanceToken = BigInt(candidate);
                     }
-                } catch (err) {
+                } catch {
                     balanceToken = BigInt(0);
                 }
 
@@ -164,7 +164,6 @@ app.post('/', async (req: Request, res: Response) => {
                 // No blockchain head tracking in this shim — return 0
                 return res.json({ jsonrpc: '2.0', id, result: '0x0' });
             case 'eth_getBlockByNumber': {
-                const p0 = Array.isArray(params) ? params[0] : params;
                 const full = Array.isArray(params) ? params[1] : false;
                 // Minimal block object so wallets are satisfied
                 const block = {
@@ -221,9 +220,9 @@ app.post('/', async (req: Request, res: Response) => {
             default:
                 return res.json({ jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } });
         }
-    } catch (err: any) {
-        console.error('[fabricRpcBridge] Error handling RPC:', err);
-        return res.json({ jsonrpc: '2.0', id, error: { code: -32603, message: String(err?.message || err) } });
+    } catch (err: unknown) {
+        console.error('[fabricRpcBridge] Error handling RPC:', err instanceof Error ? err : String(err));
+        return res.json({ jsonrpc: '2.0', id, error: { code: -32603, message: err instanceof Error ? err.message : String(err) } });
     }
 });
 

@@ -1,5 +1,10 @@
 'use client';
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCurrentUser, UserRole } from '@/components/auth/RoleGuard';
+import { gatewayHttpService } from '@/lib/fabric/gateway/gateway-http-service';
+import { Role } from '@/lib/fabric/identity/identity-manager';
+
 /**
  * Hook para iniciar una transferencia pendiente (Factory → Retailer)
  */
@@ -51,12 +56,6 @@ export function useInitiateTransfer() {
     });
 }
 
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCurrentUser, UserRole } from '@/components/auth/RoleGuard';
-import { gatewayHttpService } from '@/lib/fabric/gateway/gateway-http-service';
-import { Role } from '@/lib/fabric/identity/identity-manager';
-
 /**
  * Asset type definition
  */
@@ -97,6 +96,33 @@ export const assetKeys = {
     history: (assetId: string) => [...assetKeys.all, 'history', assetId] as const,
 };
 
+// Helper to match an asset's currentOwner against a selector (username, 0x or CN)
+function matchesOwner(asset: Asset, selector: string) {
+    const target = String(selector).toLowerCase();
+    const normalize = (s?: unknown) => (s && typeof s === 'string' ? s.toLowerCase() : '');
+
+    const matches = (field?: string) => {
+        const f = normalize(field);
+        if (!f) return false;
+        if (f === target) return true;
+        if (f.includes(target) || target.includes(f)) return true;
+        if (f.includes('@')) {
+            const local = f.split('@')[0];
+            if (local === target) return true;
+            if (local.includes(target) || target.includes(local)) return true;
+        }
+        const cnMatch = f.match(/cn=([^,\/\+]+)/i);
+        if (cnMatch && cnMatch[1]) {
+            const cn = cnMatch[1].toLowerCase();
+            if (cn === target) return true;
+            if (cn.includes(target) || target.includes(cn)) return true;
+        }
+        return false;
+    };
+
+    return matches(asset.currentOwner as string);
+}
+
 /**
  * Hook to query assets by owner with React Query caching
  */
@@ -110,75 +136,66 @@ export function useAssetsByOwner(ownerAddress?: string) {
             if (!user) {
                 throw new Error('User not authenticated');
             }
+            // We'll attempt to resolve ownerAddress (0x) to a username and then query.
+            let resolvedOwner: string | undefined = ownerAddress;
 
-            // Ask server to filter by provided ownerAddress when available so results are accurate
-            if (ownerAddress) {
-                const result = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role), ownerAddress);
+            if (ownerAddress && typeof ownerAddress === 'string' && ownerAddress.toLowerCase().startsWith('0x')) {
+                try {
+                    const org = gatewayRole === 'Producer' ? 'producer.supplychain.com'
+                        : gatewayRole === 'Factory' ? 'factory.supplychain.com'
+                            : gatewayRole === 'Retailer' ? 'retailer.supplychain.com'
+                                : 'consumer.supplychain.com';
 
-                // If the deployed chaincode does not support QueryAssetsByOwnerIdentity, the
-                // gatewayService returns an error string. Detect that and fall back to
-                // querying without owner and filter client-side (keeps UI working).
-                if (!result.success) {
-                    const errMsg = String(result.error || '');
-                    if (errMsg.includes('QueryAssetsByOwnerIdentity') || errMsg.includes('does not expose')) {
-                        console.warn('[useAssetsByOwner] chaincode missing QueryAssetsByOwnerIdentity; falling back to client-side filter');
-                        const fallback = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
-                        if (!fallback.success) {
-                            throw new Error(fallback.error || 'Failed to query assets (fallback)');
+                    const res = await fetch(`/api/fabric/identity/resolve?selector=${encodeURIComponent(ownerAddress)}&org=${encodeURIComponent(org)}`);
+                    if (res.ok) {
+                        const js = await res.json();
+                        if (js && js.success && js.found && js.found.username) {
+                            resolvedOwner = js.found.username;
                         }
-                        return (fallback.data || []) as Asset[];
                     }
+                } catch (e) {
+                    console.warn('[useAssetsByOwner] identity resolve failed, falling back to server query', e);
+                }
+            }
 
-                    throw new Error(result.error || 'Failed to query assets');
+            // Query gateway. Prefer to pass the resolvedOwner when available (username or original selector).
+            const result = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role), resolvedOwner);
+
+            // If the deployed chaincode does not support QueryAssetsByOwnerIdentity, the
+            // gatewayService returns an error string. Detect that and fall back to
+            // querying without owner and filter client-side (keeps UI working).
+            if (!result.success) {
+                const errMsg = String(result.error || '');
+                if (errMsg.includes('QueryAssetsByOwnerIdentity') || errMsg.includes('does not expose')) {
+                    console.warn('[useAssetsByOwner] chaincode missing QueryAssetsByOwnerIdentity; falling back to client-side filter');
+                    const fallback = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
+                    if (!fallback.success) {
+                        throw new Error(fallback.error || 'Failed to query assets (fallback)');
+                    }
+                    const fallbackData = (fallback.data || []) as Asset[];
+                    // If we have a resolvedOwner, apply client-side filtering using it
+                    if (resolvedOwner) {
+                        return fallbackData.filter((a) => matchesOwner(a, resolvedOwner));
+                    }
+                    return fallbackData;
                 }
 
-                return (result.data || []) as Asset[];
+                throw new Error(result.error || 'Failed to query assets');
             }
 
-            // No ownerAddress provided — query normally (uses client identity on server)
-            const resNoOwner = await gatewayHttpService.queryAssetsByOwner(toGatewayRole(user.role));
-            if (!resNoOwner.success) {
-                throw new Error(resNoOwner.error || 'Failed to query assets');
+            const data = (result.data || []) as Asset[];
+            // If owner selector was provided (possibly resolved), apply client-side filtering
+            if (resolvedOwner) {
+                return data.filter((a) => matchesOwner(a, resolvedOwner));
             }
-            return (resNoOwner.data || []) as Asset[];
+
+            return data;
         },
         enabled: !!user,
         staleTime: 30 * 1000, // 30 seconds
         gcTime: 5 * 60 * 1000, // 5 minutes
         refetchOnWindowFocus: true,
-        // If ownerAddress provided, return only assets where the currentOwner matches the ownerAddress.
-        // Previously we also matched `createdBy` which caused assets to still appear for the original
-        // producer after a transfer. That made transferred assets still show in the seller's inventory.
-        // To avoid that, when an explicit ownerAddress is provided we only match currentOwner.
-        select: (data: Asset[]) => {
-            if (!ownerAddress) return data;
-            const target = String(ownerAddress).toLowerCase();
-
-            const normalize = (s?: unknown) => (s && typeof s === 'string' ? s.toLowerCase() : '');
-
-            const matches = (field?: string) => {
-                const f = normalize(field);
-                if (!f) return false;
-                if (f === target) return true;
-                if (f.includes(target) || target.includes(f)) return true;
-                if (f.includes('@')) {
-                    const local = f.split('@')[0];
-                    if (local === target) return true;
-                    if (local.includes(target) || target.includes(local)) return true;
-                }
-                const cnMatch = f.match(/cn=([^,\/+]+)/i);
-                if (cnMatch && cnMatch[1]) {
-                    const cn = cnMatch[1].toLowerCase();
-                    if (cn === target) return true;
-                    if (cn.includes(target) || target.includes(cn)) return true;
-                }
-                return false;
-            };
-
-            return data.filter((a) => {
-                return matches(a.currentOwner as string);
-            });
-        }
+        // No select here — filtering is applied inside queryFn using the resolved selector
     });
 }
 

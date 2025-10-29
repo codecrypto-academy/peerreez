@@ -28,7 +28,7 @@ export default function WalletButton({ panelIdentities, panelOrg, panelDisabled 
     try {
       const mapped = localStorage.getItem(`wallet_for_${role}`);
       return mapped === address;
-    } catch (e) {
+    } catch {
       return false;
     }
   })();
@@ -56,7 +56,7 @@ export default function WalletButton({ panelIdentities, panelOrg, panelDisabled 
         panelDisplayAddress = nonAdmin ? nonAdmin.address : null;
       }
     }
-  } catch (e) {
+  } catch {
     // ignore localStorage errors
   }
 

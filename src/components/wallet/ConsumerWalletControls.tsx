@@ -19,9 +19,12 @@ export default function ConsumerWalletControls() {
                 if (!res.ok) return;
                 const js = await res.json();
                 if (!mounted) return;
-                const raw = js?.identities || [];
-                setIdentities((raw as any[]).map(i => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn })).filter((x) => !(x.username || '').toLowerCase().startsWith('admin@')));
-            } catch (e) {
+                const raw = (js?.identities || []) as Array<Record<string, unknown>>;
+                const parsed = raw
+                    .map(i => ({ username: String(i.username || ''), address: String(i.address || ''), fingerprint: String(i.fingerprint || ''), certFile: String(i.certFile || ''), cn: i.cn ? String(i.cn) : undefined }))
+                    .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'));
+                setIdentities(parsed);
+            } catch {
                 // ignore
             }
         })();

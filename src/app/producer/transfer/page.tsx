@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
 import { useInitiateTransfer } from '../../../hooks/usePendingTransfers';
-import { useEffect } from 'react';
-import { useMemo } from 'react';
 
 interface TransferForm {
   assetId: string;
@@ -48,12 +46,12 @@ export default function TransferAssetPage() {
         if (!res.ok) return;
         const js = await res.json();
         if (!mounted) return;
-        const raw = js?.identities || [];
-        setProducerIdentities((raw as any[])
-          .map((i) => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn }))
-          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'))
-        );
-      } catch (e) {
+        const raw = (js?.identities || []) as Array<Record<string, unknown>>;
+        const parsedProducer = raw
+          .map((i) => ({ username: String(i.username || ''), address: String(i.address || ''), fingerprint: String(i.fingerprint || ''), certFile: String(i.certFile || ''), cn: i.cn ? String(i.cn) : undefined }))
+          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'));
+        setProducerIdentities(parsedProducer);
+      } catch {
         // ignore
       }
     })();
@@ -62,7 +60,6 @@ export default function TransferAssetPage() {
 
   // If ownerCandidate changes, use it to query assets. If initial query by address returns
   // no assets and we have a matching producer identity with CN, retry using CN.
-  const assetsQueryKey = useMemo(() => ownerCandidate, [ownerCandidate]);
   // Re-run the query by passing ownerCandidate into useAssetsByOwner - we will create a local
   // effect to trigger a retry with CN if needed (see below). For now, get assets using ownerCandidate.
   const { data: candidateAssets = [], isLoading: candidateLoading } = useAssetsByOwner(ownerCandidate);
@@ -104,12 +101,12 @@ export default function TransferAssetPage() {
         if (!res.ok) return;
         const js = await res.json();
         if (!mounted) return;
-        const rawF = js?.identities || [];
-        setFactoryIdentities((rawF as any[])
-          .map((i) => ({ username: i.username, address: i.address, fingerprint: i.fingerprint, certFile: i.certFile, cn: i.cn }))
-          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'))
-        );
-      } catch (e) {
+        const rawF = (js?.identities || []) as Array<Record<string, unknown>>;
+        const parsedFactory = rawF
+          .map((i) => ({ username: String(i.username || ''), address: String(i.address || ''), fingerprint: String(i.fingerprint || ''), certFile: String(i.certFile || ''), cn: i.cn ? String(i.cn) : undefined }))
+          .filter((x) => !(x.username || '').toLowerCase().startsWith('admin@'));
+        setFactoryIdentities(parsedFactory);
+      } catch {
         // ignore
       }
     })();
@@ -166,7 +163,7 @@ export default function TransferAssetPage() {
           // to the backend for per-user submission
           // Note: producerIdentities local match is still used below as fallback
           // but we prioritize the server-resolved username
-          // eslint-disable-next-line no-param-reassign
+
           // (we'll assign to ownerIdentityToSend later)
         } catch (err) {
           console.warn('[TransferPage] identity resolve failed', err);
@@ -252,11 +249,10 @@ export default function TransferAssetPage() {
         assetId: formData.assetId,
         recipientMSP: formData.recipientMSP,
         transferData,
-        // @ts-ignore - mutate expects recipientIdentity optional param
         recipientIdentity,
         // include explicit owner so the server knows which producer is initiating on behalf of
         ownerIdentity: ownerIdentityToSend
-      } as any);
+      });
 
       // Reset form on success
       setFormData({
@@ -388,7 +384,7 @@ export default function TransferAssetPage() {
                     <p className="text-sm text-yellow-800">No assets were found for the provided owner identifier: <code className="font-mono">{ownerCandidate}</code></p>
                     <p className="text-xs text-gray-600 mt-2">If this is an address from your wallet, you can bind it to an existing Producer username so the server can submit transactions on your behalf.</p>
                     <div className="mt-3 flex items-center gap-3">
-                      <select className="px-3 py-2 border rounded" onChange={(e) => { /* noop - handled below */ }} id="bind-username">
+                      <select className="px-3 py-2 border rounded" onChange={() => { /* noop - handled below */ }} id="bind-username">
                         <option value="">Select username to bind...</option>
                         {producerIdentities.map(pi => (
                           <option key={pi.username} value={pi.username}>{pi.username} — {pi.address}</option>

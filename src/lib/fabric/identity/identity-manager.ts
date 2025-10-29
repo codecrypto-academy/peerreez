@@ -175,7 +175,7 @@ export class IdentityManager {
                 normalized[k.toLowerCase()] = parsed[k];
             }
             return normalized;
-        } catch (e) {
+        } catch {
             return {};
         }
     }
@@ -183,9 +183,12 @@ export class IdentityManager {
     /**
      * Add or update a mapping (orgName:selector -> username)
      */
-    public async addMapping(orgName: string, selector: string, username: string): Promise<void> {
+    public async addMapping(_orgName: string, _selector: string, _username: string): Promise<void> {
         // Mappings persistence disabled. No-op to remain backward compatible with callers.
-        // If you want to re-enable mappings, restore the identity-mappings.json handling.
+        // Parameters are intentionally unused; reference them to avoid lint warnings.
+        void _orgName;
+        void _selector;
+        void _username;
         return;
     }
 

@@ -4,7 +4,7 @@ import crypto from 'crypto';
 
 // Simple in-memory cache with TTL
 const CACHE_TTL = 60 * 1000; // 60s
-const cache: Map<string, { ts: number; data: any }> = new Map();
+const cache: Map<string, { ts: number; data: unknown }> = new Map();
 
 function pemToDer(pem: string) {
     const b = pem
@@ -125,19 +125,20 @@ async function resolveSelector(selectorIn: string, org?: string) {
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const selectors: string[] = Array.isArray(body?.selectors) ? body.selectors.slice(0, 200) : [];
-        const org = body?.org;
+        const body = await req.json() as unknown;
+        const b = (body as Record<string, unknown> | null) || null;
+        const selectors: string[] = Array.isArray(b?.selectors) ? (b!.selectors as unknown[]).map(String).slice(0, 200) : [];
+        const org = typeof b?.org === 'string' ? String(b!.org) : undefined;
 
         if (!selectors || selectors.length === 0) return NextResponse.json({ success: false, error: 'selectors required' }, { status: 400 });
 
-        const results: Record<string, any> = {};
+        const results: Record<string, unknown> = {};
 
         // resolve all selectors in parallel with limit (simple batching)
         const promises = selectors.map(s => resolveSelector(s, org).then(r => ({ s, r })));
         const resolved = await Promise.all(promises);
         for (const item of resolved) {
-            results[item.s] = item.r;
+            results[item.s] = item.r as unknown;
         }
 
         return NextResponse.json({ success: true, data: results });

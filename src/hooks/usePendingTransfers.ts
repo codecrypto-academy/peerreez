@@ -79,8 +79,8 @@ export function usePendingTransfers(ownerAddress?: string) {
             return data.filter((t) => {
                 const from = normalize(t.from);
                 const to = normalize(t.to);
-                const toIdentity = normalize((t as any).toIdentity);
-                const tdRecipient = normalize(t.transferData && (t.transferData as any).recipientIdentity);
+                const toIdentity = normalize((t as unknown as Record<string, unknown>)['toIdentity']);
+                const tdRecipient = normalize(t.transferData && (t.transferData as unknown as Record<string, unknown>)['recipientIdentity']);
 
                 // Direct matches: from/to/toIdentity
                 if (from === addr || to === addr || toIdentity === addr) return true;

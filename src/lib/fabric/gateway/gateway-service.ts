@@ -368,11 +368,46 @@ export class GatewayService {
      */
     public async queryAssetsByOwner(role: Role, ownerIdentity?: string): Promise<TransactionResult> {
         if (ownerIdentity) {
-            // Query by explicit owner identity - this requires the deployed chaincode to expose
-            // a QueryAssetsByOwnerIdentity function. If the function is not present in the
-            // deployed chaincode, evaluateTransaction may fail with a "function does not exist" error.
+            // If ownerIdentity looks like an address (0x...), try to resolve it to a username
+            // so we can call QueryAssetsByOwnerIdentity with a username that chaincode expects.
+            let resolvedIdentity: string | undefined = ownerIdentity;
             try {
-                const res = await this.evaluateTransaction(role, 'QueryAssetsByOwnerIdentity', ownerIdentity);
+                let found: { username?: string } | null = null;
+                let targetRole: Role = role;
+
+                if (typeof ownerIdentity === 'string' && ownerIdentity.toLowerCase().startsWith('0x')) {
+                    // Try to resolve under the provided role first
+                    found = await identityManager.findIdentity(role, ownerIdentity);
+                    if (!found) {
+                        // Try across other org roles to locate the identity
+                        const rolesToTry: Role[] = ['Producer', 'Factory', 'Retailer', 'Consumer'];
+                        for (const r of rolesToTry) {
+                            found = await identityManager.findIdentity(r, ownerIdentity);
+                            if (found) {
+                                targetRole = r;
+                                console.warn(`[Gateway] Resolved address selector ${ownerIdentity} to username ${found.username} under role ${r}`);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (found && found.username) {
+                        resolvedIdentity = found.username;
+                    } else {
+                        // Could not resolve address selector — fall through to try normal evaluation
+                        console.warn(`[Gateway] Could not resolve address selector ${ownerIdentity} to a username`);
+                    }
+                }
+
+                // If we resolved to a concrete username and know the role where that identity lives,
+                // evaluate the chaincode as that user for more accurate results (mirrors other methods).
+                if (found && found.username) {
+                    // Evaluate as the discovered user so chaincode client identity matches
+                    return await this.evaluateTransactionAsUser(targetRole, found.username, 'QueryAssetsByOwnerIdentity', found.username);
+                }
+
+                // Otherwise, try to call QueryAssetsByOwnerIdentity with the resolvedIdentity (may be same as input)
+                const res = await this.evaluateTransaction(role, 'QueryAssetsByOwnerIdentity', resolvedIdentity);
                 if (!res.success && res.error && String(res.error).includes('does not exist')) {
                     return {
                         success: false,
@@ -381,7 +416,6 @@ export class GatewayService {
                 }
                 return res;
             } catch (err: unknown) {
-                // evaluateTransaction should return a TransactionResult, but catch unexpected errors
                 const message = err instanceof Error ? err.message : String(err);
                 return { success: false, error: `Error invoking QueryAssetsByOwnerIdentity: ${message}` };
             }

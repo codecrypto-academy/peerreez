@@ -16,9 +16,10 @@ const ALLOWED: Record<string, { cmd: string; args?: string[] }> = {
 
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
-        const script: string = body?.script;
-        const args: string[] = Array.isArray(body?.args) ? body.args : [];
+        const body = await req.json() as unknown;
+        const b = (body as Record<string, unknown> | null) || null;
+        const script = typeof b?.script === 'string' ? String(b.script) : '';
+        const args = Array.isArray(b?.args) ? (b.args as unknown[]).map(String) : [];
 
         if (!script || !(script in ALLOWED)) {
             return NextResponse.json({ error: 'Invalid or missing script name' }, { status: 400 });
@@ -56,11 +57,11 @@ export async function POST(req: Request) {
                         controller.close();
                     });
 
-                    child.on('error', (err: any) => {
+                    child.on('error', (err: unknown) => {
                         controller.enqueue(new TextEncoder().encode(`\nPROCESS_ERROR:${String(err)}\n`));
                         controller.close();
                     });
-                } catch (err: any) {
+                } catch (err: unknown) {
                     controller.enqueue(new TextEncoder().encode(`\nSTREAM_ERROR:${String(err)}\n`));
                     controller.close();
                 }
@@ -68,7 +69,8 @@ export async function POST(req: Request) {
         });
 
         return new Response(stream, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-    } catch (err: any) {
-        return NextResponse.json({ error: String(err.message || err) }, { status: 500 });
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

@@ -56,7 +56,7 @@ export async function setMapping(address: string, fabricIdentity: string): Promi
     try {
         const copy = { ...runtimeMap };
         await fs.writeFile(mappingsFile, JSON.stringify(copy, null, 2), 'utf8');
-    } catch (err) {
+    } catch {
         // ignore persistence errors
     }
 }

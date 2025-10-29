@@ -59,7 +59,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             if (!isAdminSelector(addr)) {
               localStorage.setItem(`wallet_for_${role}`, addr);
             }
-          } catch (e) { /* ignore */ }
+          } catch { /* ignore */ }
         }
       }
     } catch (err) {
@@ -82,10 +82,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const k = `wallet_for_${r}`;
         const v = localStorage.getItem(k);
         if (v && isAdminSelector(v)) {
-          try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+          try { localStorage.removeItem(k); } catch { /* ignore */ }
         }
       });
-    } catch (e) {
+    } catch {
       // ignore
     }
 
@@ -111,24 +111,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           const accounts: string[] = await anyWin.ethereum.request({ method: 'eth_accounts' } as Record<string, unknown>).catch(() => []);
           if (accounts && accounts.length) setAddress(accounts[0]);
         }
-      } catch (e) {
+      } catch {
         // fallback to eth_accounts
         const accounts: string[] = await anyWin.ethereum.request({ method: 'eth_accounts' } as Record<string, unknown>).catch(() => []);
         if (accounts && accounts.length) setAddress(accounts[0]);
       }
     })();
 
-    anyWin.ethereum.on && anyWin.ethereum.on('accountsChanged', handleAccountsChanged);
+    anyWin.ethereum.on?.('accountsChanged', handleAccountsChanged);
 
     return () => {
       try {
-        anyWin.ethereum.removeListener && anyWin.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-      } catch (e) {
+        anyWin.ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
+      } catch {
         // ignore
       }
     };
 
-  }, []);
+  }, [role]);
 
   // react to role changes: when role changes, load wallet mapped to that role if exists
   useEffect(() => {
@@ -180,7 +180,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
               if (mv.toLowerCase().startsWith('admin@')) return false;
               const match = raw.find(r => String(r.username || '').toLowerCase() === mv.toLowerCase() || (r.cn && String(r.cn || '').toLowerCase() === mv.toLowerCase()));
               return !!match;
-            } catch (e) {
+            } catch {
               return false;
             }
           })();
@@ -191,7 +191,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setAvailableIdentities([]);
           setAddress(null);
         }
-      } catch (e) {
+      } catch {
         // ignore and clear
         setAvailableIdentities([]);
         setAddress(null);
@@ -207,7 +207,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (!isAdminSelector(address)) {
         localStorage.setItem(`wallet_for_${role}`, address);
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   };
@@ -220,7 +220,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(`wallet_for_${role}`, addressOrFingerprint);
         setAddress(addressOrFingerprint);
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   };

@@ -48,9 +48,14 @@ export default function TransformAssetPage() {
                 if (pres.ok) {
                     const pjs = await pres.json();
                     const pids = pjs?.identities || [];
-                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    const match = pids.find((p: unknown) => {
+                        const rec = p as Record<string, unknown>;
+                        const addr = rec['address'];
+                        return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                    });
                     if (match && mounted) {
-                        setResolvedOwner(match.username || match.address);
+                        const mrec = match as Record<string, unknown>;
+                        setResolvedOwner(String(mrec['username'] ?? mrec['address']));
                         return;
                     }
                 }

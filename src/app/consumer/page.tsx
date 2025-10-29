@@ -25,10 +25,14 @@ export default function ConsumerPage() {
                 const pres = await fetch('/api/fabric/identity/list?org=consumer.supplychain.com');
                 if (pres.ok) {
                     const pjs = await pres.json();
-                    const pids = pjs?.identities || [];
-                    const match = pids.find((p: any) => p.address && address && p.address.toLowerCase() === address.toLowerCase());
+                    const pids: unknown[] = pjs?.identities || [];
+                    const match = pids.find((p: unknown) => {
+                        const pp = p as Record<string, unknown>;
+                        const addr = pp['address'];
+                        return typeof addr === 'string' && address && addr.toLowerCase() === address.toLowerCase();
+                    }) as Record<string, unknown> | undefined;
                     if (match && mounted) {
-                        setResolvedOwner(match.username || match.address);
+                        setResolvedOwner(String(match['username'] || match['address'] || ''));
                         return;
                     }
                 }
