@@ -77,6 +77,7 @@ Nota: He corregido y normalizado la numeración para presentar una secuencia ló
 	- Comando:
 
 	```bash
+	npm install
 	npm run dev
 	```
 
