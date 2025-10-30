@@ -1,3 +1,6 @@
+# Link Video David
+https://www.loom.com/share/b3dce6068843476aab500008ec90bf21
+
 # Proyecto: Cadena de Suministros (Hyperledger Fabric + Next.js)
 
 Este repositorio contiene una aplicación de ejemplo para una cadena de suministro construida sobre Hyperledger Fabric (red local, chaincode) y un frontend en Next.js. Además incluye utilidades para desplegar y gestionar la red de Fabric, scripts de ayuda y un puente (bridge) para exponer RPC/puertos a servicios externos.
@@ -35,7 +38,8 @@ Este repositorio contiene una aplicación de ejemplo para una cadena de suminist
 
 Nota: He corregido y normalizado la numeración para presentar una secuencia lógica de pasos del 1 al 8 según lo indicado. Si prefieres mantener la numeración exacta original, indícalo.
 
-1) Ejecutar limpieza previa
+1) Ejecutar limpieza previa directorio suppy-chain-network
+
 
 	- Objetivo: garantizar que no haya restos de despliegues previos.
 	- Comando:
@@ -44,7 +48,7 @@ Nota: He corregido y normalizado la numeración para presentar una secuencia ló
 	./cleanup.sh
 	```
 
-2) Desplegar la red y artefactos
+2) Desplegar la red y artefactos directorio suppy-chain-network
 
 	- Objetivo: crear la red Fabric, canales, peers, orderers y desplegar chaincode inicial.
 	- Comando:
@@ -53,7 +57,7 @@ Nota: He corregido y normalizado la numeración para presentar una secuencia ló
 	./deploy.sh
 	```
 
-3) Validar despliegue básico
+3) Validar despliegue básico directorio suppy-chain-network
 
 	- Objetivo: ejecutar chequeos y validaciones (scripts de validación incluidos en el repo).
 	- Comando:
