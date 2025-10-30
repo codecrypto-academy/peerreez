@@ -1,265 +1,143 @@
-# PMF Web3 — Guía completa de despliegue
+# Proyecto: Cadena de Suministros (Hyperledger Fabric + Next.js)
 
-Este repositorio contiene:
+Este repositorio contiene una aplicación de ejemplo para una cadena de suministro construida sobre Hyperledger Fabric (red local, chaincode) y un frontend en Next.js. Además incluye utilidades para desplegar y gestionar la red de Fabric, scripts de ayuda y un puente (bridge) para exponer RPC/puertos a servicios externos.
 
-- Una red Hyperledger Fabric para trazabilidad (carpeta `supply-chain-network/`).
-- Hyperledger Explorer para monitorización (dentro de `supply-chain-network/explorer`).
-- Una app frontend Next.js en `src/` que usa el gateway Fabric incluido.
-- Un puente de desarrollo (MetaMask ↔ Fabric) en `src/bridge/`.
+## Análisis detallado del proyecto
 
-Este README explica, con referencias a archivos del repo, cómo limpiar, crear y validar la red Fabric, desplegar Explorer con su monitor, desplegar el puente y ejecutar la app Next.js.
+- Stack principal:
+  - Backend / red: Hyperledger Fabric (scripts en `supply-chain-network/`, artefactos de canal, chaincode en `chaincode/supply-chain/`).
+  - Bridge: código en `src/bridge/` con `bridgeServer.ts` y `fabricRpcBridge.ts` para exponer API/RPC hacia/desde la red Fabric.
+  - Frontend: aplicación Next.js en `src/app/` y componentes en `src/components/`.
+  - Explorer/Monitor: utilidades y contenedores en `supply-chain-network/docker/explorer` y scripts de monitor.
 
----
+- Estructura relevante (resumen):
+  - `supply-chain-network/` — scripts de arranque/parada, herramientas y artefactos para la red Fabric.
+  - `chaincode/supply-chain/` — código del chaincode (smart contract) que contiene la lógica de la cadena de suministro.
+  - `src/bridge/` — puente / RPC para interaccionar con Fabric desde servicios externos.
+  - `src/app/` — aplicación Next.js (frontend) con secciones para admin, productor, fábrica, consumidor y retailer.
+  - `src/components/` — componentes React (autenticación, layout, formularios, etc.).
 
-## Índice
+- Objetivos y responsabilidades de los componentes:
+  - Scripts en `supply-chain-network/` — orquestan la creación de la red, CA, peers/orderers y la generación de artefactos.
+  - `deploy.sh`, `start_network.sh`, `stop_network.sh` — scripts para desplegar y gestionar la red.
+  - `bridgeServer.ts` — servidor Express/TS que escucha (por defecto) en el puerto 3001 y expone endpoints para la app o servicios externos.
+  - `fabricRpcBridge.ts` — puente RPC para exponer ciertos métodos del ledger en otro puerto (p. ej. 7844).
 
-1. Requisitos
-2. Limpieza del entorno
-3. Crear y validar la red Hyperledger Fabric
-4. Desplegar y monitorizar Hyperledger Explorer
-5. Desplegar el bridge MetaMask ↔ Fabric
-6. Desplegar la app Next.js
-7. Verificaciones y pruebas end-to-end
-8. Mapa de archivos clave (análisis por archivo)
-9. Troubleshooting y seguridad
+## Requisitos previos
 
----
+- Software necesario (instalar en la máquina donde se vaya a correr todo):
+  - Node.js >= 16 (recomendado LTS actual), npm
+  - Docker & docker-compose (para levantar la red y explorer)
+  - Herramientas de Hyperledger Fabric utilizadas por el proyecto (binarios en `supply-chain-network/bin/` incluidos). Si no están en PATH, el repo ya trae binarios en la carpeta `bin/`.
+  - Permisos de ejecución en los scripts `*.sh`.
 
-## 1) Requisitos
+## Manual de uso (ordenado)
 
-- Docker (y `docker compose`), Docker Engine corriendo
-- Node.js >= 18, npm
-- curl, jq, nc (netcat)
-- Permisos para usar Docker (o `sudo`)
+Nota: He corregido y normalizado la numeración para presentar una secuencia lógica de pasos del 1 al 8 según lo indicado. Si prefieres mantener la numeración exacta original, indícalo.
 
-Instalar dependencias JS (para bridge / frontend):
+1) Ejecutar limpieza previa
 
-```bash
-npm install
-npx tsc --noEmit
-```
+	- Objetivo: garantizar que no haya restos de despliegues previos.
+	- Comando:
 
----
+	```bash
+	./cleanup.sh
+	```
 
-## 2) Limpieza del entorno
+2) Desplegar la red y artefactos
 
-El despliegue usa scripts en `supply-chain-network/`. El script `deploy.sh` incluye un paso `cleanup_environment`. También hay un script independiente `cleanup.sh`.
+	- Objetivo: crear la red Fabric, canales, peers, orderers y desplegar chaincode inicial.
+	- Comando:
 
-Para limpiar manualmente:
+	```bash
+	./deploy.sh
+	```
 
-```bash
-# Detener y eliminar containers del compose de la red
-cd supply-chain-network/docker
-docker compose down -v
-cd ../..
-# Limpiar artefactos locales
-rm -rf supply-chain-network/crypto-config supply-chain-network/channel-artifacts
-# Opcional: limpiar docker
-docker system prune -f
-```
+3) Validar despliegue básico
 
----
+	- Objetivo: ejecutar chequeos y validaciones (scripts de validación incluidos en el repo).
+	- Comando:
 
-## 3) Crear y validar la red Hyperledger Fabric
+	```bash
+	./validate.sh
+	```
 
-El script principal de despliegue es `supply-chain-network/deploy.sh`. Ejecuta todo el flujo: generar certificados, crear genesis block, arrancar contenedores, crear canal, empaquetar e instalar chaincode y ejecutar pruebas de smoke.
+4) Testear el chaincode (si existe test npm)
 
-Uso:
+	- Objetivo: ejecutar pruebas unitarias/integración relacionadas con el chaincode o el paquete npm del repo.
+	- Comando (en la raíz del repo):
 
-```bash
-cd supply-chain-network
-bash deploy.sh
-```
+	```bash
+	cd /home/dperezs/codecripto/web3.0/pmfweb3/web3.0-cadena-suministros-dps-2025 && npm test --if-present
+	```
 
-Qué hace (resumen de pasos dentro de `deploy.sh`):
+5) Operativa del frontend (desarrollo)
 
-- Verifica prerrequisitos (docker, node, jq, curl)
-- Limpia contenedores/artefactos previos
-- Descarga binarios de Fabric (`bin/`)
-- Genera certificados (`crypto-config/` via cryptogen)
-- Crea genesis block y artefactos con `configtxgen` (`channel-artifacts/`)
-- Inicia contenedores Docker (compose en `supply-chain-network/docker/docker-compose.yaml`)
-- Crea y une canal `supply-chain-channel`
-- Compila y empaqueta chaincode TypeScript (en `supply-chain-network/chaincode/supply-chain/`)
-- Instala, aprueba y hace commit del chaincode
-- Prueba `InitLedger`, `CreateAsset`, `ReadAsset` para validar
+	- Objetivo: arrancar la aplicación Next.js en modo desarrollo.
+	- Comando:
 
-Verificación manual:
+	```bash
+	npm run dev
+	```
 
-```bash
-# comprobar contenedores
-docker ps
-# logs de orderer/peer
-docker logs orderer
-docker logs peer0.producer
-# pruebas con CLI (dentro del container 'cli')
-docker exec -it cli bash
-peer chaincode query -C supply-chain-channel -n supply-chain-chaincode -c '{"function":"AssetExists","args":["id"]}'
-```
+6) Iniciar el monitor/explorer
 
----
+	- Objetivo: arrancar el monitor/explorer que observa la red y muestra información (script dentro de `supply-chain-network/docker/explorer`/o `supply-chain-network/monitor.sh`).
+	- Comando (desde la carpeta correspondiente; si el script está en la raíz del submódulo o `supply-chain-network` ajusta la ruta):
 
-## 4) Desplegar y monitorizar Hyperledger Explorer
+	```bash
+	# Asegúrate de estar en la carpeta que contiene monitor.sh
+	./supply-chain-network/explorer/monitor.sh
+	```
 
-Explorer se configura en `supply-chain-network/explorer/`. El archivo `monitor.sh` automatiza la puesta en marcha y verificación.
+7) Levantar el puente (bridge) — dos procesos
 
-Arrancar Explorer con monitor (opción completa `--run-all` ejecuta cleanup -> deploy -> validate -> create_wallet_local):
+	- Objetivo: exponer el `bridgeServer` y el `fabricRpcBridge` para que la aplicación o servicios externos puedan comunicarse con Fabric.
+	- Comandos (en la raíz del proyecto):
 
-```bash
-cd supply-chain-network
-./explorer/monitor.sh --run-all
-# o simplemente
-./explorer/monitor.sh
-```
+	```bash
+	npm run bridge:start   # arranca src/bridge/bridgeServer.ts en :3001
+	npm run rpc:start      # arranca src/bridge/fabricRpcBridge.ts en :7844
+	```
 
-Qué hace `monitor.sh` (resumen):
+	- Nota: revisa `package.json` para confirmar los scripts `bridge:start` y `rpc:start`; si no existen, puedes arrancarlos con `ts-node` o `node` apuntando a la compilación en `dist/` si previamente compilas con `npm run build`.
 
-- Crea red Docker si hace falta
-- Asegura directorio host para Postgres (`${HOME}/explorer_db_data`)
-- Aplica el schema SQL (`explorerpg.sql`) a Postgres
-- Crea/coloca la identidad admin en la wallet de Explorer (`explorer/wallet`)
-- Resuelve nombres de keystore y genera archivos `connection-profile.resolved.json` y `explorer-config.resolved.json`
-- Inicia contenedor Explorer y lanza `syncstart.sh` dentro del contenedor para discovery
-- Ejecuta smoke tests HTTP + DB, e intenta obtener token de login y generar un token injector
+8) Parar y arrancar la red (reciclado)
 
-Compose y rutas
+	- Objetivo: procedimiento para reiniciar la red Fabric cuando sea necesario.
+	- Comandos típicos (ajusta rutas si cambian):
 
-- `supply-chain-network/explorer/docker-compose-explorer.yaml` — compose para `explorer-db` (Postgres) y `explorer` (UI)
-- UI disponible en `http://localhost:8080`
+	```bash
+	# Parar
+	./supply-chain-network/stop_network.sh
 
-Problemas comunes:
+	# Arrancar
+	./supply-chain-network/start_network.sh
+	```
 
-- Explorer puede fallar si las rutas a los keystores no se resolvieron; `monitor.sh` intenta auto-resolver.
-- Revisa `supply-chain-network/explorer/explorer-monitor.log` y logs del contenedor Explorer.
+	- También puedes usar `deploy.sh` y `cleanup.sh` en combinación para un ciclo completo (limpieza -> deploy).
 
----
+## Comprobaciones rápidas (smoke tests)
 
-## 5) Desplegar el bridge (MetaMask ↔ Fabric)
+- Verificar que Docker tenga contenedores activos: `docker ps`.
+- Revisar puertos abiertos: `ss -ltn | grep -E "(3000|3001|7844)"`.
+- Logs de bridge: mirar `logs` en el directorio donde se ejecuta `bridgeServer`.
 
-El bridge es un servicio de desarrollo en `src/bridge/` con estos archivos:
+## Contrato (breve)
 
-- `src/bridge/bridgeServer.ts` — Express API con endpoints:
-  - `POST /invoke` — recibe `{ message, signature, functionName, args, role }`, verifica firma con ethers y llama a Fabric (vía gatewayService o contract)
-  - `GET /query` — `evaluateTransaction`.
-  - `POST /map` y `GET /map/:address` — mapeo EOA → Fabric identity (file-backed en `src/bridge/identityMapper.ts`).
-  - `GET /health` — estado simple.
-- `src/bridge/fabricRpcBridge.ts` — pequeño JSON-RPC shim en puerto 7844 para que MetaMask pueda "añadir" la red `bridge-fabric`.
+- Inputs principales: scripts shell y comandos npm; variables de entorno (p. ej. PATH para fabric binarios, URLs para explorer/bridge). 
+- Outputs principales: red Fabric en ejecución, smart contracts desplegados, frontend en :3000 (Next.js), bridge en :3001 y RPC en :7844.
 
-Arranque (desde la raíz del repo):
+## Casos límite y recomendaciones
 
-```bash
-npm run bridge:start   # arranca src/bridge/bridgeServer.ts en :3001
-npm run rpc:start      # arranca src/bridge/fabricRpcBridge.ts en :7844
-```
+- Si faltan binarios de Fabric en PATH, usa los de `supply-chain-network/bin/` o añade su ruta a PATH.
+- Si Docker falla, comprueba versión y permisos (usuario en grupo docker o usar sudo).
+- Si `npm run bridge:start` falla por TypeScript, asegúrate de compilar (`npm run build`) o ejecutar con `ts-node`.
 
-Añadir la red en MetaMask:
+## Notas finales y próximos pasos sugeridos
 
-- Network Name: `bridge-fabric`
-- RPC URL: `http://localhost:7844`
-- Chain ID: `334455` (decimal) / `0x51a77` (hex)
+- Añadir un script `make` o `npm` que orqueste los pasos más comunes (clean -> deploy -> validate) para facilitar la reproducción.
+- Considerar añadir un README específico en `supply-chain-network/` y en `chaincode/supply-chain/` con instrucciones para desarrolladores de chaincode.
 
-Formato de invocación esperado por `/invoke`:
 
-```json
-{
-  "message": "{\"nonce\":\"<uuid>\",\"timestamp\":<ms>,\"functionName\":\"CreateAsset\",\"args\":[\"asset1\",\"blue\",\"100\"]}",
-  "signature": "0x...",
-  "functionName": "CreateAsset",
-  "args": ["asset1","blue","100"]
-}
-```
 
-Opción JSON-RPC hacia el shim:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "fabric_invoke",
-  "params": [{ "message":"...","signature":"0x...","functionName":"CreateAsset","args":["asset1","blue","100"] }]
-}
-```
-
-Limitaciones y seguridad:
-
-- `/map` no está protegido: añadir autenticación (JWT/admin token) antes de usar en entornos colaborativos.
-- Nonces en memoria: cambiar a Redis o DB compartida para despliegues multi-instancia.
-- El shim JSON-RPC no implementa EVM completo: es solo para que MetaMask vea la red y use el método custom.
-
----
-
-## 6) Desplegar la aplicación Next.js
-
-La app Next.js se encuentra en `src/` y tiene rutas para Producer/Factory/Retailer/Consumer.
-
-Desarrollo:
-
-```bash
-npm run dev
-# abre http://localhost:3000
-```
-
-Producción (local):
-
-```bash
-npm run build
-npm run start
-```
-
-Endpoints API server-side (ejemplos):
-
-- `src/app/api/fabric/gateway/*` — endpoints que usan `src/lib/fabric/gateway/gateway-service.ts`.
-
-Si deseas integrar la UI con el bridge para firmar en el navegador, añade llamadas desde el frontend para firmar (window.ethereum.request({ method: 'personal_sign', params: [...] })) y enviar la firma al bridge `/invoke`.
-
----
-
-## 7) Verificaciones y pruebas end-to-end (sugerencia)
-
-Prueba mínima recomendada:
-
-1. `cd supply-chain-network && bash deploy.sh` — desplegar y validar Fabric
-2. `./explorer/monitor.sh --run-all` — arrancar explorer
-3. `npm run bridge:start` y `npm run rpc:start`
-4. Generar un payload de prueba y firmarlo con MetaMask (o con ethers en un script) y POST a `http://localhost:3001/invoke`
-5. Verificar en Explorer que la transacción aparece o usar `peer chaincode query` en la CLI
-
-Si quieres, puedo generar un script `scripts/invoke-example.js` que use ethers para firmar localmente y haga el POST a `/invoke`.
-
----
-
-## 8) Mapa de archivos clave (análisis por archivo)
-
-- `supply-chain-network/deploy.sh` — orquesta despliegue completo (leer y usarlo tal cual para reproducibilidad).
-- `supply-chain-network/cleanup.sh` — limpieza de red.
-- `supply-chain-network/docker/docker-compose.yaml` — definición de contenedores Fabric.
-- `supply-chain-network/chaincode/supply-chain/` — código del chaincode (TS). `start.js` es el entrypoint usado al empaquetar.
-- `supply-chain-network/explorer/monitor.sh` — orquesta Explorer + DB y resuelve problemas típicos de keystore.
-- `src/lib/fabric/gateway/gateway-service.ts` — gateway-service que encapsula conexiones al Fabric gateway (inyectable en bridge).
-- `src/bridge/bridgeServer.ts` — servidor Express del bridge.
-- `src/bridge/fabricRpcBridge.ts` — shim JSON-RPC para MetaMask.
-- `src/bridge/identityMapper.ts` — mapeo EOA → identidad Fabric (almacenamiento en JSON local).
-
----
-
-## 9) Troubleshooting y seguridad
-
-Problemas comunes y soluciones:
-
-- Error en `peer lifecycle`/`osnadmin`: espera más tiempo, revisa logs (`docker logs`) y que `crypto-config/` y `channel-artifacts/` existan.
-- Explorer no inicia: revisar `explorer-monitor.log`, permisos de `explorer_db_data`, y que el wallet contenga la identidad admin.
-- Bridge no responde: comprobar `npm run bridge:start` logs, puerto 3001, y que `gateway-service` esté disponible si esperas usar `submitTransactionWithIdentity`.
-
-Seguridad:
-
-- Nunca expongas `/map` sin autenticación.
-- Usa HTTPS/TLS para cualquier despliegue remoto y una store persistente para nonces.
-
----
-
-Si quieres que genere:
-
-- Un script de ejemplo `scripts/invoke-example.js` para firmar con ethers y llamar a `/invoke`.
-- Un `Makefile` para orquestar `deploy.sh`, `monitor.sh` y arranque del bridge.
-
-Dime cuál de los anteriores prefieres y lo implemento.
