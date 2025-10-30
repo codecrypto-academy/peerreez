@@ -68,7 +68,7 @@ Nota: He corregido y normalizado la numeración para presentar una secuencia ló
 	- Comando (en la raíz del repo):
 
 	```bash
-	cd /home/dperezs/codecripto/web3.0/pmfweb3/web3.0-cadena-suministros-dps-2025 && npm test --if-present
+	npm test --if-present
 	```
 
 5) Operativa del frontend (desarrollo)
