@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAssetsByOwner } from '../../../hooks/useGatewayAssets';
 import { useInitiateTransfer } from '../../../hooks/usePendingTransfers';
@@ -27,8 +27,8 @@ export default function TransferAssetPage() {
     reason: ''
   });
 
-  const searchParams = useSearchParams();
-  const ownerParam = searchParams.get('owner') || undefined;
+  // ownerParam will be populated client-side by SearchParamsReader (wrapped in Suspense)
+  const [ownerParam, setOwnerParam] = useState<string | undefined>(undefined);
   // New: try fallback using producer identity CN when owner is an address but chaincode stores CN
   const [producerIdentities, setProducerIdentities] = useState<{ username: string; address: string; fingerprint: string; certFile: string; cn?: string }[]>([]);
   const [ownerCandidate, setOwnerCandidate] = useState<string | undefined>(ownerParam);
@@ -37,6 +37,20 @@ export default function TransferAssetPage() {
     // initialize candidate from query param
     setOwnerCandidate(ownerParam || undefined);
   }, [ownerParam]);
+
+  // Small helper to read query params on client and set ownerParam
+  const SearchParamsReader = ({ onFound }: { onFound: (v?: string) => void }) => {
+    const params = useSearchParams();
+    useEffect(() => {
+      try {
+        const o = params?.get?.('owner');
+        if (o && o !== '') onFound(o);
+      } catch {
+        // ignore
+      }
+    }, [params, onFound]);
+    return null;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -297,6 +311,9 @@ export default function TransferAssetPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50">
       <div className="container mx-auto px-6 py-8">
+        <Suspense fallback={null}>
+          <SearchParamsReader onFound={(v?: string) => { if (v) setOwnerParam(v); }} />
+        </Suspense>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center mb-4">

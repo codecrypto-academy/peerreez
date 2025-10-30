@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Layout from '../../../components/layout/Layout';
 import RoleGuard from '../../../components/auth/RoleGuard';
@@ -27,8 +27,20 @@ export default function RegisterAssetPage() {
 
   // Owner selection (choose which identity will be recorded as createdBy/currentOwner)
   const [ownerSelection, setOwnerSelection] = useState<string | undefined>(address || undefined);
-  const searchParams = useSearchParams();
-  const ownerFromQuery = searchParams.get('owner') || undefined;
+  const [ownerFromQuery, setOwnerFromQuery] = useState<string | undefined>(undefined);
+
+  const SearchParamsReader = ({ onFound }: { onFound: (v?: string) => void }) => {
+    const params = useSearchParams();
+    React.useEffect(() => {
+      try {
+        const v = params?.get?.('owner');
+        if (v && v !== '') onFound(v);
+      } catch {
+        // ignore
+      }
+    }, [params, onFound]);
+    return null;
+  };
 
 
   // Keep ownerSelection in sync when wallet/available identities change or when ownerFromQuery is present
@@ -150,6 +162,9 @@ export default function RegisterAssetPage() {
       <Layout title="Register Raw Materials" description="Register new raw materials into the supply chain">
         <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
           <div className="container mx-auto px-6 py-8">
+            <Suspense fallback={null}>
+              <SearchParamsReader onFound={(v?: string) => { if (v) setOwnerFromQuery(v); }} />
+            </Suspense>
 
             {/* Success Alert */}
             {success && (

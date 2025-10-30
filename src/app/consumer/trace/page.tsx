@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useAssetHistory } from '../../../hooks/useGatewayAssets';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -98,21 +98,27 @@ export default function TracePage() {
 
     const [identityDetails, setIdentityDetails] = useState<Record<string, IdentityDetail>>({});
     const router = useRouter();
-    const searchParams = useSearchParams();
 
-    // If the page is loaded with ?assetId=..., trigger the trace automatically
-    useEffect(() => {
-        try {
-            const urlId = searchParams?.get?.('assetId');
-            if (urlId && urlId !== '') {
-                setAssetId(urlId);
-                setSearchId(urlId);
+    // NOTE: useSearchParams is client-only and during prerendering Next may require
+    // components using it to be wrapped in a Suspense boundary. To avoid the
+    // prerender error we delegate reading search params to a small child
+    // component that is wrapped in Suspense below.
+
+    // Small helper component to read search params on the client and notify the parent
+    const SearchParamsReader = ({ onFound }: { onFound: (id: string) => void }) => {
+        const params = useSearchParams();
+        useEffect(() => {
+            try {
+                const urlId = params?.get?.('assetId');
+                if (urlId && urlId !== '') {
+                    onFound(urlId);
+                }
+            } catch {
+                // ignore
             }
-        } catch {
-            // ignore
-        }
-        // we intentionally only want to run when searchParams changes
-    }, [searchParams]);
+        }, [params, onFound]);
+        return null;
+    };
 
     // Robust timestamp parser: returns epoch ms or 0 for invalid values
     const parseTimestampSafe = (t?: string | number) => {
@@ -461,6 +467,9 @@ export default function TracePage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 text-black">
             <div className="container mx-auto px-6 py-8">
+                <Suspense fallback={null}>
+                    <SearchParamsReader onFound={(id: string) => { setAssetId(id); setSearchId(id); }} />
+                </Suspense>
                 {/* Toast */}
                 {toast && (
                     <div className="fixed right-6 bottom-6 z-50">
